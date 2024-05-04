@@ -1,3 +1,7 @@
+# CUSTOM
+lib/env/_*
+# /CUSTOM
+
 # Miscellaneous
 *.class
 *.log
