@@ -8,8 +8,9 @@ abstract class Environment {
   const Environment();
 
   String get spotifyClientId;
+  String get spotifyClientSecret;
 
-  Environment get current {
+  static Environment get current {
     if (kReleaseMode) {
       return const release.ReleaseEnvironment();
     }
