@@ -59,6 +59,8 @@ class _SharedPrefsConfig extends State<ConfigWidget> implements Config {
   String? get spotifyRefreshToken => _prefs.getString("spotifyRefreshToken");
   @override
   set spotifyRefreshToken(String? value) {
+    // has to set state so that home_page knows to reload when the value of
+    // this changes between null or some value
     setState(() {
       if (value != null) {
         _prefs.setString("spotifyRefreshToken", value);

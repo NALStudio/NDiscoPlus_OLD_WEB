@@ -1,103 +1,147 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:convert';
 
-import 'package:flutter/material.dart';
-import 'package:n_disco_plus/constants.dart';
-
-import '_models.dart';
-export '_models.dart';
-
-import '_token_handler.dart' as token_handler;
+import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
 
 import 'dart:developer' as developer;
 
-class SpotifyApi {
-  SpotifyAccessToken? _accessToken;
-  SpotifyAccessToken get accessToken {
-    if (_accessToken == null) throw StateError("No access token!");
-    return _accessToken!;
-  }
+export '_token_handling.dart';
+import '_token_handling.dart' as token_handling;
 
+export '_errors.dart';
+import '_errors.dart';
+
+class _SpotifyAccessToken {
+  final String token;
+  final Set<String> scope;
+  final Duration expiresIn;
+
+  _SpotifyAccessToken({
+    required this.token,
+    required this.scope,
+    required this.expiresIn,
+  });
+}
+
+class SpotifyRequest {
+  final String unencodedUriPath;
+  final Map<String, String> queryParameters;
+
+  SpotifyRequest({
+    required this.unencodedUriPath,
+    required this.queryParameters,
+  });
+}
+
+class SpotifyResponse {
+  final int statusCode;
+  final Map<String, dynamic> data;
+
+  /// Microseconds
+  /// Can be used to improve the accuracy of synchronized content
+  final int sendTimestamp;
+
+  /// Microseconds
+  /// Can be used to improve the accuracy of synchronized content
+  final int receiveTimestamp;
+
+  SpotifyResponse({
+    required this.statusCode,
+    required this.data,
+    required this.sendTimestamp,
+    required this.receiveTimestamp,
+  });
+}
+
+class SpotifyApi {
+  static const kMaxRetries = 5;
+
+  Future<void>? __accessTokenUpdate;
+  _SpotifyAccessToken? __accessToken;
+
+  final Set<String> scope;
   final ValueNotifier<String> refreshToken;
 
-  void Function(int errorCode)? onTokenRefreshFailed;
-
-  Future<void>? _automaticTokenRefresh;
-
   SpotifyApi({
-    required SpotifyAccessToken accessToken,
     required String refreshToken,
-    this.onTokenRefreshFailed,
+    required Set<String> scope,
   })  : refreshToken = ValueNotifier(refreshToken),
-        _accessToken = accessToken;
+        scope = UnmodifiableSetView(Set.from(scope));
 
-  static Future<SpotifyApiResult> fromAuthorization(String authorizationCode) {
-    return token_handler.createApi(
-      grantType: "authorization_code",
-      extraQueryParameters: {
-        "code": authorizationCode,
-        "redirect_uri": SpotifyConstants.redirectUri.toString(),
-      },
-      oldRefreshToken: null,
-    );
-  }
-
-  static Future<SpotifyApiResult> fromRefresh(String refreshToken) {
-    return token_handler.createApi(
-      grantType: "refresh_token",
-      extraQueryParameters: {
-        "refresh_token": refreshToken,
-      },
-      oldRefreshToken: refreshToken,
-    );
-  }
-
-  /// Force refresh the API with a new access token.
-  /// If token refresh fails, all scheduled requests are errored.
-  Future<void> refresh() async {
-    final String refreshToken = this.refreshToken.value;
-
-    final token_handler.SpotifyTokenResponse tokenResponse =
-        await token_handler.getToken(
-      grantType: "refresh_token",
-      extraQueryParameters: {"refresh_token": refreshToken},
-      oldRefreshToken: refreshToken,
-    );
-
-    if (tokenResponse.hasErrored) {
-      _accessToken = null;
-      // accessToken is null so all requests should now fail
-      if (onTokenRefreshFailed != null) {
-        onTokenRefreshFailed!(tokenResponse.statusCode);
-      }
-      return;
+  Future<_SpotifyAccessToken> _getAccessToken() async {
+    if (__accessToken == null) {
+      await _refreshAccessToken();
     }
 
-    final token_handler.SpotifyToken token = tokenResponse.token!;
+    return __accessToken!;
+  }
 
-    _accessToken = token.getAccessToken();
-    if (token.refreshToken != null) {
-      this.refreshToken.value = token.refreshToken!;
+  /// Refresh access token
+  /// If another refresh is already in progress,
+  /// wait until it is complete and return.
+  Future<void> _refreshAccessToken() async {
+    __accessTokenUpdate ??=
+        __unsafeRefreshAccessToken().then((_) => __accessTokenUpdate = null);
+    await __accessTokenUpdate;
+  }
+
+  /// Refresh access token
+  /// NOT THREAD-SAFE!
+  Future<void> __unsafeRefreshAccessToken() async {
+    final response = await token_handling.SpotifyTokenRequest.refresh(
+      refreshToken: refreshToken.value,
+    ).send();
+
+    if (response.hasErrored) {
+      throw SpotifyError.statusCode(response.statusCode);
+    }
+
+    final token_handling.SpotifyToken token = response.token!;
+    __accessToken = _SpotifyAccessToken(
+      token: token.accessToken,
+      scope: UnmodifiableSetView(token.scope.split(' ').toSet()),
+      expiresIn: token.expiresIn,
+    );
+
+    if (!setEquals(__accessToken!.scope, scope)) {
+      throw SpotifyApiError("Invalid access token scope.");
     }
   }
 
-  Future<SpotifyResponse> send(SpotifyRequest request) async {
-    final String? accessToken = _accessToken?.token;
-    if (accessToken == null) {
-      throw StateError("No access token!");
-    }
+  Future<SpotifyResponse> send(SpotifyRequest request) {
+    return _send(
+      request,
+      depth: 0,
+    );
+  }
 
+  Future<SpotifyResponse> _send(
+    SpotifyRequest request, {
+    required int depth,
+  }) async {
+    if (depth > kMaxRetries) {
+      throw SpotifyApiError("Max retries ($depth) exceeded!");
+    }
+    assert(request.unencodedUriPath.startsWith('/'));
+
+    final _SpotifyAccessToken accessToken = await _getAccessToken();
+
+    final int sendTimestampMicro = DateTime.timestamp().microsecondsSinceEpoch;
     final response = await http.get(
       Uri.https(
         "api.spotify.com",
-        request.unencodedUriPath,
+        "/v1${request.unencodedUriPath}",
         request.queryParameters,
       ),
       headers: {
-        "Authorization": "Bearer $accessToken",
+        "Authorization": "Bearer ${accessToken.token}",
       },
     );
+    final int receiveTimestampMicro =
+        DateTime.timestamp().microsecondsSinceEpoch;
 
     bool retry;
     switch (response.statusCode) {
@@ -106,8 +150,7 @@ class SpotifyApi {
           "Automatic access token refresh (401)",
           name: "SpotifyApi",
         );
-        _automaticTokenRefresh ??= refresh();
-        await _automaticTokenRefresh;
+        await _refreshAccessToken();
         retry = true;
       case 429:
         final String? delaySeconds = response.headers["Retry-After"];
@@ -131,11 +174,16 @@ class SpotifyApi {
     }
 
     if (retry) {
-      return await send(request);
+      return await _send(
+        request,
+        depth: depth + 1,
+      );
     } else {
       return SpotifyResponse(
         statusCode: response.statusCode,
-        body: response.body,
+        data: json.decode(response.body),
+        sendTimestamp: sendTimestampMicro,
+        receiveTimestamp: receiveTimestampMicro,
       );
     }
   }

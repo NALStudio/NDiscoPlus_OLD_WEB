@@ -4,7 +4,6 @@ import 'package:n_disco_plus/pages/bridge_page.dart';
 import 'package:n_disco_plus/pages/home_page/home_page.dart';
 import 'package:n_disco_plus/pages/lights_page.dart';
 import 'package:n_disco_plus/pages/settings_page.dart';
-import 'package:n_disco_plus/spotify/_widget.dart';
 import 'package:protocol_handler/protocol_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,7 +59,7 @@ class _AppServices extends StatelessWidget {
   Widget build(BuildContext context) {
     return ConfigWidget(
       prefs: prefs,
-      child: SpotifyHandler(child: child),
+      child: child,
     );
   }
 }
