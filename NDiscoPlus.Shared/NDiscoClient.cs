@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus;
 
-public class NDiscoPlus : IAsyncDisposable
+public class NDiscoClient : IAsyncDisposable
 {
     [MemberNotNullWhen(true, nameof(playerThreadCancellation), nameof(playerThread))]
     public bool PlayerThreadRunning
@@ -29,16 +29,16 @@ public class NDiscoPlus : IAsyncDisposable
     CancellationTokenSource? lightThreadCancellation;
     Thread? lightThread;
 
-    private NDiscoPlus()
+    private NDiscoClient()
     {
     }
 
     /// <summary>
     /// Starts a new NDiscoPlus player
     /// </summary>
-    public static NDiscoPlus StartNew()
+    public static NDiscoClient StartNew()
     {
-        NDiscoPlus ndp = new();
+        NDiscoClient ndp = new();
 
         ndp.StartPlayer();
 

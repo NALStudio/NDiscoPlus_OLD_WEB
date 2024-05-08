@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace NDiscoPlus.Spotify;
 
@@ -21,10 +22,12 @@ class AccessToken
 
 internal class SpotifyClient
 {
+    private readonly ILogger _logger;
+
     private readonly HttpClient _http;
     private readonly SpotifyTokenClient _tokenClient;
 
-    private object _accessTokenLock = new();
+    private readonly object _accessTokenLock = new();
     private Task? _getAccessToken;
     private AccessToken? _accessToken;
 
@@ -43,8 +46,10 @@ internal class SpotifyClient
     }
     public event EventHandler<string>? RefreshTokenChanged;
 
-    public SpotifyClient(string refreshToken)
+    public SpotifyClient(string refreshToken, ILogger logger)
     {
+        _logger = logger;
+
         __refreshToken = refreshToken;
 
         _http = new HttpClient();
@@ -68,7 +73,7 @@ internal class SpotifyClient
         {
             // Handle token expiration
             case 401:
-                // TODO: Log access token refresh
+                _logger.LogDebug("Refreshing Access Token... (401)");
                 lock (_accessTokenLock)
                 {
                     _getAccessToken ??= _RefreshAccessToken();
@@ -93,6 +98,7 @@ internal class SpotifyClient
                     retryAfterMillis = 5000;
                     logMsg = "5 (default)";
                 }
+                _logger.LogWarning("Rate Limit Exceeded! Waiting for {} seconds...", logMsg);
                 await Task.Delay(retryAfterMillis);
                 response = await SendAsync(request);
                 break;
