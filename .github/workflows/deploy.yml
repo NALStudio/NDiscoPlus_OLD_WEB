@@ -3,19 +3,29 @@
 
 name: Deploy to GitHub Pages
 
-permissions:
-  contents: write
-
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
     
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -26,8 +36,14 @@ jobs:
     - name: Publish project
       run: dotnet publish NDiscoPlus/NDiscoPlus.csproj --configuration Release --output build --no-restore --nologo
       
-    - name: Deploy to GitHub Pages
-      uses: JamesIves/github-pages-deploy-action@3.7.1
+    - name: Setup GitHub Pages
+      uses: actions/configure-pages@v5
+    - name: Upload artifact (wwwroot)
+      uses: actions/upload-pages-artifact@v3
       with:
-        FOLDER: build/wwwroot
+        path: './build/wwwroot'
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
       
