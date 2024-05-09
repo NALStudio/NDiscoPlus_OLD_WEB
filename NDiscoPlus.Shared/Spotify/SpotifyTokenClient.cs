@@ -1,4 +1,5 @@
-﻿using System.Collections.Frozen;
+﻿using Microsoft.AspNetCore.WebUtilities;
+using System.Collections.Frozen;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -87,7 +88,7 @@ internal class SpotifyTokenClient
     {
         return _FetchAsync(
             authorization,
-            new Dictionary<string, string> {
+            new Dictionary<string, string?> {
                 { "grant_type", "authorization_code" },
                 { "code", authorizationCode },
                 { "redirect_uri", redirectUri },
@@ -98,16 +99,17 @@ internal class SpotifyTokenClient
     {
         return _FetchAsync(
             null,
-            new Dictionary<string, string> {
+            new Dictionary<string, string?> {
                 { "grant_type", "refresh_token" },
                 { "refresh_token", refreshToken },
             });
     }
 
-    async Task<SpotifyToken> _FetchAsync(SpotifyAuthorization? authorization, Dictionary<string, string> queryParameters, int maxRetries = 5)
+    async Task<SpotifyToken> _FetchAsync(SpotifyAuthorization? authorization, Dictionary<string, string?> queryParameters, int maxRetries = 5)
     {
-        string queryParams = string.Join('&', queryParameters.Select(kv => $"{kv.Key}={kv.Value}"));
-        HttpRequestMessage request = new(HttpMethod.Post, queryParams);
+        string url = QueryHelpers.AddQueryString("https://accounts.spotify.com/api/token", queryParameters);
+
+        HttpRequestMessage request = new(HttpMethod.Post, url);
         request.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
 
         if (authorization != null)

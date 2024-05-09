@@ -1,5 +1,9 @@
 ﻿using MauiIcons.Material;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
+using NDiscoPlus.Page;
+using NDiscoPlus.Services;
+using NDiscoPlus.ViewModel;
 
 namespace NDiscoPlus;
 public static class MauiProgram
@@ -20,6 +24,12 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
+
+        builder.Services.AddSingleton<Config>();
+        builder.Services.AddSingleton<AppLinkService>();
+
+        builder.Services.AddSingleton<HomePage>();
+        builder.Services.AddSingleton<HomeViewModel>();
 
         return builder.Build();
     }

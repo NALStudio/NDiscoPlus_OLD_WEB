@@ -4,22 +4,22 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:NDiscoPlus"
-    xmlns:pages="clr-namespace:NDiscoPlus.Pages"
+    xmlns:page="clr-namespace:NDiscoPlus.Page"
     xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
     Title="NDiscoPlus">
 
     <TabBar>
         <Tab Title="Home" Icon="{mi:Material Home}">
-            <ShellContent ContentTemplate="{DataTemplate pages:HomePage}" />
+            <ShellContent ContentTemplate="{DataTemplate page:HomePage}" />
         </Tab>  
         <Tab Title="Bridges" Icon="{mi:Material Hub}">
-            <ShellContent ContentTemplate="{DataTemplate pages:BridgePage}" />
+            <ShellContent ContentTemplate="{DataTemplate page:BridgePage}" />
         </Tab>
         <Tab Title="Effects" Icon="{mi:Material Tune}">
-            <ShellContent ContentTemplate="{DataTemplate pages:EffectPage}" />
+            <ShellContent ContentTemplate="{DataTemplate page:EffectPage}" />
         </Tab>
         <Tab Title="Settings" Icon="{mi:Material Settings}">
-            <ShellContent ContentTemplate="{DataTemplate pages:SettingsPage}" />
+            <ShellContent ContentTemplate="{DataTemplate page:SettingsPage}" />
         </Tab>
     </TabBar>
 
