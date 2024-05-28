@@ -13,35 +13,53 @@
 
 <PageTitle>NDiscoPlus</PageTitle>
 
-<MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="height:100vh; margin-top:25vh">
-    <MudImage
-        Src="@(context is null ? "/img/spotify.svg" : context.ImageUrl)"
-        Width="256"
-        Height="256"/>
-    <MudText>@(context?.TrackName ?? "Not Playing...")</MudText>
-    @if(context is not null)
-    {
-        <MudText>@string.Join(", ", context.Artists)</MudText>
-    }
-    <MudProgressLinear
-        Value="@(context?.Progress.TotalSeconds ?? 0)"
-        Min="0"
-        Max="@(context?.TrackLength.TotalSeconds ?? 1)"
-        Rounded="true"
-        Style="width:80%; max-width:512px"
-        />
-    <MudButton
-        StartIcon="@Icons.Material.Rounded.Lightbulb"
-        Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-        Size=Size.Large
-        Color=Color.Primary
-        Disabled=@(spotify is null || playStarting)
-        OnClick=TogglePlay>
-        @(isPlaying ? "Stop" : "Play")
-    </MudButton>
-</MudStack>
+<div Style="width:100vw; height:100vh; background:black">
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:25vh">
+        @if(context is not null) {
+            <MudImage
+                Src="@context.ImageUrl"
+                Width="256"
+            Height="256"/>
+        }
+        else
+        {
+            <div style="background:#1DB954;padding:64px">
+                <MudImage
+                    Src="/img/spotify_icon_white.svg"
+                    Width="128"
+                    Height="128"/>
+            </div>
+        }
+        <MudText>@(context?.TrackName ?? "Not Playing...")</MudText>
+        @if(context is not null)
+        {
+            <MudText>@string.Join(", ", context.Artists)</MudText>
+        }
+        <MudProgressLinear
+            Value="@(context?.Progress.TotalSeconds ?? 0)"
+            Min="0"
+            Max="@(context?.TrackLength.TotalSeconds ?? 1)"
+            Rounded="true"
+            Style="width:80%; max-width:512px"
+            />
+        <MudButton
+            StartIcon="@Icons.Material.Rounded.Lightbulb"
+            Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+            Size=Size.Large
+            Color=Color.Primary
+            Disabled=@(spotify is null || playStarting)
+            OnClick=TogglePlay>
+            @(isPlaying ? "Stop" : "Play")
+        </MudButton>
+    </MudStack>
+</div>
 
 @code {
+    string gradientTopLeft = "red";
+    string gradientTopRight = "green";
+    string gradientBottomLeft = "yellow";
+    string gradientBottomRight = "blue";
+
     bool isPlaying = false;
     bool playStarting = false;
 
