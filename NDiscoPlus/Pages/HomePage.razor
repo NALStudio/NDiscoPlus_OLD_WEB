@@ -1,39 +1,150 @@
 ﻿@page "/"
+
+@using NDiscoPlus.Constants
+@using NDiscoPlus.Models
 @using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Players
+@using SpotifyAPI.Web
 
-<PageTitle>Home</PageTitle>
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject NavigationManager navigationManager
+@inject ILogger<HomePage> logger;
 
-<MudContainer Class="d-flex align-center justify-center mud-width-full" style="height:100vh;">
-    <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
-               Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-               Size="Size.Large"
-               Color="Color.Primary"
-               Disabled="@(config?.SpotifyAccessToken == null)"
-               OnClick="Play">
+<PageTitle>NDiscoPlus</PageTitle>
+
+<MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="height:100vh; margin-top:25vh">
+    <MudImage
+        Src="@(context is null ? "/img/spotify.svg" : context.ImageUrl)"
+        Width="256"
+        Height="256"/>
+    <MudText>@(context?.TrackName ?? "Not Playing...")</MudText>
+    @if(context is not null)
+    {
+        <MudText>@string.Join(", ", context.Artists)</MudText>
+    }
+    <MudProgressLinear
+        Value="@(context?.Progress.TotalSeconds ?? 0)"
+        Min="0"
+        Max="@(context?.TrackLength.TotalSeconds ?? 1)"
+        Rounded="true"
+        Style="width:80%; max-width:512px"
+        />
+    <MudButton
+        StartIcon="@Icons.Material.Rounded.Lightbulb"
+        Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+        Size=Size.Large
+        Color=Color.Primary
+        Disabled=@(spotify is null || playStarting)
+        OnClick=TogglePlay>
         @(isPlaying ? "Stop" : "Play")
     </MudButton>
-</MudContainer>
+</MudStack>
 
 @code {
-    readonly MudTheme theme = new();
-
     bool isPlaying = false;
-    void Play()
+    bool playStarting = false;
+
+    SpotifyClient? spotify = null;
+    SpotifyPlayerContext? context = null;
+
+    async Task TogglePlay()
     {
-        isPlaying = !isPlaying;
+        playStarting = true;
+
+        if (isPlaying)
+        {
+            await StopPlaying();
+        }
+        else
+        {
+            await StartPlaying();
+        }
+
+        playStarting = false;
     }
 
-    NDiscoConfig? config = null;
+    async Task StartPlaying()
+    {
+        await Task.Delay(1000);
+        isPlaying = true;
+    }
+
+    async Task StopPlaying()
+    {
+        await Task.Delay(1000);
+        isPlaying = false;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadConfig();
+        StoredSpotifyRefreshToken? refreshToken = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
+        if (refreshToken is StoredSpotifyRefreshToken rt && NDPConstants.SpotifyScope.All(s => refreshToken.Scope.Contains(s)))
+        {
+            try
+            {
+                logger.LogInformation("Spotify login success.");
+                await LoginSpotify(rt.RefreshToken);
+            }
+            catch (Exception e)
+            {
+                logger.LogError("Spotify login failed with error: '{}'. Requesting new login...", e);
+                RequestLogin();
+            }
+        }
+        else
+        {
+            logger.LogInformation(
+                "Requesting new Spotify login.\n- refresh token null: {}\n- old scope: {}\n- new scope: {}",
+                refreshToken is null,
+                refreshToken is null ? "null" : string.Join(' ', refreshToken.Scope),
+                NDPConstants.SpotifyScope
+            );
+            RequestLogin();
+        }
+
+        new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
     }
 
-    async Task LoadConfig()
+    async Task StartPlayer()
     {
-        await Task.Delay(1000);
-        config = new NDiscoConfig();
-        config.SpotifyAccessToken = "test";
+        if (spotify is null)
+            return;
+
+        await foreach(SpotifyPlayerContext? context in new SpotifyWebPlayer(spotify).ListenAsync(50))
+            this.context = context;
+    }
+
+    void RequestLogin()
+    {
+        navigationManager.NavigateTo("/spotify-login");
+    }
+
+    async Task LoginSpotify(string refreshToken)
+    {
+        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
+            new PKCETokenRefreshRequest(NDPConstants.SpotifyClientId, refreshToken)
+        );
+        await OnSpotifyTokenRefreshed(oauthResp);
+
+        PKCEAuthenticator authenticator = new(NDPConstants.SpotifyClientId, oauthResp);
+        authenticator.TokenRefreshed += async (sender, resp) => await OnSpotifyTokenRefreshed(resp);
+
+        spotify = new SpotifyClient(
+            SpotifyClientConfig.CreateDefault()
+            .WithAuthenticator(authenticator)
+        );
+    }
+
+    async Task OnSpotifyTokenRefreshed(PKCETokenResponse response)
+    {
+        StoredSpotifyRefreshToken? token = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
+        if (token?.RefreshToken != response.RefreshToken)
+        {
+            await localStorage.SetItemAsync(
+                LocalStoragePaths.SpotifyRefreshToken,
+                new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
+            );
+        }
     }
 }

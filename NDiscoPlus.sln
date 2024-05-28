@@ -10,7 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NDiscoPlus", "NDiscoPlus\NDiscoPlus.csproj", "{26DF56E8-7C53-4E73-B318-E811D917E2D3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NDiscoPlus", "NDiscoPlus\NDiscoPlus.csproj", "{26DF56E8-7C53-4E73-B318-E811D917E2D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

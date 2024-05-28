@@ -1,0 +1,94 @@
+﻿@page "/spotify-login"
+
+@using Microsoft.AspNetCore.WebUtilities
+@using NDiscoPlus.Constants
+@using NDiscoPlus.Models
+@using SpotifyAPI.Web
+@using System.Diagnostics
+
+@inject NavigationManager navigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject Blazored.SessionStorage.ISessionStorageService sessionStorage
+
+@if (isLoggingIn) {
+    <h3>Logging into spotify...</h3>
+}
+else {
+<MudContainer Class="d-flex align-center justify-center mud-width-full" style="height:100vh;">
+    <MudButton
+        StartIcon="@NDPIcons.SpotifyIcon"
+        Variant=Variant.Filled
+        Size=Size.Large
+        Style="color:#1DB954"
+        OnClick="SendLoginRequest">
+        Login
+    </MudButton>
+</MudContainer>
+}
+
+@code {
+    bool isLoggingIn = true;
+
+    protected override async void OnInitialized()
+    {
+        Uri uri = navigationManager.ToAbsoluteUri(navigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("code", out var code_))
+        {
+            string? code = code_.First();
+            Debug.Assert(code is not null);
+
+            bool result = await TryLogin(code);
+            if (result)
+                navigationManager.NavigateTo("/");
+            else
+                isLoggingIn = false;
+        }
+        else
+        {
+            isLoggingIn = false;
+        }
+    }
+
+    async Task<bool> TryLogin(string code)
+    {
+        string? verifier = await sessionStorage.GetItemAsync<string>(SessionStoragePaths.SpotifyLoginVerifier);
+        if (string.IsNullOrEmpty(verifier))
+            return false;
+
+        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
+            new PKCETokenRequest(
+                NDPConstants.SpotifyClientId,
+                code,
+                new Uri(NDPConstants.SpotifyRedirectUri),
+                verifier
+            )
+        );
+
+        await localStorage.SetItemAsync(
+            LocalStoragePaths.SpotifyRefreshToken,
+            new StoredSpotifyRefreshToken(oauthResp.RefreshToken, NDPConstants.SpotifyScope)
+        );
+        return true;
+    }
+
+    async Task SendLoginRequest()
+    {
+        (string verifier, string challenge) = PKCEUtil.GenerateCodes();
+        await sessionStorage.SetItemAsync<string>(SessionStoragePaths.SpotifyLoginVerifier, verifier);
+
+        var loginRequest = new LoginRequest(
+            new Uri(NDPConstants.SpotifyRedirectUri),
+            NDPConstants.SpotifyClientId,
+            LoginRequest.ResponseType.Code
+        )
+        {
+            CodeChallengeMethod = "S256",
+            CodeChallenge = challenge,
+            Scope = NDPConstants.SpotifyScope,
+        };
+
+        navigationManager.NavigateTo(loginRequest.ToUri().AbsoluteUri);
+    }
+}
