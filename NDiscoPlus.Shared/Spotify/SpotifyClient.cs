@@ -64,7 +64,7 @@ internal class SpotifyClient
     /// <returns></returns>
     public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request)
     {
-        AccessToken accessToken = await _GetAccessToken();
+        AccessToken accessToken = await GetAccessToken();
 
         request.Headers.Add("Authorization", $"Bearer {accessToken}");
 
@@ -76,7 +76,7 @@ internal class SpotifyClient
                 _logger.LogDebug("Refreshing Access Token... (401)");
                 lock (_accessTokenLock)
                 {
-                    _getAccessToken ??= _RefreshAccessToken();
+                    _getAccessToken ??= RefreshAccessToken();
                 }
                 await _getAccessToken;
                 response = await SendAsync(request); // retry
@@ -108,7 +108,7 @@ internal class SpotifyClient
         return response;
     }
 
-    async Task<AccessToken> _GetAccessToken()
+    async Task<AccessToken> GetAccessToken()
     {
         lock (_accessTokenLock)
         {
@@ -116,7 +116,7 @@ internal class SpotifyClient
             if (_getAccessToken == null && _accessToken != null)
                 return _accessToken;
 
-            _getAccessToken ??= _RefreshAccessToken();
+            _getAccessToken ??= RefreshAccessToken();
         }
 
         await _getAccessToken;
@@ -128,7 +128,7 @@ internal class SpotifyClient
         }
     }
 
-    async Task _RefreshAccessToken()
+    async Task RefreshAccessToken()
     {
         SpotifyToken token = await _tokenClient.RefreshAsync(RefreshToken);
         lock (_accessTokenLock)

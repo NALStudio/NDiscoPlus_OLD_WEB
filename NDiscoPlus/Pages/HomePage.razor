@@ -1,0 +1,39 @@
+﻿@page "/"
+@using NDiscoPlus.Shared
+
+<PageTitle>Home</PageTitle>
+
+<MudContainer Class="d-flex align-center justify-center mud-width-full" style="height:100vh;">
+    <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
+               Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+               Size="Size.Large"
+               Color="Color.Primary"
+               Disabled="@(config?.SpotifyAccessToken == null)"
+               OnClick="Play">
+        @(isPlaying ? "Stop" : "Play")
+    </MudButton>
+</MudContainer>
+
+@code {
+    readonly MudTheme theme = new();
+
+    bool isPlaying = false;
+    void Play()
+    {
+        isPlaying = !isPlaying;
+    }
+
+    NDiscoConfig? config = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfig();
+    }
+
+    async Task LoadConfig()
+    {
+        await Task.Delay(1000);
+        config = new NDiscoConfig();
+        config.SpotifyAccessToken = "test";
+    }
+}
