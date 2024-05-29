@@ -15,7 +15,7 @@ record ClockDelta(TimeSpan Delta1, TimeSpan Delta2, TimeSpan Latency)
     }
 }
 
-record LatestPlayingContext(DateTimeOffset FetchedOn, CurrentlyPlayingContext Context);
+record LatestPlayingContext(DateTimeOffset FetchedOn, CurrentlyPlayingContext? Context);
 
 public class SpotifyWebPlayer : SpotifyPlayer
 {
@@ -41,7 +41,12 @@ public class SpotifyWebPlayer : SpotifyPlayer
         // local timestamp before request
         DateTimeOffset t1 = DateTimeOffset.UtcNow;
 
-        CurrentlyPlayingContext playContext = await client.Player.GetCurrentPlayback();
+        CurrentlyPlayingContext? playContext = await client.Player.GetCurrentPlayback();
+        if (playContext is null)
+        {
+            latestContext = new LatestPlayingContext(DateTimeOffset.UtcNow, playContext);
+            return;
+        }
 
         // local timestamp after request
         DateTimeOffset t2 = DateTimeOffset.UtcNow;
@@ -92,14 +97,14 @@ public class SpotifyWebPlayer : SpotifyPlayer
     protected override SpotifyPlayerContext? GetContext()
     {
         Debug.Assert(latestContext is not null);
-        (DateTimeOffset contextFetchedOn, CurrentlyPlayingContext context) = latestContext;
+        (DateTimeOffset contextFetchedOn, CurrentlyPlayingContext? context) = latestContext;
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (Math.Abs((contextFetchedOn - now).TotalSeconds) > pollRate)
         {
             Task.Run(Fetch);
         }
 
-        if (context.CurrentlyPlayingType != "track")
+        if (context is null || context.CurrentlyPlayingType != "track")
             return null;
 
         Debug.Assert(this.clockDelta is not null);
