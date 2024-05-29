@@ -1,6 +1,8 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using Microsoft.Extensions.Logging;
+using NDiscoPlus.Shared.Models;
 using SpotifyAPI.Web;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared.Players;
 
@@ -15,79 +17,61 @@ record ClockDelta(TimeSpan Delta1, TimeSpan Delta2, TimeSpan Latency)
     }
 }
 
-record LatestPlayingContext(DateTimeOffset FetchedOn, CurrentlyPlayingContext? Context);
+record PlayingContext(DateTimeOffset FetchTimestamp, [NotNullIfNotNull(nameof(Track))] CurrentlyPlayingContext? Context, [NotNullIfNotNull(nameof(Context))] FullTrack? Track);
 
 public class SpotifyWebPlayer : SpotifyPlayer
 {
-    const int ClockDeltaQueueMaxSize = 64;
     const int pollRate = 5; // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
+    const int contextWindowSize = 20 / 5; // How many polls we can fit in 20 seconds.
+    static readonly TimeSpan NextSongTolerance = TimeSpan.FromMilliseconds(100); // Add a bit of tolerance to make sure we don't spam Spotify with requests
 
     private readonly SpotifyClient client;
 
-    private LatestPlayingContext? latestContext;
-    private readonly Queue<ClockDelta> clockDeltas = new(ClockDeltaQueueMaxSize);
+    readonly object contextLock = new();
+    bool isFetchingContext = false;
+    readonly Queue<PlayingContext> contexts = new(capacity: contextWindowSize);
 
-    TimeSpan? clockDelta;
     TimeSpan? previousProgress;
 
-    public SpotifyWebPlayer(SpotifyClient client)
+    readonly ILogger<SpotifyWebPlayer>? logger;
+
+    public SpotifyWebPlayer(SpotifyClient client, ILogger<SpotifyWebPlayer>? logger = null)
     {
         this.client = client;
+        this.logger = logger;
     }
 
-    // Modified version of: https://gamedev.stackexchange.com/questions/687/game-clock-synchronization-in-python/691#691
     private async Task Fetch()
     {
-        // local timestamp before request
-        DateTimeOffset t1 = DateTimeOffset.UtcNow;
+        logger?.LogInformation("Fetching new playing context...");
 
-        CurrentlyPlayingContext? playContext = await client.Player.GetCurrentPlayback();
-        if (playContext is null)
+        lock (contextLock)
         {
-            latestContext = new LatestPlayingContext(DateTimeOffset.UtcNow, playContext);
-            return;
+            isFetchingContext = true;
         }
 
-        // local timestamp after request
-        DateTimeOffset t2 = DateTimeOffset.UtcNow;
+        CurrentlyPlayingContext? playContext = await client.Player.GetCurrentPlayback();
+        DateTimeOffset time = DateTimeOffset.UtcNow;
 
+        FullTrack? track = playContext?.Item as FullTrack;
 
-        // server timestamp
-        DateTimeOffset serverTs = DateTimeOffset.FromUnixTimeMilliseconds(playContext.Timestamp);
+        lock (contextLock)
+        {
+            if (contexts.TryPeek(out var c) && (track is null || c.Track?.Id != track.Id))
+                contexts.Clear();
 
-        TimeSpan latency = t2 - t1;
+            // if less or equal than previous context 5 seconds ago, we most likely seeked backwards, if one of the two or both are null, returns false
+            if (contexts.LastOrDefault()?.Context?.ProgressMs < playContext?.ProgressMs)
+                contexts.Clear();
 
-        // here is where we deviate from the reference
-        // we compute both deltas and store them with the latency
-        // the deltas with the smallest latency should be the most accurate (https most likely didn't retry)
-        // we then compute deltas by averaging all known deltas
+            while (contexts.Count >= contextWindowSize)
+                contexts.Dequeue();
 
-        TimeSpan csDelta1 = serverTs - t1;
-        TimeSpan csDelta2 = t2 - serverTs;
-
-        while (clockDeltas.Count >= ClockDeltaQueueMaxSize) // remove until one slot free for new clock delta
-            clockDeltas.Dequeue();
-
-        clockDeltas.Enqueue(new ClockDelta(csDelta1, csDelta2, Latency: latency));
-
-        await Task.Run(ComputeDelta);
-
-        latestContext = new LatestPlayingContext(DateTimeOffset.UtcNow, playContext);
+            PlayingContext ctx = new(time, playContext, track);
+            contexts.Enqueue(ctx);
+            isFetchingContext = false;
+        }
     }
-
-    private void ComputeDelta()
-    {
-        int takeCount = Math.Max(clockDeltas.Count / 4, 1);
-        IEnumerable<ClockDelta> refDeltas = clockDeltas.OrderBy(d => d.Latency).Take(takeCount);
-        TimeSpan[] clockOffsets = refDeltas.SelectMany(d => d.ComputeClockDeltas()).ToArray();
-
-        TimeSpan clockSum = TimeSpan.Zero;
-        foreach (TimeSpan co in clockOffsets)
-            clockSum += co;
-
-        clockDelta = clockSum / clockOffsets.Length;
-    }
-
 
     protected override async Task Init()
     {
@@ -96,34 +80,65 @@ public class SpotifyWebPlayer : SpotifyPlayer
 
     protected override SpotifyPlayerContext? GetContext()
     {
-        Debug.Assert(latestContext is not null);
-        (DateTimeOffset contextFetchedOn, CurrentlyPlayingContext? context) = latestContext;
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (Math.Abs((contextFetchedOn - now).TotalSeconds) > pollRate)
+        PlayingContext[] contexts;
+        bool isFetchingContext;
+        lock (contextLock)
+        {
+            contexts = this.contexts.ToArray();
+            isFetchingContext = this.isFetchingContext;
+        }
+
+        PlayingContext lastContext = contexts[^1];
+        TimeSpan ahead = DateTimeOffset.UtcNow - lastContext.FetchTimestamp;
+        if (ahead.TotalSeconds > pollRate && !isFetchingContext)
+        {
+            Task.Run(Fetch);
+            isFetchingContext = true;
+        }
+
+        if (contexts.Length < 1)
+            return null;
+        if (lastContext.Context is null)
+        {
+            Debug.Assert(lastContext.Track is null);
+            Debug.Assert(contexts.Length == 1);
+            return null;
+        }
+
+        TimeSpan progress;
+        if (lastContext.Context.IsPlaying)
+        {
+            TimeSpan acc = TimeSpan.Zero;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (PlayingContext ctx in contexts)
+                acc += TimeSpan.FromMilliseconds(ctx.Context!.ProgressMs) + (now - ctx.FetchTimestamp);
+
+            progress = acc / contexts.Length;
+        }
+        else
+        {
+            progress = TimeSpan.FromMilliseconds(lastContext.Context.ProgressMs);
+        }
+
+
+        if (progress - TimeSpan.FromMilliseconds(lastContext.Track!.DurationMs) > NextSongTolerance && !isFetchingContext)
         {
             Task.Run(Fetch);
         }
 
-        if (context is null || context.CurrentlyPlayingType != "track")
-            return null;
-
-        Debug.Assert(this.clockDelta is not null);
-        TimeSpan clockDelta = this.clockDelta.Value;
-
-        TimeSpan progress = TimeSpan.FromMilliseconds(context.ProgressMs);
         // Do not allow progress to jump backwards due to clock sync changes
         // We use max tolerance of 1 second so that if the user adjust the music position manually, we don't bug out.
         if (previousProgress is TimeSpan pp && progress < pp && Math.Abs((progress - pp).TotalSeconds) < 1)
             progress = pp;
+        previousProgress = progress;
 
-        FullTrack track = (FullTrack)context.Item;
         return new SpotifyPlayerContext(
             progress,
-            context.IsPlaying,
-            track.Name,
-            TimeSpan.FromMilliseconds(track.DurationMs),
-            track.Album.Images[0].Url,
-            track.Artists.Select(a => a.Name).ToArray()
+            lastContext.Context!.IsPlaying,
+            lastContext.Track!.Name,
+            TimeSpan.FromMilliseconds(lastContext.Track.DurationMs),
+            lastContext.Track.Album.Images[0].Url,
+            lastContext.Track.Artists.Select(a => a.Name).ToArray()
         );
     }
 }

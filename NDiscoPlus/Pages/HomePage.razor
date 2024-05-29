@@ -1,20 +1,25 @@
 ﻿@page "/"
 
+@using MudBlazor.Utilities
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Players
+@using SkiaSharp
 @using SpotifyAPI.Web
+@using System.Diagnostics
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger;
+@inject ILogger<SpotifyWebPlayer> playerLogger;
 
 <PageTitle>NDiscoPlus</PageTitle>
 
-<div Style="width:100vw; height:100vh; background:white"> <!--TODO: Progress bar isn't visible with a black background-->
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:25vh">
+<div style="width:100vw; height:100vh; background: linear-gradient(90deg, @(gradient.TopLeft), @(gradient.TopRight));">
+    <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
             <MudImage
                 Src="@context.ImageUrl"
@@ -30,18 +35,28 @@
                     Height="128"/>
             </div>
         }
-        <MudText>@(context?.TrackName ?? "Not Playing...")</MudText>
-        @if(context is not null)
-        {
-            <MudText>@string.Join(", ", context.Artists)</MudText>
-        }
-        <MudProgressLinear
-            Value="@(context?.Progress.TotalSeconds ?? 0)"
-            Min="0"
-            Max="@(context?.TrackLength.TotalSeconds ?? 1)"
-            Rounded="true"
-            Style="width:80%; max-width:512px"
-            />
+        <div style="min-width:256px; max-width:512px;">
+            <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.TrackName ?? "Not Playing...")</b></MudText>
+            @if(context is not null)
+            {
+                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Artists)</MudText>
+            }
+        </div>
+        <div style="width:80%; max-width:512px; padding-bottom:64px">
+            @if(context is not null)
+            {
+                <MudProgressLinear
+                    Value="@(context.Progress.TotalSeconds)"
+                    Min="0"
+                    Max="@(context.TrackLength.TotalSeconds)"
+                    Rounded="true"
+                    />
+                <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
+                    <MudText Style="line-height:2; font-size:small;">@(context.TrackLength.ToString(TimespanFormat))</MudText>
+                </MudStack>
+            }
+        </div>
         <MudButton
             StartIcon="@Icons.Material.Rounded.Lightbulb"
             Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
@@ -55,10 +70,13 @@
 </div>
 
 @code {
-    string gradientTopLeft = "red";
-    string gradientTopRight = "green";
-    string gradientBottomLeft = "yellow";
-    string gradientBottomRight = "blue";
+    record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
+
+    const string TimespanFormat = @"mm\:ss";
+
+    string? gradientRefUrl = null;
+    FourCornerGradient gradient = _defaultGradient;
+    static readonly FourCornerGradient _defaultGradient = new("red", "cyan", "hotpink", "rebeccapurple");
 
     bool isPlaying = false;
     bool playStarting = false;
@@ -66,33 +84,7 @@
     SpotifyClient? spotify = null;
     SpotifyPlayerContext? context = null;
 
-    async Task TogglePlay()
-    {
-        playStarting = true;
-
-        if (isPlaying)
-        {
-            await StopPlaying();
-        }
-        else
-        {
-            await StartPlaying();
-        }
-
-        playStarting = false;
-    }
-
-    async Task StartPlaying()
-    {
-        await Task.Delay(1000);
-        isPlaying = true;
-    }
-
-    async Task StopPlaying()
-    {
-        await Task.Delay(1000);
-        isPlaying = false;
-    }
+    readonly HttpClient http = new HttpClient();
 
     protected override async Task OnInitializedAsync()
     {
@@ -124,13 +116,100 @@
         new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
     }
 
+    #region Colors
+    static async Task<FourCornerGradient> ComputeColors(HttpClient http, ILogger<HomePage> logger, string? imageUrl)
+    {
+        static string GetRGBHex(SKColor color) => $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
+
+        logger.LogInformation("Computing new background gradient...");
+
+        if (imageUrl is null)
+            return _defaultGradient;
+
+        var result = await http.GetAsync(imageUrl);
+        if (!result.IsSuccessStatusCode)
+            return _defaultGradient;
+
+        SKBitmap bitmap = SKBitmap.Decode(await result.Content.ReadAsStreamAsync());
+        uint[] pixels = bitmap.Pixels.Select(p => (uint)p).ToArray();
+        List<uint> rawColors = MaterialColorUtilities.Utils.ImageUtils.ColorsFromImage(pixels);
+        SKColor[] colors = rawColors.Select(c => new SKColor(c)).ToArray();
+
+        if (colors.Length < 1) {
+            return _defaultGradient;
+        }
+        else if (colors.Length < 2) {
+            string hex = GetRGBHex(colors[0]);
+            return new FourCornerGradient(hex, hex, hex, hex);
+        }
+        else if (colors.Length < 4)
+        {
+            string h1 = GetRGBHex(colors[0]);
+            string h2 = GetRGBHex(colors[1]);
+            return new FourCornerGradient(h1, h1, h2, h2);
+        }
+        else
+        {
+            return new FourCornerGradient(
+                GetRGBHex(colors[0]),
+                GetRGBHex(colors[1]),
+                GetRGBHex(colors[2]),
+                GetRGBHex(colors[3])
+            );
+        }
+    }
+    #endregion
+
+    #region Lights
+    async Task TogglePlay()
+    {
+        playStarting = true;
+
+        if (isPlaying)
+        {
+            await StopPlaying();
+        }
+        else
+        {
+            await StartPlaying();
+        }
+
+        playStarting = false;
+    }
+
+    async Task StartPlaying()
+    {
+        await Task.Delay(1000);
+        isPlaying = true;
+    }
+
+    async Task StopPlaying()
+    {
+        await Task.Delay(1000);
+        isPlaying = false;
+    }
+    #endregion
+
+    #region Spotify
     async Task StartPlayer()
     {
         if (spotify is null)
             return;
 
-        await foreach(SpotifyPlayerContext? context in new SpotifyWebPlayer(spotify).ListenAsync(50))
+        SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
+        await foreach(SpotifyPlayerContext? context in player.ListenAsync(50)) {
             this.context = context;
+            StateHasChanged();
+
+            if (gradientRefUrl != context?.ImageUrl)
+            {
+                gradientRefUrl = context?.ImageUrl;
+                _ = Task.Run(async () => await ComputeColors(http, logger, context?.ImageUrl)).ContinueWith(fcg => {
+                    Debug.Assert(fcg.IsCompleted);
+                    gradient = fcg.Result;
+                }).ConfigureAwait(false);
+            }
+        }
     }
 
     void RequestLogin()
@@ -165,4 +244,5 @@
             );
         }
     }
+    #endregion
 }
