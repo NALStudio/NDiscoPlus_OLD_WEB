@@ -1,5 +1,9 @@
 ﻿@page "/"
 
+@using BlazorWorker.BackgroundServiceFactory;
+@using BlazorWorker.Core
+
+@using BlazorWorker.WorkerBackgroundService
 @using MudBlazor.Utilities
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
@@ -14,6 +18,7 @@
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger;
 @inject ILogger<SpotifyWebPlayer> playerLogger;
+@inject IWorkerFactory workerFactory;
 
 <PageTitle>NDiscoPlus</PageTitle>
 
@@ -22,7 +27,7 @@
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
             <MudImage
-                Src="@context.ImageUrl"
+                Src="@context.Track.ImageUrl"
                 Width="256"
             Height="256"/>
         }
@@ -36,10 +41,10 @@
             </div>
         }
         <div style="min-width:256px; max-width:512px;">
-            <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.TrackName ?? "Not Playing...")</b></MudText>
+            <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
             @if(context is not null)
             {
-                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Artists)</MudText>
+                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
             }
         </div>
         <div style="width:80%; max-width:512px; padding-bottom:64px">
@@ -48,12 +53,12 @@
                 <MudProgressLinear
                     Value="@(context.Progress.TotalSeconds)"
                     Min="0"
-                    Max="@(context.TrackLength.TotalSeconds)"
+                    Max="@(context.Track.Length.TotalSeconds)"
                     Rounded="true"
                     />
                 <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
                     <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
-                    <MudText Style="line-height:2; font-size:small;">@(context.TrackLength.ToString(TimespanFormat))</MudText>
+                    <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
                 </MudStack>
             }
         </div>
@@ -71,12 +76,21 @@
 
 @code {
     record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
+    record NDPData {
+        public string? CurrentTrackId { get; set; } = null;
+        public NDiscoPlusData? CurrentTrackData { get; set; } = null;
+        public string? NextTrackId { get; set; } = null;
+        public NDiscoPlusData? NextTrackData { get; set; } = null;
+    }
 
     const string TimespanFormat = @"mm\:ss";
 
     string? gradientRefUrl = null;
     FourCornerGradient gradient = _defaultGradient;
-    static readonly FourCornerGradient _defaultGradient = new("red", "cyan", "hotpink", "rebeccapurple");
+    static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
+
+    readonly NDPData data = new();
+    List<Task<NDiscoPlusData>> fetchTasks = new();
 
     bool isPlaying = false;
     bool playStarting = false;
@@ -84,7 +98,7 @@
     SpotifyClient? spotify = null;
     SpotifyPlayerContext? context = null;
 
-    readonly HttpClient http = new HttpClient();
+    IWorkerBackgroundService<NDiscoPlusService>? ndpService = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -113,52 +127,11 @@
             RequestLogin();
         }
 
+        var ndpWorker = await workerFactory.CreateAsync();
+        ndpService = await ndpWorker.CreateBackgroundServiceAsync<NDiscoPlusService>();
+
         new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
     }
-
-    #region Colors
-    static async Task<FourCornerGradient> ComputeColors(HttpClient http, ILogger<HomePage> logger, string? imageUrl)
-    {
-        static string GetRGBHex(SKColor color) => $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
-
-        logger.LogInformation("Computing new background gradient...");
-
-        if (imageUrl is null)
-            return _defaultGradient;
-
-        var result = await http.GetAsync(imageUrl);
-        if (!result.IsSuccessStatusCode)
-            return _defaultGradient;
-
-        SKBitmap bitmap = SKBitmap.Decode(await result.Content.ReadAsStreamAsync());
-        uint[] pixels = bitmap.Pixels.Select(p => (uint)p).ToArray();
-        List<uint> rawColors = MaterialColorUtilities.Utils.ImageUtils.ColorsFromImage(pixels);
-        SKColor[] colors = rawColors.Select(c => new SKColor(c)).ToArray();
-
-        if (colors.Length < 1) {
-            return _defaultGradient;
-        }
-        else if (colors.Length < 2) {
-            string hex = GetRGBHex(colors[0]);
-            return new FourCornerGradient(hex, hex, hex, hex);
-        }
-        else if (colors.Length < 4)
-        {
-            string h1 = GetRGBHex(colors[0]);
-            string h2 = GetRGBHex(colors[1]);
-            return new FourCornerGradient(h1, h1, h2, h2);
-        }
-        else
-        {
-            return new FourCornerGradient(
-                GetRGBHex(colors[0]),
-                GetRGBHex(colors[1]),
-                GetRGBHex(colors[2]),
-                GetRGBHex(colors[3])
-            );
-        }
-    }
-    #endregion
 
     #region Lights
     async Task TogglePlay()
@@ -199,17 +172,89 @@
         SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
         await foreach(SpotifyPlayerContext? context in player.ListenAsync(50)) {
             this.context = context;
-            StateHasChanged();
+            UpdateData(context?.Track, context?.NextTrack);
 
-            if (gradientRefUrl != context?.ImageUrl)
+            if (!isPlaying)
             {
-                gradientRefUrl = context?.ImageUrl;
-                _ = Task.Run(async () => await ComputeColors(http, logger, context?.ImageUrl)).ContinueWith(fcg => {
-                    Debug.Assert(fcg.IsCompleted);
-                    gradient = fcg.Result;
-                }).ConfigureAwait(false);
+                NDiscoPlusData? currentTrackData;
+                lock(data)
+                {
+                    currentTrackData = data?.CurrentTrackData;
+                }
+
+                if (currentTrackData is not null)
+                    gradient = GetGradient(currentTrackData.Palette);
+                else
+                    gradient = _defaultGradient;
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    void UpdateData(SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack)
+    {
+        string? currentTrackId = currentTrack?.Id;
+        string? nextTrackId = nextTrack?.Id;
+
+
+        List<SpotifyPlayerTrack> fetchTracks = new(2);
+
+        lock (data)
+        {
+            if (data.CurrentTrackId != currentTrackId)
+            {
+                if (data.NextTrackId == currentTrackId)
+                {
+                    data.CurrentTrackId = data.NextTrackId;
+                    data.CurrentTrackData = data.NextTrackData;
+                }
+                else
+                {
+                    data.CurrentTrackId = currentTrackId;
+                    if (currentTrack is not null)
+                        fetchTracks.Add(currentTrack);
+                    data.CurrentTrackData = null;
+                }
+            }
+
+            if (data.NextTrackId != nextTrackId)
+            {
+                data.NextTrackId = nextTrackId;
+                if (nextTrack is not null)
+                    fetchTracks.Add(nextTrack);
+                else
+                    data.NextTrackData = null;
             }
         }
+
+        foreach (SpotifyPlayerTrack fetch in fetchTracks)
+            fetchTasks.Add(ComputeData(fetch));
+
+        foreach (var task in fetchTasks)
+        {
+            if (!task.IsCompleted)
+                continue;
+
+            NDiscoPlusData d = task.Result;
+            lock (data)
+            {
+                if (data.CurrentTrackId == d?.Track.Id)
+                    data.CurrentTrackData = d;
+                if (data.NextTrackId == d?.Track.Id)
+                    data.NextTrackData = d;
+            }
+        }
+    }
+
+    async Task<NDiscoPlusData> ComputeData(SpotifyPlayerTrack track)
+    {
+        logger.LogInformation("Computing new data for track: '{}' ({})...", track.Name, track.Id);
+        string trackSerialized = SpotifyPlayerTrack.Serialize(track);
+        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(trackSerialized));
+        var d = NDiscoPlusData.Deserialize(dataSerialized);
+        logger.LogInformation("Data computed: '{}' ({}).", track.Name, track.Id);
+        return d;
     }
 
     void RequestLogin()
@@ -243,6 +288,23 @@
                 new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
             );
         }
+    }
+    #endregion
+
+    #region Colors
+    static FourCornerGradient GetGradient(NDiscoPlusColorPalette palette)
+    {
+        string[] colors = palette.HtmlColors;
+
+        // By choosing a single color from the image as the background,
+        // it seemed to just pick some random color which was barely visible in the image
+        // so use default gradient if at least 2 colors can't be decided from the image.
+        if (colors.Length < 2)
+            return _defaultGradient;
+        else if (colors.Length < 4)
+            return new FourCornerGradient(colors[0], colors[0], colors[1], colors[1]);
+        else
+            return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
     }
     #endregion
 }

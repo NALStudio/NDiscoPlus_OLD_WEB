@@ -3,10 +3,7 @@
 namespace NDiscoPlus.Shared.Interpreters;
 public abstract class LightInterpreter
 {
-    protected readonly MusicIL IL;
-
-    public LightInterpreter(MusicIL IL)
+    public LightInterpreter()
     {
-        this.IL = IL;
     }
 }

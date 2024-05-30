@@ -6,29 +6,29 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared.Players;
 
-record ClockDelta(TimeSpan Delta1, TimeSpan Delta2, TimeSpan Latency)
+record PlayingContext(
+    DateTimeOffset FetchTimestamp,
+    [NotNullIfNotNull(nameof(Track))] CurrentlyPlayingContext? Context,
+    [NotNullIfNotNull(nameof(Context))] FullTrack? Track
+)
 {
-    public IEnumerable<TimeSpan> ComputeClockDeltas()
+    public TimeSpan ComputeCurrentProgress(DateTimeOffset nowUtc)
     {
-        TimeSpan halfLatency = Latency / 2;
-
-        yield return Delta1 + halfLatency;
-        yield return Delta2 + halfLatency;
+        return TimeSpan.FromMilliseconds(Context!.ProgressMs) + (nowUtc - FetchTimestamp);
     }
 }
-
-record PlayingContext(DateTimeOffset FetchTimestamp, [NotNullIfNotNull(nameof(Track))] CurrentlyPlayingContext? Context, [NotNullIfNotNull(nameof(Context))] FullTrack? Track);
 
 public class SpotifyWebPlayer : SpotifyPlayer
 {
     const int pollRate = 5; // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
-    const int contextWindowSize = 20 / 5; // How many polls we can fit in 20 seconds.
+    const int contextWindowSize = 35 / 5; // How many polls we can fit in 35 seconds.
     static readonly TimeSpan NextSongTolerance = TimeSpan.FromMilliseconds(100); // Add a bit of tolerance to make sure we don't spam Spotify with requests
 
     private readonly SpotifyClient client;
 
     readonly object contextLock = new();
     bool isFetchingContext = false;
+    FullTrack? nextTrackContext = null;
     readonly Queue<PlayingContext> contexts = new(capacity: contextWindowSize);
 
     TimeSpan? previousProgress;
@@ -41,7 +41,8 @@ public class SpotifyWebPlayer : SpotifyPlayer
         this.logger = logger;
     }
 
-    private async Task Fetch()
+    private Task Fetch() => Fetch(false);
+    private async Task Fetch(bool isFirstFetch)
     {
         logger?.LogInformation("Fetching new playing context...");
 
@@ -51,40 +52,86 @@ public class SpotifyWebPlayer : SpotifyPlayer
         }
 
         CurrentlyPlayingContext? playContext = await client.Player.GetCurrentPlayback();
+        bool trackChanged = HandleUpdate(playContext);
+
+        FullTrack? nextTrack = null;
+        if (trackChanged || isFirstFetch)
+            nextTrack = await FetchNextTrack();
+
+        lock (contextLock)
+        {
+            if (nextTrack is not null)
+                nextTrackContext = nextTrack;
+            isFetchingContext = false;
+        }
+    }
+
+    private async Task<FullTrack?> FetchNextTrack()
+    {
+        QueueResponse queue = await client.Player.GetQueue();
+        return queue.Queue.OfType<FullTrack>().FirstOrDefault();
+    }
+
+    private bool HandleUpdate(CurrentlyPlayingContext? playContext)
+    {
         DateTimeOffset time = DateTimeOffset.UtcNow;
 
         FullTrack? track = playContext?.Item as FullTrack;
+        bool trackChanged = false;
 
         lock (contextLock)
         {
             if (contexts.TryPeek(out var c) && (track is null || c.Track?.Id != track.Id))
-                contexts.Clear();
+            {
+                if (track is null)
+                {
+                    contexts.Clear();
+                }
+                else if (c.Track?.Id != track.Id)
+                {
+                    contexts.Clear();
+                    trackChanged = true;
+                }
+            }
 
-            // if less or equal than previous context 5 seconds ago, we most likely seeked backwards, if one of the two or both are null, returns false
-            if (contexts.LastOrDefault()?.Context?.ProgressMs < playContext?.ProgressMs)
-                contexts.Clear();
+            PlayingContext? lastContext = contexts.LastOrDefault();
+            if (playContext is not null && lastContext is not null)
+            {
+                TimeSpan diff = TimeSpan.FromMilliseconds(playContext.ProgressMs) - lastContext.ComputeCurrentProgress(time);
+                // If the difference between the last context's extrapolated time and the current context differ too much, we most likely seeked.
+                if (Math.Abs(diff.TotalSeconds) > 5)
+                {
+                    logger?.LogInformation("Seek detected. Clearing contexts...");
+                    contexts.Clear();
+                }
+            }
 
             while (contexts.Count >= contextWindowSize)
                 contexts.Dequeue();
 
             PlayingContext ctx = new(time, playContext, track);
             contexts.Enqueue(ctx);
-            isFetchingContext = false;
+            if (trackChanged)
+                nextTrackContext = null;
         }
+
+        return trackChanged;
     }
 
     protected override async Task Init()
     {
-        await Fetch();
+        await Fetch(isFirstFetch: true);
     }
 
     protected override SpotifyPlayerContext? GetContext()
     {
         PlayingContext[] contexts;
+        FullTrack? nextTrack;
         bool isFetchingContext;
         lock (contextLock)
         {
             contexts = this.contexts.ToArray();
+            nextTrack = nextTrackContext;
             isFetchingContext = this.isFetchingContext;
         }
 
@@ -104,6 +151,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
             Debug.Assert(contexts.Length == 1);
             return null;
         }
+        Debug.Assert(lastContext.Track is not null);
 
         TimeSpan progress;
         if (lastContext.Context.IsPlaying)
@@ -111,7 +159,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
             TimeSpan acc = TimeSpan.Zero;
             DateTimeOffset now = DateTimeOffset.UtcNow;
             foreach (PlayingContext ctx in contexts)
-                acc += TimeSpan.FromMilliseconds(ctx.Context!.ProgressMs) + (now - ctx.FetchTimestamp);
+                acc += ctx.ComputeCurrentProgress(now);
 
             progress = acc / contexts.Length;
         }
@@ -121,7 +169,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
         }
 
 
-        if (progress - TimeSpan.FromMilliseconds(lastContext.Track!.DurationMs) > NextSongTolerance && !isFetchingContext)
+        if (progress - TimeSpan.FromMilliseconds(lastContext.Track.DurationMs) > NextSongTolerance && !isFetchingContext)
         {
             Task.Run(Fetch);
         }
@@ -134,11 +182,9 @@ public class SpotifyWebPlayer : SpotifyPlayer
 
         return new SpotifyPlayerContext(
             progress,
-            lastContext.Context!.IsPlaying,
-            lastContext.Track!.Name,
-            TimeSpan.FromMilliseconds(lastContext.Track.DurationMs),
-            lastContext.Track.Album.Images[0].Url,
-            lastContext.Track.Artists.Select(a => a.Name).ToArray()
+            lastContext.Context.IsPlaying,
+            SpotifyPlayerTrack.FromSpotifyTrack(lastContext.Track),
+            nextTrack is not null ? SpotifyPlayerTrack.FromSpotifyTrack(nextTrack) : null
         );
     }
 }

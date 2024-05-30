@@ -5,6 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Music;
+
+internal class MusicTier1Result
+{
+}
+
 internal class MusicTier1
 {
 }

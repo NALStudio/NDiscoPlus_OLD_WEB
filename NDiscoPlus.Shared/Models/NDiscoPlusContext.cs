@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NDiscoPlus.Shared.Music;
-public class MusicIL
+namespace NDiscoPlus.Shared.Models;
+public class NDiscoPlusContext
 {
 }

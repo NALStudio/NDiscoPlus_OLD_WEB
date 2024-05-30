@@ -1,5 +1,6 @@
 using Blazored.LocalStorage;
 using Blazored.SessionStorage;
+using BlazorWorker.Core;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor.Services;
@@ -18,6 +19,10 @@ internal class Program
         builder.Services.AddBlazoredLocalStorage();
         builder.Services.AddBlazoredSessionStorage();
         builder.Services.AddMudServices();
+
+        // TODO: Wait for Blazor WASM Threads
+        // see: https://github.com/dotnet/aspnetcore/issues/17730
+        builder.Services.AddWorkerFactory();
 
         await builder.Build().RunAsync();
     }
