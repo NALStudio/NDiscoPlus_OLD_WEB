@@ -34,10 +34,8 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-    - name: Restore dependencies
-      run: dotnet restore
     - name: Publish project
-      run: dotnet publish NDiscoPlus/NDiscoPlus.csproj --configuration Release --output build --no-restore --nologo
+      run: dotnet publish NDiscoPlus/NDiscoPlus.csproj --configuration Release --output build --nologo
       
     - name: Setup GitHub Pages
       uses: actions/configure-pages@v5
