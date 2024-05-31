@@ -18,7 +18,7 @@ record PlayingContext(
     }
 }
 
-public class SpotifyWebPlayer : SpotifyPlayer
+public class OldSpotifyWebPlayer : SpotifyPlayer
 {
     const int pollRate = 5; // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
     const int contextWindowSize = 35 / 5; // How many polls we can fit in 35 seconds.
@@ -33,9 +33,9 @@ public class SpotifyWebPlayer : SpotifyPlayer
 
     TimeSpan? previousProgress;
 
-    readonly ILogger<SpotifyWebPlayer>? logger;
+    readonly ILogger<OldSpotifyWebPlayer>? logger;
 
-    public SpotifyWebPlayer(SpotifyClient client, ILogger<SpotifyWebPlayer>? logger = null)
+    public OldSpotifyWebPlayer(SpotifyClient client, ILogger<OldSpotifyWebPlayer>? logger = null)
     {
         this.client = client;
         this.logger = logger;
@@ -123,7 +123,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
         await Fetch(isFirstFetch: true);
     }
 
-    protected override SpotifyPlayerContext? GetContext()
+    protected override SpotifyPlayerContext? Update()
     {
         PlayingContext[] contexts;
         FullTrack? nextTrack;

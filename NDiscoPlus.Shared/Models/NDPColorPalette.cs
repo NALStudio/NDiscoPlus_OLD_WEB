@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
-public class NDiscoPlusColorPalette : IReadOnlyList<SKColor>
+public class NDPColorPalette : IReadOnlyList<SKColor>
 {
     private SKColor[] colors;
 
@@ -15,12 +15,12 @@ public class NDiscoPlusColorPalette : IReadOnlyList<SKColor>
 
     public SKColor this[int index] => colors[index];
 
-    public NDiscoPlusColorPalette(IEnumerable<SKColor> colors)
+    public NDPColorPalette(IEnumerable<SKColor> colors)
     {
         this.colors = colors.ToArray();
     }
 
-    public NDiscoPlusColorPalette(params SKColor[] colors)
+    public NDPColorPalette(params SKColor[] colors)
     {
         this.colors = colors;
     }

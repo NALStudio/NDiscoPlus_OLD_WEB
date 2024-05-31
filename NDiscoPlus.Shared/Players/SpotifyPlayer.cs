@@ -6,7 +6,7 @@ namespace NDiscoPlus.Shared.Players;
 public abstract class SpotifyPlayer
 {
     protected abstract Task Init();
-    protected abstract SpotifyPlayerContext? GetContext();
+    protected abstract SpotifyPlayerContext? Update();
 
     public async IAsyncEnumerable<SpotifyPlayerContext?> ListenAsync(int frequency, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -20,7 +20,7 @@ public abstract class SpotifyPlayer
         {
             if (cancellationToken.IsCancellationRequested)
                 yield break;
-            yield return GetContext();
+            yield return Update();
         }
     }
 }

@@ -1,11 +1,13 @@
 ﻿using NDiscoPlus.Shared.Models;
 using SkiaSharp;
+using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
@@ -14,39 +16,45 @@ public class NDiscoPlusService
     HttpClient? http;
     Random? random;
 
-    public static readonly ImmutableList<NDiscoPlusColorPalette> DefaultPalettes =
+    public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
     [
-        new NDiscoPlusColorPalette(new(255, 0, 0), new(0, 255, 255), new(255, 105, 180), new(102, 51, 153))
+        new NDPColorPalette(new(255, 0, 0), new(0, 255, 255), new(255, 105, 180), new(102, 51, 153))
     ];
 
-    public NDiscoPlusData ComputeData(SpotifyPlayerTrack track, NDiscoPlusColorPalette palette)
+    public NDPData ComputeData(SpotifyPlayerTrack track, TrackAudioAnalysis analysis, NDPColorPalette palette)
     {
-        return new NDiscoPlusData(
+        return new NDPData(
             track,
-            new NDiscoPlusContext(),
-            palette
+            new NDPContext(),
+            palette,
+            analysis
         );
     }
 
-    public async Task<NDiscoPlusData> ComputeDataWithImageColors(SpotifyPlayerTrack track)
+    public async Task<NDPData> ComputeDataWithImageColors(SpotifyPlayerTrack track, TrackAudioAnalysis analysis)
     {
         var palette = await FetchImagePalette(track);
-        return ComputeData(track, palette);
+        return ComputeData(track, analysis, palette);
     }
 
     /// <summary>
     /// Blazor workers have a hard time serializing objects.
     /// </summary>
-    /// <param name="serializedTrack">A serialized <see cref="NDiscoPlusData"/> instance.</param>
+    /// <param name="serializedTrack">A serialized <see cref="NDPData"/> instance.</param>
     /// <returns></returns>
-    public async Task<string> ComputeDataWithImageColorsFromSerialized(string serializedTrack)
+    public async Task<string> ComputeDataWithImageColorsFromSerialized(string serializedTrack, string serializedAnalysis)
     {
         SpotifyPlayerTrack track = SpotifyPlayerTrack.Deserialize(serializedTrack);
-        NDiscoPlusData data = await ComputeDataWithImageColors(track);
-        return NDiscoPlusData.Serialize(data);
+
+        TrackAudioAnalysis? analysis = JsonSerializer.Deserialize<TrackAudioAnalysis>(serializedAnalysis);
+        if (analysis is null)
+            throw new InvalidOperationException("Cannot deserialize analysis.");
+
+        NDPData data = await ComputeDataWithImageColors(track, analysis);
+        return NDPData.Serialize(data);
     }
 
-    public async Task<NDiscoPlusColorPalette> FetchImagePalette(SpotifyPlayerTrack track)
+    public async Task<NDPColorPalette> FetchImagePalette(SpotifyPlayerTrack track)
     {
         http ??= new HttpClient();
         var result = await http.GetAsync(track.ImageUrl);
@@ -60,6 +68,6 @@ public class NDiscoPlusService
         uint[] pixels = bitmap.Pixels.Select(p => (uint)p).ToArray();
         List<uint> rawColors = MaterialColorUtilities.Utils.ImageUtils.ColorsFromImage(pixels);
 
-        return new NDiscoPlusColorPalette(rawColors.Select(c => new SKColor(c)));
+        return new NDPColorPalette(rawColors.Select(c => new SKColor(c)));
     }
 }

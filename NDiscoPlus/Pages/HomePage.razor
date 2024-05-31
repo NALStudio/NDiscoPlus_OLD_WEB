@@ -8,16 +8,18 @@
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Interpreters
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Players
 @using SkiaSharp
 @using SpotifyAPI.Web
 @using System.Diagnostics
+@using System.Text.Json
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger;
-@inject ILogger<SpotifyWebPlayer> playerLogger;
+@inject ILogger<NewSpotifyWebPlayer> playerLogger;
 @inject IWorkerFactory workerFactory;
 
 <PageTitle>NDiscoPlus</PageTitle>
@@ -66,7 +68,7 @@
             StartIcon="@Icons.Material.Rounded.Lightbulb"
             Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
             Size=Size.Large
-            Color=Color.Primary
+            Color=MudBlazor.Color.Primary
             Disabled=@(spotify is null || playStarting)
             OnClick=TogglePlay>
             @(isPlaying ? "Stop" : "Play")
@@ -76,21 +78,26 @@
 
 @code {
     record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
-    record NDPData {
+    record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
-        public NDiscoPlusData? CurrentTrackData { get; set; } = null;
+        public Shared.Models.NDPData? CurrentTrackData { get; set; } = null;
         public string? NextTrackId { get; set; } = null;
-        public NDiscoPlusData? NextTrackData { get; set; } = null;
+        public Shared.Models.NDPData? NextTrackData { get; set; } = null;
     }
 
     const string TimespanFormat = @"mm\:ss";
 
-    string? gradientRefUrl = null;
     FourCornerGradient gradient = _defaultGradient;
     static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
+    LightInterpreter gradientLights = new(
+        new NDPLight(null, new HueApi.Models.HuePosition(-1, 1, 1)),
+        new NDPLight(null, new HueApi.Models.HuePosition(1, 1, 1)),
+        new NDPLight(null, new HueApi.Models.HuePosition(-1, -1, -1)),
+        new NDPLight(null, new HueApi.Models.HuePosition(1, -1, -1))
+    );
 
-    readonly NDPData data = new();
-    List<Task<NDiscoPlusData>> fetchTasks = new();
+    readonly NDPDataContainer data = new();
+    List<Task<Shared.Models.NDPData>> fetchTasks = new();
 
     bool isPlaying = false;
     bool playStarting = false;
@@ -169,21 +176,34 @@
         if (spotify is null)
             return;
 
-        SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
+        SpotifyPlayer player = new NewSpotifyWebPlayer(spotify, playerLogger);
         await foreach(SpotifyPlayerContext? context in player.ListenAsync(50)) {
             this.context = context;
-            UpdateData(context?.Track, context?.NextTrack);
+            UpdateData(spotify, context?.Track, context?.NextTrack);
 
-            if (!isPlaying)
+            if (!isPlaying || context is null)
             {
-                NDiscoPlusData? currentTrackData;
+                NDPData? currentTrackData;
                 lock(data)
                 {
-                    currentTrackData = data?.CurrentTrackData;
+                    currentTrackData = data.CurrentTrackData;
                 }
 
                 if (currentTrackData is not null)
                     gradient = GetGradient(currentTrackData.Palette);
+                else
+                    gradient = _defaultGradient;
+            }
+            else
+            {
+                NDPData? currentTrackData;
+                lock(data)
+                {
+                    currentTrackData = data.CurrentTrackData;
+                }
+
+                if (currentTrackData is not null)
+                    gradient = GetGradient(gradientLights.Update(context.Progress, currentTrackData));
                 else
                     gradient = _defaultGradient;
             }
@@ -192,7 +212,7 @@
         }
     }
 
-    void UpdateData(SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack)
+    void UpdateData(SpotifyClient spotify, SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack)
     {
         string? currentTrackId = currentTrack?.Id;
         string? nextTrackId = nextTrack?.Id;
@@ -223,20 +243,19 @@
                 data.NextTrackId = nextTrackId;
                 if (nextTrack is not null)
                     fetchTracks.Add(nextTrack);
-                else
-                    data.NextTrackData = null;
+                data.NextTrackData = null;
             }
         }
 
         foreach (SpotifyPlayerTrack fetch in fetchTracks)
-            fetchTasks.Add(ComputeData(fetch));
+            fetchTasks.Add(ComputeData(spotify, fetch));
 
         foreach (var task in fetchTasks)
         {
             if (!task.IsCompleted)
                 continue;
 
-            NDiscoPlusData d = task.Result;
+            Shared.Models.NDPData d = task.Result;
             lock (data)
             {
                 if (data.CurrentTrackId == d?.Track.Id)
@@ -247,12 +266,18 @@
         }
     }
 
-    async Task<NDiscoPlusData> ComputeData(SpotifyPlayerTrack track)
+    async Task<Shared.Models.NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track)
     {
         logger.LogInformation("Computing new data for track: '{}' ({})...", track.Name, track.Id);
+
+        TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
+
+        string analysisSerialized = JsonSerializer.Serialize(analysis);
         string trackSerialized = SpotifyPlayerTrack.Serialize(track);
-        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(trackSerialized));
-        var d = NDiscoPlusData.Deserialize(dataSerialized);
+
+        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(trackSerialized, analysisSerialized));
+        var d = Shared.Models.NDPData.Deserialize(dataSerialized);
+
         logger.LogInformation("Data computed: '{}' ({}).", track.Name, track.Id);
         return d;
     }
@@ -292,7 +317,7 @@
     #endregion
 
     #region Colors
-    static FourCornerGradient GetGradient(NDiscoPlusColorPalette palette)
+    static FourCornerGradient GetGradient(NDPColorPalette palette)
     {
         string[] colors = palette.HtmlColors;
 
@@ -305,6 +330,33 @@
             return new FourCornerGradient(colors[0], colors[0], colors[1], colors[1]);
         else
             return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
+    }
+
+    static FourCornerGradient GetGradient(IList<NDPLight> lights)
+    {
+        static string ComputeHTMLColor(NDPLight light)
+        {
+            HueApi.ColorConverters.RGBColor color = light.Color;
+            double brightness = light.Brightness;
+
+            HueApi.ColorConverters.RGBColor newColor = new(
+                color.R * brightness,
+                color.G * brightness,
+                color.B * brightness
+            );
+
+            return "#" + newColor.ToHex();
+        }
+
+        if (lights.Count != 4)
+            throw new ArgumentException("Exactly four lights should be provided.", nameof(lights));
+
+        string c0 = ComputeHTMLColor(lights[0]);
+        string c1 = ComputeHTMLColor(lights[1]);
+        string c2 = ComputeHTMLColor(lights[2]);
+        string c3 = ComputeHTMLColor(lights[3]);
+
+        return new FourCornerGradient(c0, c1, c2, c3);
     }
     #endregion
 }

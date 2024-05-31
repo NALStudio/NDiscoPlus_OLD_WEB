@@ -1,4 +1,5 @@
 ﻿using SkiaSharp;
+using SpotifyAPI.Web;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,41 +13,45 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
-public class NDiscoPlusData
+public class NDPData
 {
-    public NDiscoPlusData(SpotifyPlayerTrack track, NDiscoPlusContext context, NDiscoPlusColorPalette palette)
+    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette palette, TrackAudioAnalysis tempAnalysis)
     {
         Track = track;
         Context = context;
         Palette = palette;
+        TempAnalysis = tempAnalysis;
     }
 
     [JsonRequired]
     public SpotifyPlayerTrack Track { get; init; }
 
     [JsonRequired]
-    public NDiscoPlusContext Context { get; init; }
+    public NDPContext Context { get; init; }
 
     [JsonRequired, JsonConverter(typeof(ColorPaletteConverter))]
-    public NDiscoPlusColorPalette Palette { get; init; }
+    public NDPColorPalette Palette { get; init; }
 
-    public static string Serialize(NDiscoPlusData data)
+    [JsonRequired]
+    public TrackAudioAnalysis TempAnalysis { get; init; }
+
+    public static string Serialize(NDPData data)
     {
         string output = JsonSerializer.Serialize(data);
         Debug.Assert(!string.IsNullOrEmpty(output));
         return output;
     }
 
-    public static NDiscoPlusData Deserialize(string data)
+    public static NDPData Deserialize(string data)
     {
-        NDiscoPlusData? d = JsonSerializer.Deserialize<NDiscoPlusData>(data);
+        NDPData? d = JsonSerializer.Deserialize<NDPData>(data);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
 }
 
-class ColorPaletteConverter : JsonConverter<NDiscoPlusColorPalette>
+class ColorPaletteConverter : JsonConverter<NDPColorPalette>
 {
-    public override NDiscoPlusColorPalette? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override NDPColorPalette? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType != JsonTokenType.StartArray)
             throw new JsonException();
@@ -60,10 +65,10 @@ class ColorPaletteConverter : JsonConverter<NDiscoPlusColorPalette>
             reader.Read();
         }
 
-        return new NDiscoPlusColorPalette(colors);
+        return new NDPColorPalette(colors);
     }
 
-    public override void Write(Utf8JsonWriter writer, NDiscoPlusColorPalette value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, NDPColorPalette value, JsonSerializerOptions options)
     {
         writer.WriteStartArray();
 

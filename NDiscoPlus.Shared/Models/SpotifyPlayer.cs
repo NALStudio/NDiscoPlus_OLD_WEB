@@ -71,6 +71,6 @@ public record SpotifyPlayerContext(
     SpotifyPlayerTrack Track,
 
     /// Next Track might or might not be accurate depending on when the data was loaded by the player implementation.
-    /// SpotifyWebPlayer loads the next track when the song is changed.
+    /// SpotifyWebPlayer loads the next track when the song is changed and when the current song nears its end.
     SpotifyPlayerTrack? NextTrack
 );
