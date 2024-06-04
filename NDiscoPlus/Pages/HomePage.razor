@@ -8,7 +8,7 @@
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
-@using NDiscoPlus.Shared.Interpreters
+@using NDiscoPlus.Shared.Music
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Players
 @using SkiaSharp
@@ -19,7 +19,7 @@
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger;
-@inject ILogger<NewSpotifyWebPlayer> playerLogger;
+@inject ILogger<SpotifyWebPlayer> playerLogger;
 @inject IWorkerFactory workerFactory;
 
 <PageTitle>NDiscoPlus</PageTitle>
@@ -176,7 +176,7 @@
         if (spotify is null)
             return;
 
-        SpotifyPlayer player = new NewSpotifyWebPlayer(spotify, playerLogger);
+        SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
         await foreach(SpotifyPlayerContext? context in player.ListenAsync(50)) {
             this.context = context;
             UpdateData(spotify, context?.Track, context?.NextTrack);

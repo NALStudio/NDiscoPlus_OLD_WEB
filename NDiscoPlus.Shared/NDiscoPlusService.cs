@@ -18,7 +18,10 @@ public class NDiscoPlusService
 
     public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
     [
-        new NDPColorPalette(new(255, 0, 0), new(0, 255, 255), new(255, 105, 180), new(102, 51, 153))
+        new NDPColorPalette(new(255, 0, 0), new(0, 255, 255), new(255, 105, 180), new(102, 51, 153)),
+        new NDPColorPalette(new(15, 192, 252), new(123, 29, 175), new(255, 47, 185), new(212, 255, 71)),
+        new NDPColorPalette(new(255, 0, 0), new(0, 255, 0), new(0, 0, 255), new(255, 255, 0)),
+        new NDPColorPalette(new(164, 20, 217), new(255, 128, 43), new(249, 225, 5), new(52, 199, 165), new(93, 80, 206)),
     ];
 
     public NDPData ComputeData(SpotifyPlayerTrack track, TrackAudioAnalysis analysis, NDPColorPalette palette)
@@ -65,7 +68,7 @@ public class NDiscoPlusService
         }
 
         SKBitmap bitmap = SKBitmap.Decode(await result.Content.ReadAsStreamAsync());
-        uint[] pixels = bitmap.Pixels.Select(p => (uint)p).ToArray();
+        uint[] pixels = Array.ConvertAll(bitmap.Pixels, p => (uint)p);
         List<uint> rawColors = MaterialColorUtilities.Utils.ImageUtils.ColorsFromImage(pixels);
 
         return new NDPColorPalette(rawColors.Select(c => new SKColor(c)));
