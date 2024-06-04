@@ -232,30 +232,30 @@
                 else
                 {
                     data.CurrentTrackId = currentTrackId;
+                    data.CurrentTrackData = null;
                     if (currentTrack is not null)
                         fetchTracks.Add(currentTrack);
-                    data.CurrentTrackData = null;
                 }
             }
 
             if (data.NextTrackId != nextTrackId)
             {
                 data.NextTrackId = nextTrackId;
+                data.NextTrackData = null;
                 if (nextTrack is not null)
                     fetchTracks.Add(nextTrack);
-                data.NextTrackData = null;
             }
         }
 
         foreach (SpotifyPlayerTrack fetch in fetchTracks)
             fetchTasks.Add(ComputeData(spotify, fetch));
 
-        foreach (var task in fetchTasks)
+        Task<NDPData>[] finishedTasks = fetchTasks.Where(t => t.IsCompleted).ToArray();
+        foreach (Task<NDPData> task in finishedTasks)
         {
-            if (!task.IsCompleted)
-                continue;
+            Debug.Assert(task.IsCompleted);
 
-            Shared.Models.NDPData d = task.Result;
+            NDPData d = task.Result;
             lock (data)
             {
                 if (data.CurrentTrackId == d?.Track.Id)
@@ -263,10 +263,12 @@
                 if (data.NextTrackId == d?.Track.Id)
                     data.NextTrackData = d;
             }
+
+            fetchTasks.Remove(task);
         }
     }
 
-    async Task<Shared.Models.NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track)
+    async Task<NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track)
     {
         logger.LogInformation("Computing new data for track: '{}' ({})...", track.Name, track.Id);
 
