@@ -5,42 +5,48 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
 
-public record SpotifyPlayerTrack
+public readonly record struct SpotifyPlayerImage(string Url, int Width, int Height);
+
+public class SpotifyPlayerTrack
 {
-    public SpotifyPlayerTrack(string id, string name, TimeSpan length, string imageUrl, string[] artists)
+    public SpotifyPlayerTrack(string id, string name, TimeSpan length, string imageUrl, string smallImageUrl, string[] artists)
     {
         Id = id;
         Name = name;
         Length = length;
         ImageUrl = imageUrl;
+        SmallImageUrl = smallImageUrl;
         Artists = artists;
     }
 
-    [JsonRequired]
     public string Id { get; init; }
-
-    [JsonRequired]
     public string Name { get; init; }
-
-    [JsonRequired]
     public TimeSpan Length { get; init; }
-
-    [JsonRequired]
     public string ImageUrl { get; init; }
-
-    [JsonRequired]
+    public string SmallImageUrl { get; init; }
     public string[] Artists { get; init; }
-
 
     public static SpotifyPlayerTrack FromSpotifyTrack(FullTrack track)
     {
+        Image[] images = track.Album.Images.Where(i => i.Width == i.Height).ToArray();
+        if (images.Length < 1)
+            throw new ArgumentException("No valid album images in track.");
+
         return new SpotifyPlayerTrack(
             track.Id,
             track.Name,
             TimeSpan.FromMilliseconds(track.DurationMs),
             track.Album.Images[0].Url,
+            track.Album.Images[^1].Url,
             track.Artists.Select(a => a.Name).ToArray()
         );
+    }
+
+    public static SpotifyPlayerTrack? FromSpotifyTrackOrNull(FullTrack? track)
+    {
+        if (track is null)
+            return null;
+        return FromSpotifyTrack(track);
     }
 
     /// <summary>
@@ -65,12 +71,24 @@ public record SpotifyPlayerTrack
     }
 }
 
-public record SpotifyPlayerContext(
-    TimeSpan Progress,
-    bool IsPlaying,
-    SpotifyPlayerTrack Track,
+public class SpotifyPlayerContext
+{
+    public SpotifyPlayerContext(TimeSpan progress, bool isPlaying, SpotifyPlayerTrack track, SpotifyPlayerTrack? nextTrack)
+    {
+        Progress = progress;
+        IsPlaying = isPlaying;
+        Track = track;
+        NextTrack = nextTrack;
+    }
 
-    /// Next Track might or might not be accurate depending on when the data was loaded by the player implementation.
-    /// SpotifyWebPlayer loads the next track when the song is changed and when the current song nears its end.
-    SpotifyPlayerTrack? NextTrack
-);
+    public TimeSpan Progress { get; }
+    public bool IsPlaying { get; }
+    public SpotifyPlayerTrack Track { get; }
+
+    /// <summary>
+    /// The next track information is supplied once we are almost certain what the next track is going to be.
+    /// This depends on the implementation:
+    ///     - Spotify web player gives this info in the last 20 seconds of the currently playing song and updates it every 5 seconds.
+    /// </summary>
+    public SpotifyPlayerTrack? NextTrack { get; }
+}

@@ -1,39 +1,32 @@
 ﻿using SkiaSharp;
-using SpotifyAPI.Web;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
 public class NDPData
 {
-    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette palette, TrackAudioAnalysis tempAnalysis)
+    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette referencePalette, NDPColorPalette effectPalette, NDPTimings timings)
     {
         Track = track;
         Context = context;
-        Palette = palette;
-        TempAnalysis = tempAnalysis;
+        ReferencePalette = referencePalette;
+        EffectPalette = effectPalette;
+        Timings = timings;
     }
 
-    [JsonRequired]
-    public SpotifyPlayerTrack Track { get; init; }
+    public SpotifyPlayerTrack Track { get; }
 
-    [JsonRequired]
-    public NDPContext Context { get; init; }
+    public NDPContext Context { get; }
 
-    [JsonRequired, JsonConverter(typeof(ColorPaletteConverter))]
-    public NDPColorPalette Palette { get; init; }
+    [JsonConverter(typeof(ColorPaletteConverter))]
+    public NDPColorPalette ReferencePalette { get; }
 
-    [JsonRequired]
-    public TrackAudioAnalysis TempAnalysis { get; init; }
+    [JsonConverter(typeof(ColorPaletteConverter))]
+    public NDPColorPalette EffectPalette { get; }
+
+    public NDPTimings Timings { get; }
 
     public static string Serialize(NDPData data)
     {
@@ -51,13 +44,13 @@ public class NDPData
 
 class ColorPaletteConverter : JsonConverter<NDPColorPalette>
 {
-    public override NDPColorPalette? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override NDPColorPalette Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType != JsonTokenType.StartArray)
             throw new JsonException();
         reader.Read();
 
-        List<SKColor> colors = new();
+        List<SKColor> colors = [];
 
         while (reader.TokenType != JsonTokenType.EndArray)
         {

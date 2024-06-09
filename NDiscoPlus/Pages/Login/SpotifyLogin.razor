@@ -41,7 +41,7 @@ else {
 
             bool result = await TryLogin(code);
             if (result)
-                navigationManager.NavigateTo("/");
+                navigationManager.NavigateTo("./");
             else
                 isLoggingIn = false;
         }

@@ -11,6 +11,31 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
+
+public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioAnalysis Analysis)
+{
+    /// <summary>
+    /// Serialize to pass object to workers.
+    /// Serialized representation is currently JSON, but might change in the future.
+    /// </summary>
+    public static string Serialize(NDiscoPlusArgs args)
+    {
+        string output = JsonSerializer.Serialize(args);
+        Debug.Assert(!string.IsNullOrEmpty(output));
+        return output;
+    }
+
+    /// <summary>
+    /// Deserialize to receive object from workers.
+    /// Serialized representation is currently JSON, but might change in the future. Use the one provided by <see cref="Serialize(SpotifyPlayerTrack)"/>
+    /// </summary>
+    public static NDiscoPlusArgs Deserialize(string args)
+    {
+        NDiscoPlusArgs? t = JsonSerializer.Deserialize<NDiscoPlusArgs>(args);
+        return t ?? throw new InvalidOperationException("Cannot deserialize value.");
+    }
+}
+
 public class NDiscoPlusService
 {
     HttpClient? http;
@@ -24,36 +49,54 @@ public class NDiscoPlusService
         new NDPColorPalette(new(164, 20, 217), new(255, 128, 43), new(249, 225, 5), new(52, 199, 165), new(93, 80, 206)),
     ];
 
-    public NDPData ComputeData(SpotifyPlayerTrack track, TrackAudioAnalysis analysis, NDPColorPalette palette)
+    private NDPColorPalette GetRandomDefaultPalette()
     {
+        random ??= new Random();
+        return DefaultPalettes[random.Next(DefaultPalettes.Count)];
+    }
+
+    /// <summary>
+    /// Check if palette is sufficient for effects.
+    /// </summary>
+    private static bool IsPaletteSufficient(NDPColorPalette palette)
+    {
+        if (palette.Count < 4)
+            return false;
+
+        return true;
+    }
+
+
+    /// <summary>
+    /// Palette might get overridden if it's deemed to be insufficient.
+    /// </summary>
+    public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
+    {
+        NDPColorPalette effectPalette = IsPaletteSufficient(palette) ? palette : GetRandomDefaultPalette();
+
         return new NDPData(
-            track,
+            args.Track,
             new NDPContext(),
             palette,
-            analysis
+            effectPalette,
+            NDPTimings.FromAnalysis(args.Analysis)
         );
     }
 
-    public async Task<NDPData> ComputeDataWithImageColors(SpotifyPlayerTrack track, TrackAudioAnalysis analysis)
+    public async Task<NDPData> ComputeDataWithImageColors(NDiscoPlusArgs args)
     {
-        var palette = await FetchImagePalette(track);
-        return ComputeData(track, analysis, palette);
+        var palette = await FetchImagePalette(args.Track);
+        return ComputeData(args, palette);
     }
 
     /// <summary>
     /// Blazor workers have a hard time serializing objects.
     /// </summary>
-    /// <param name="serializedTrack">A serialized <see cref="NDPData"/> instance.</param>
-    /// <returns></returns>
-    public async Task<string> ComputeDataWithImageColorsFromSerialized(string serializedTrack, string serializedAnalysis)
+    /// <param name="argsSerialized">A serialized <see cref="NDiscoPlusArgs"/> instance.</param>
+    public async Task<string> ComputeDataWithImageColorsFromSerialized(string argsSerialized)
     {
-        SpotifyPlayerTrack track = SpotifyPlayerTrack.Deserialize(serializedTrack);
-
-        TrackAudioAnalysis? analysis = JsonSerializer.Deserialize<TrackAudioAnalysis>(serializedAnalysis);
-        if (analysis is null)
-            throw new InvalidOperationException("Cannot deserialize analysis.");
-
-        NDPData data = await ComputeDataWithImageColors(track, analysis);
+        NDiscoPlusArgs args = NDiscoPlusArgs.Deserialize(argsSerialized);
+        NDPData data = await ComputeDataWithImageColors(args);
         return NDPData.Serialize(data);
     }
 
@@ -62,10 +105,7 @@ public class NDiscoPlusService
         http ??= new HttpClient();
         var result = await http.GetAsync(track.ImageUrl);
         if (!result.IsSuccessStatusCode)
-        {
-            random ??= new Random();
-            return DefaultPalettes[random.Next(DefaultPalettes.Count)];
-        }
+            return GetRandomDefaultPalette();
 
         SKBitmap bitmap = SKBitmap.Decode(await result.Content.ReadAsStreamAsync());
         uint[] pixels = Array.ConvertAll(bitmap.Pixels, p => (uint)p);

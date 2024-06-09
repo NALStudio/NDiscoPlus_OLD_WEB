@@ -4,7 +4,7 @@ namespace NDiscoPlus.Shared.Helpers;
 
 readonly record struct GroupDistance(int Index, double Distance);
 
-internal static class CollectionHelpers
+internal static class ListHelpers
 {
     /// <summary>
     /// start is inclusive, end is exclusive.
@@ -15,7 +15,10 @@ internal static class CollectionHelpers
             yield return values[i];
     }
 
-    public static IEnumerable<T[]> GroupCloseBy<T>(IList<T> values, int count, Func<T, T, double> distance)
+    /// <summary>
+    /// Group close-by objects into n groups. The returned groups are ordered from smallest index to the largest.
+    /// </summary>
+    public static IEnumerable<T[]> GroupCloseBy<T>(this IList<T> values, int count, Func<T, T, double> distance)
     {
         if (values.Count < count)
             throw new ArgumentException($"Cannot group {values.Count} values into {count} groups.");
@@ -36,12 +39,22 @@ internal static class CollectionHelpers
         Debug.Assert(dists.Length >= splitCount);
 
         int lastIndex = 0;
-        foreach (var d in dists.OrderByDescending(d => d.Distance).Take(splitCount))
+        foreach (var d in dists.OrderByDescending(d => d.Distance).Take(splitCount).OrderBy(d => d.Index))
         {
             yield return TakeRange(values, lastIndex, d.Index).ToArray();
             lastIndex = d.Index;
         }
 
         yield return TakeRange(values, lastIndex, values.Count).ToArray();
+    }
+
+    /// <summary>
+    /// Picks a random element from the list.
+    /// </summary>
+    /// <param name="random">The Random provider used. Defaults to <see cref="Random.Shared"/></param>
+    public static T Random<T>(this IList<T> values, Random? random = null)
+    {
+        random ??= System.Random.Shared;
+        return values[random.Next(values.Count)];
     }
 }

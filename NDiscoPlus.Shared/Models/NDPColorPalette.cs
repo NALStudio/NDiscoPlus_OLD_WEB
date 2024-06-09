@@ -7,11 +7,11 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
-public class NDPColorPalette : IReadOnlyList<SKColor>
+public readonly struct NDPColorPalette : IReadOnlyList<SKColor>
 {
-    private SKColor[] colors;
+    private readonly SKColor[] colors;
 
-    public int Count => colors.Length;
+    public readonly int Count => colors.Length;
 
     public SKColor this[int index] => colors[index];
 
@@ -25,7 +25,7 @@ public class NDPColorPalette : IReadOnlyList<SKColor>
         this.colors = colors;
     }
 
-    public SKColor[] Colors
+    public readonly SKColor[] Colors
     {
         get
         {
@@ -40,4 +40,3 @@ public class NDPColorPalette : IReadOnlyList<SKColor>
     public IEnumerator<SKColor> GetEnumerator() => ((IEnumerable<SKColor>)colors).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => colors.GetEnumerator();
 }
-

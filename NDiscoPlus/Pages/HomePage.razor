@@ -24,57 +24,85 @@
 
 <PageTitle>NDiscoPlus</PageTitle>
 
-<div style="width:100vw; height:100vh; background: linear-gradient(90deg, @(gradient.TopLeft), @(gradient.TopRight));">
-    <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
-        @if(context is not null) {
-            <MudImage
-                Src="@context.Track.ImageUrl"
-                Width="256"
-            Height="256"/>
-        }
-        else
-        {
-            <div style="background:#1DB954;padding:64px">
+<div style="width:100vw; height:100vh">
+    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(90deg, @(gradient.TopLeft), @(gradient.TopRight));">
+        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
+        <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
+            @if(context is not null) {
                 <MudImage
-                    Src="/img/spotify_icon_white.svg"
-                    Width="128"
-                    Height="128"/>
+                    Src="@context.Track.ImageUrl"
+                    Width="256"
+                Height="256"/>
+            }
+            else
+            {
+                <div style="background:#1DB954;padding:64px">
+                    <MudImage
+                        Src="/img/spotify_icon_white.svg"
+                        Width="128"
+                        Height="128"/>
+                </div>
+            }
+            <div style="min-width:256px; max-width:512px;">
+                <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
+                @if(context is not null)
+                {
+                    <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
+                }
             </div>
-        }
-        <div style="min-width:256px; max-width:512px;">
-            <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
-            @if(context is not null)
-            {
-                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
-            }
-        </div>
-        <div style="width:80%; max-width:512px; padding-bottom:64px">
-            @if(context is not null)
-            {
-                <MudProgressLinear
-                    Value="@(context.Progress.TotalSeconds)"
-                    Min="0"
-                    Max="@(context.Track.Length.TotalSeconds)"
-                    Rounded="true"
-                    />
-                <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
-                    <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
-                    <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
-                </MudStack>
-            }
-        </div>
-        <MudButton
-            StartIcon="@Icons.Material.Rounded.Lightbulb"
-            Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-            Size=Size.Large
-            Color=MudBlazor.Color.Primary
-            Disabled=@(spotify is null || playStarting)
-            OnClick=TogglePlay>
-            @(isPlaying ? "Stop" : "Play")
-        </MudButton>
-    </MudStack>
+            <div style="width:80%; max-width:512px; padding-bottom:64px">
+                @if(context is not null)
+                {
+                    <MudProgressLinear
+                        Value="@(context.Progress.TotalSeconds)"
+                        Min="0"
+                        Max="@(context.Track.Length.TotalSeconds)"
+                        Rounded="true"
+                        />
+                    <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
+                        <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
+                    </MudStack>
+                }
+            </div>
+            <MudButton
+                StartIcon="@Icons.Material.Rounded.Lightbulb"
+                Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+                Size=Size.Large
+                Color=MudBlazor.Color.Primary
+                Disabled=@(spotify is null || playStarting)
+                OnClick=TogglePlay>
+                @(isPlaying ? "Stop" : "Play")
+            </MudButton>
+        </MudStack>
+    </div>
 </div>
+@if (context is not null && context.NextTrack is not null)
+{
+    <MudPaper Elevation="8" Style="position:fixed; top:24px; right:24px; max-width:33vw; background:#000000AA; padding:16px; border-radius:16px;">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudImage
+            Src="@(context.NextTrack.SmallImageUrl)"
+            Width="48"
+            Height="48"
+            />
+            <MudStack Spacing="0" Style="overflow:hidden">
+                <MudText
+                Style="font-size:small; color:#FFFFFFAA">
+                    Next Track
+                </MudText>
+                <MudText
+                Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
+                    @(context.NextTrack.Name)
+                </MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    
+}
 
 @code {
     record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
@@ -85,11 +113,14 @@
         public Shared.Models.NDPData? NextTrackData { get; set; } = null;
     }
 
+    readonly record struct FetchTask(string TrackId, Task<NDPData> Task);
+
     const string TimespanFormat = @"mm\:ss";
 
     FourCornerGradient gradient = _defaultGradient;
     static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
     LightInterpreter gradientLights = new(
+        new LightInterpreterConfig(),
         new NDPLight(null, new HueApi.Models.HuePosition(-1, 1, 1)),
         new NDPLight(null, new HueApi.Models.HuePosition(1, 1, 1)),
         new NDPLight(null, new HueApi.Models.HuePosition(-1, -1, -1)),
@@ -97,7 +128,7 @@
     );
 
     readonly NDPDataContainer data = new();
-    List<Task<Shared.Models.NDPData>> fetchTasks = new();
+    List<FetchTask> fetchTasks = new();
 
     bool isPlaying = false;
     bool playStarting = false;
@@ -190,7 +221,7 @@
                 }
 
                 if (currentTrackData is not null)
-                    gradient = GetGradient(currentTrackData.Palette);
+                    gradient = GetGradient(currentTrackData.ReferencePalette);
                 else
                     gradient = _defaultGradient;
             }
@@ -203,9 +234,21 @@
                 }
 
                 if (currentTrackData is not null)
-                    gradient = GetGradient(gradientLights.Update(context.Progress, currentTrackData));
+                {
+                    try
+                    {
+                        gradient = GetGradient(gradientLights.Update(context.Progress, currentTrackData));
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError($"Lights update failed with error: '{e}'");
+                        gradient = GetGradient(currentTrackData.ReferencePalette);
+                    }
+                }
                 else
+                {
                     gradient = _defaultGradient;
+                }
             }
 
             StateHasChanged();
@@ -218,7 +261,7 @@
         string? nextTrackId = nextTrack?.Id;
 
 
-        List<SpotifyPlayerTrack> fetchTracks = new(2);
+        List<SpotifyPlayerTrack> toFetchTracks = new(2);
 
         lock (data)
         {
@@ -234,7 +277,7 @@
                     data.CurrentTrackId = currentTrackId;
                     data.CurrentTrackData = null;
                     if (currentTrack is not null)
-                        fetchTracks.Add(currentTrack);
+                        toFetchTracks.Add(currentTrack);
                 }
             }
 
@@ -243,19 +286,26 @@
                 data.NextTrackId = nextTrackId;
                 data.NextTrackData = null;
                 if (nextTrack is not null)
-                    fetchTracks.Add(nextTrack);
+                    toFetchTracks.Add(nextTrack);
             }
         }
 
-        foreach (SpotifyPlayerTrack fetch in fetchTracks)
-            fetchTasks.Add(ComputeData(spotify, fetch));
-
-        Task<NDPData>[] finishedTasks = fetchTasks.Where(t => t.IsCompleted).ToArray();
-        foreach (Task<NDPData> task in finishedTasks)
+        foreach (SpotifyPlayerTrack fetch in toFetchTracks)
         {
-            Debug.Assert(task.IsCompleted);
+            string fetchId = fetch.Id;
+            // fetchTasks is empty => !false => true => Add()
+            if (!fetchTasks.Any(f => f.TrackId == fetchId)) // sometimes the fetch for the same song would happen twice, we want to avoid it due to performance (and because the effects might be different)
+                fetchTasks.Add(new FetchTask(fetchId, ComputeData(spotify, fetch)));
+        }
 
-            NDPData d = task.Result;
+        var finishedTasks = fetchTasks.Where(t => t.Task.IsCompleted).ToArray();
+        foreach (FetchTask task in finishedTasks)
+        {
+            Debug.Assert(task.Task.IsCompleted);
+
+            NDPData d = task.Task.Result;
+            Debug.Assert(task.TrackId == d.Track.Id);
+
             lock (data)
             {
                 if (data.CurrentTrackId == d?.Track.Id)
@@ -274,11 +324,11 @@
 
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        string analysisSerialized = JsonSerializer.Serialize(analysis);
-        string trackSerialized = SpotifyPlayerTrack.Serialize(track);
+        NDiscoPlusArgs args = new(track, analysis);
+        string argsSerialized = NDiscoPlusArgs.Serialize(args);
 
-        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(trackSerialized, analysisSerialized));
-        var d = Shared.Models.NDPData.Deserialize(dataSerialized);
+        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
+        var d = NDPData.Deserialize(dataSerialized);
 
         logger.LogInformation("Data computed: '{}' ({}).", track.Name, track.Id);
         return d;
@@ -286,7 +336,7 @@
 
     void RequestLogin()
     {
-        navigationManager.NavigateTo("/spotify-login");
+        navigationManager.NavigateTo("./spotify-login");
     }
 
     async Task LoginSpotify(string refreshToken)
@@ -334,7 +384,7 @@
             return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
     }
 
-    static FourCornerGradient GetGradient(IList<NDPLight> lights)
+    static FourCornerGradient GetGradient(IReadOnlyList<NDPLight> lights)
     {
         static string ComputeHTMLColor(NDPLight light)
         {
