@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.Models;
 using SkiaSharp;
 using SpotifyAPI.Web;
 using System;
@@ -55,24 +56,26 @@ public class NDiscoPlusService
         return DefaultPalettes[random.Next(DefaultPalettes.Count)];
     }
 
-    /// <summary>
-    /// Check if palette is sufficient for effects.
-    /// </summary>
-    private static bool IsPaletteSufficient(NDPColorPalette palette)
+    private NDPColorPalette ModifyPaletteForEffects(NDPColorPalette palette)
     {
-        if (palette.Count < 4)
-            return false;
+        const int MinPaletteCount = 4;
+        const int MaxPaletteCount = 5;
 
-        return true;
+        if (palette.Count < MinPaletteCount)
+            return GetRandomDefaultPalette();
+
+        if (palette.Count > MaxPaletteCount)
+            return new NDPColorPalette(palette.Take(MaxPaletteCount));
+
+        return palette;
     }
-
 
     /// <summary>
     /// Palette might get overridden if it's deemed to be insufficient.
     /// </summary>
     public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
     {
-        NDPColorPalette effectPalette = IsPaletteSufficient(palette) ? palette : GetRandomDefaultPalette();
+        NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
 
         return new NDPData(
             args.Track,

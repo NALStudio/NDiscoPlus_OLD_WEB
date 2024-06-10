@@ -11,6 +11,14 @@ internal static class ColorHelpers
 {
     public static RGBColor ToHueColor(this SKColor color) => new((int)color.Red, (int)color.Green, (int)color.Blue);
 
+    public static SKColor ToSKColor(this RGBColor color)
+    {
+        byte red = (byte)(color.R * 255.99);
+        byte green = (byte)(color.G * 255.99);
+        byte blue = (byte)(color.B * 255.99);
+        return new SKColor(red, green, blue);
+    }
+
     public static RGBColor Lerp(RGBColor a, RGBColor b, double t)
     {
         t = Math.Clamp(t, 0d, 1d);
@@ -21,8 +29,6 @@ internal static class ColorHelpers
             a.B + ((b.B - a.B) * t)
         );
     }
-
-
 
     /// <summary>
     /// Computes a gradient color with mix (same as t in Lerp). This takes gamma into account.

@@ -1,6 +1,7 @@
 ﻿using HueApi.ColorConverters;
 using HueApi.ColorConverters.Original.Extensions;
 using HueApi.Models;
+using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using SkiaSharp;
@@ -21,14 +22,28 @@ public class LightInterpreterConfig
 
 public class LightInterpreter
 {
+    private readonly record struct EffectData(NDPBaseEffect Effect, EffectState State)
+    {
+        public static EffectData CreateForEffect(NDPBaseEffect effect)
+        {
+            EffectState state = effect.CreateState();
+            return new(effect, state);
+        }
+    }
+
     public LightInterpreterConfig Config { get; }
     public NDPLightCollection Lights { get; }
 
-    public string? trackId;
+    private string? trackId;
 
-    public int barIndex;
-    public int beatIndex;
-    public int tatumIndex;
+    private int barIndex;
+    private int beatIndex;
+    private int tatumIndex;
+
+    private Random random = new();
+    private Stopwatch? deltaTimeSW;
+
+    private EffectData backgroundEffect = EffectData.CreateForEffect(new BackgroundEffect());
 
     void Reset()
     {
@@ -89,9 +104,11 @@ public class LightInterpreter
 
     public IReadOnlyList<NDPLight> Update(TimeSpan progress, NDPData data)
     {
+        bool isNewTrack = false;
         if (trackId != data.Track.Id)
         {
             trackId = data.Track.Id;
+            isNewTrack = true;
             Reset();
         }
 
@@ -100,42 +117,40 @@ public class LightInterpreter
         (beatIndex, bool newBeat) = UpdateBeats(progress, data.Timings.Beats, beatIndex);
         (tatumIndex, bool newTatum) = UpdateBeats(progress, data.Timings.Tatums, tatumIndex);
 
+        double deltaTime;
+        if (deltaTimeSW is not null)
+        {
+            deltaTime = deltaTimeSW.Elapsed.TotalSeconds;
+            deltaTimeSW.Restart();
+        }
+        else
+        {
+            deltaTimeSW = Stopwatch.StartNew();
+            deltaTime = 0d;
+        }
+
+        EffectContext ctx = new(
+            lights: Lights,
+            palette: data.EffectPalette,
+
+            random: random,
+
+            progress: progress,
+            deltaTime: deltaTime,
+
+            newTrack: isNewTrack,
+
+            barIndex: barIndex,
+            newBar: newBar,
+            beatIndex: beatIndex,
+            newBeat: newBeat,
+            tatumIndex: tatumIndex,
+            newTatum: newTatum
+        );
+
         // light update
-        UpdateLightsBase(progress, data.EffectPalette);
+        backgroundEffect.Effect.Update(ctx, backgroundEffect.State);
 
         return Lights;
-    }
-
-    private void UpdateLightsBase(TimeSpan progress, NDPColorPalette palette)
-    {
-        double xSize = Lights.Bounds.MaxX - Lights.Bounds.MinX;
-        double ySize = Lights.Bounds.MaxY - Lights.Bounds.MinY;
-
-        (NDPLight Light, double NormalizedPosition)[] lightAxis;
-        if (xSize >= ySize)
-            lightAxis = Lights.Select(l => (l, l.Position.X.Remap01(Lights.Bounds.MinX, Lights.Bounds.MaxX))).ToArray();
-        else
-            lightAxis = Lights.Select(l => (l, l.Position.Y.Remap01(Lights.Bounds.MinY, Lights.Bounds.MaxY))).ToArray();
-
-        RGBColor[] huePalette = palette.Select(c => c.ToHueColor()).ToArray();
-
-        double backgroundRotationProgress = (progress.TotalMinutes * Config.BackgroundRPM) % 1d;
-
-        // TODO: Find a better way to show the palette without CSS gradient being ugly
-        // Probably just transition each light on its own to a new random color once in a while
-        foreach ((NDPLight light, double normalizedPosition) in lightAxis)
-        {
-            double paletteProgress = backgroundRotationProgress * palette.Count;
-            double paletteT = normalizedPosition + paletteProgress;
-
-            int gradientIndex = (int)paletteT;
-            double gradientT = paletteT - gradientIndex;
-
-            RGBColor c1 = huePalette[gradientIndex % huePalette.Length];
-            RGBColor c2 = huePalette[(gradientIndex + 1) % huePalette.Length];
-
-            light.Color = ColorHelpers.Gradient(c1, c2, gradientT);
-            light.Brightness = Config.MaxBrightness;
-        }
     }
 }
