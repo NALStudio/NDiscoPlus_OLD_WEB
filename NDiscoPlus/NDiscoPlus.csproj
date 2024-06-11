@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-	<PublishTrimmed>false</PublishTrimmed> <!-- Try to fix error in prod. -->
+	<PublishTrimmed>false</PublishTrimmed> <!-- To fix error in prod. (Spotify API library uses Newtonsoft.Json: https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/incompatibilities) -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
 

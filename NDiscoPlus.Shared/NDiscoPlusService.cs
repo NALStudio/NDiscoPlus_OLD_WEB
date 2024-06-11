@@ -70,9 +70,6 @@ public class NDiscoPlusService
         return palette;
     }
 
-    /// <summary>
-    /// Palette might get overridden if it's deemed to be insufficient.
-    /// </summary>
     public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
     {
         NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
