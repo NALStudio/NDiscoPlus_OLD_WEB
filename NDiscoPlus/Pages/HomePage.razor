@@ -79,10 +79,10 @@
 </div>
 @if (context is not null && context.NextTrack is not null)
 {
-    <MudPaper Elevation="8" Style="position:fixed; top:24px; right:24px; max-width:33vw; background:#000000AA; padding:16px; border-radius:16px;">
+    <MudPaper Elevation="8" Class="next_track_fadein" Style="position:fixed; top:24px; right:24px; max-width:33vw; background:#000000AA; padding:16px; border-radius:16px;">
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudImage
-            Src="@(context.NextTrack.SmallImageUrl)"
+            Src="@(context?.NextTrack?.SmallImageUrl ?? "./img/spotify_icon_green.svg")"
             Width="48"
             Height="48"
             />
@@ -93,12 +93,23 @@
                 </MudText>
                 <MudText
                 Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
-                    @(context.NextTrack.Name)
+                    @(context?.NextTrack?.Name ?? "null")
                 </MudText>
             </MudStack>
         </MudStack>
     </MudPaper>
 }
+
+<style>
+    .next_track_fadein {
+        animation: fadein 2s;
+    }
+
+    @@keyframes fadein {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+</style>
 
 @code {
     record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
