@@ -43,8 +43,8 @@
                         Height="128"/>
                 </div>
             }
-            <div style="min-width:256px; max-width:512px;">
-                <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; overflow:hidden"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
+            <div style="min-width:256px;">
+                <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
                 @if(context is not null)
                 {
                     <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
@@ -79,14 +79,14 @@
 </div>
 @if (context is not null && context.NextTrack is not null)
 {
-    <MudPaper Elevation="8" Class="next_track_fadein" Style="position:fixed; top:24px; right:24px; max-width:33vw; background:#000000AA; padding:16px; border-radius:16px;">
+    <MudPaper Elevation="8" Class="next_track_fadein" Style="position:fixed; top:24px; right:24px; background:#000000AA; padding:16px; border-radius:16px;">
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudImage
             Src="@(context?.NextTrack?.SmallImageUrl ?? "./img/spotify_icon_green.svg")"
             Width="48"
             Height="48"
             />
-            <MudStack Spacing="0" Style="overflow:hidden">
+            <MudStack Spacing="0">
                 <MudText
                 Style="font-size:small; color:#FFFFFFAA">
                     Next Track
