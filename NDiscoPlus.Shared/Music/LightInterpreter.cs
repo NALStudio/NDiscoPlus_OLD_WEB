@@ -16,17 +16,20 @@ public class LightInterpreterConfig
 {
     public double BackgroundRPM { get; init; } = 5d;
 
-    public double BaseBrightness { get; init; } = 0.3d;
+    public double BaseBrightness { get; init; } = 0.5d;
     public double MaxBrightness { get; init; } = 1d;
 }
 
 public class LightInterpreter
 {
-    private readonly record struct EffectData(NDPBaseEffect Effect, EffectState State)
+    private record EffectData(NDPBaseEffect Effect, EffectState State)
     {
-        public static EffectData CreateForEffect(NDPBaseEffect effect)
+        public static EffectData CreateForEffect(LightInterpreter parent, NDPBaseEffect effect)
         {
-            EffectState state = effect.CreateState();
+            StateContext ctx = new(
+                lightCount: parent.Lights.Count
+            );
+            EffectState state = effect.CreateState(ctx);
             return new(effect, state);
         }
     }
@@ -43,7 +46,7 @@ public class LightInterpreter
     private Random random = new();
     private Stopwatch? deltaTimeSW;
 
-    private EffectData backgroundEffect = EffectData.CreateForEffect(new BackgroundEffect());
+    private EffectData? backgroundEffect;
 
     void Reset()
     {
@@ -104,6 +107,8 @@ public class LightInterpreter
 
     public IReadOnlyList<NDPLight> Update(TimeSpan progress, NDPData data)
     {
+        backgroundEffect ??= EffectData.CreateForEffect(this, new BackgroundEffect());
+
         bool isNewTrack = false;
         if (trackId != data.Track.Id)
         {
@@ -130,6 +135,8 @@ public class LightInterpreter
         }
 
         EffectContext ctx = new(
+            config: Config,
+
             lights: Lights,
             palette: data.EffectPalette,
 

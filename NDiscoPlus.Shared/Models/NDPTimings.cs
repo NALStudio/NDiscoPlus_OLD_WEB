@@ -16,7 +16,7 @@ public readonly record struct NDPInterval(TimeSpan Start, TimeSpan Duration)
 
 public class NDPTimings
 {
-    public NDPTimings(ImmutableList<NDPInterval> bars, ImmutableList<NDPInterval> beats, ImmutableList<NDPInterval> tatums)
+    public NDPTimings(ImmutableArray<NDPInterval> bars, ImmutableArray<NDPInterval> beats, ImmutableArray<NDPInterval> tatums)
     {
         this.bars = bars;
         this.beats = beats;
@@ -24,17 +24,17 @@ public class NDPTimings
     }
 
     [JsonInclude]
-    private ImmutableList<NDPInterval> bars;
+    private ImmutableArray<NDPInterval> bars;
     [JsonIgnore]
     public IList<NDPInterval> Bars => bars;
 
     [JsonInclude]
-    private ImmutableList<NDPInterval> beats;
+    private ImmutableArray<NDPInterval> beats;
     [JsonIgnore]
     public IList<NDPInterval> Beats => beats;
 
     [JsonInclude]
-    private ImmutableList<NDPInterval> tatums;
+    private ImmutableArray<NDPInterval> tatums;
     [JsonIgnore]
     public IList<NDPInterval> Tatums => tatums;
 
@@ -42,9 +42,9 @@ public class NDPTimings
     public static NDPTimings FromAnalysis(TrackAudioAnalysis analysis)
     {
         return new NDPTimings(
-            bars: analysis.Bars.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableList(),
-            beats: analysis.Beats.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableList(),
-            tatums: analysis.Tatums.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableList()
+            bars: analysis.Bars.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray(),
+            beats: analysis.Beats.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray(),
+            tatums: analysis.Tatums.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray()
         );
     }
 }

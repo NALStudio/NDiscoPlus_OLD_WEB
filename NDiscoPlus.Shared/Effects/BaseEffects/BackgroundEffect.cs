@@ -74,14 +74,14 @@ internal class BackgroundEffectState : EffectState
     public LightDataRecord[] LightData { get; set; } = Array.Empty<LightDataRecord>();
 }
 
-internal class BackgroundEffect : NDPBaseEffect
+internal sealed class BackgroundEffect : NDPBaseEffect
 {
     public const double AnimationSeconds = 10d;
 
     private static double GetRandomAnimationCooldown(Random random)
         => random.NextDouble().Remap(0d, 1d, 2d, 10d);
 
-    public override BackgroundEffectState CreateState() => new();
+    public override BackgroundEffectState CreateState(StateContext ctx) => new();
 
     public override void Update(EffectContext ctx, EffectState effectState)
     {
