@@ -6,6 +6,9 @@ namespace NDiscoPlus.Shared.Models;
 
 public readonly record struct NDPInterval(TimeSpan Start, TimeSpan Duration)
 {
+    public static NDPInterval FromSeconds(double Start, double Duration)
+        => new(TimeSpan.FromSeconds(Start), TimeSpan.FromSeconds(Duration));
+
     public TimeSpan End => Start + Duration;
 
     public bool Contains(TimeSpan t)

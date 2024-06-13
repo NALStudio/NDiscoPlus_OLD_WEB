@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Shared.Music;
+using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,6 +7,21 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
+
+internal readonly struct SectionData
+{
+    private readonly Section section;
+
+    public SectionData(Section section)
+    {
+        this.section = section;
+    }
+
+    public double MinutesPerBeat => 1d / section.Tempo;
+    public double SecondsPerBeat => MinutesPerBeat * 60d;
+    public double SecondsPerBar => SecondsPerBeat * section.TimeSignature;
+}
+
 internal readonly struct EffectContext
 {
     public EffectContext(LightInterpreterConfig config, NDPLightCollection lights, NDPColorPalette palette, Random random, TimeSpan progress, double deltaTime, bool newTrack, int barIndex, bool newBar, int beatIndex, bool newBeat, int tatumIndex, bool newTatum)

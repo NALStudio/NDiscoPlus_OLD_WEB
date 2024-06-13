@@ -57,7 +57,7 @@ internal class BackgroundEffectState : EffectState
 
         private RGBColor UpdateAnimation(double deltaTime, AnimationDataRecord adr)
         {
-            adr.Progress += (deltaTime / BackgroundEffect.AnimationSeconds);
+            adr.Progress += (deltaTime / ColorCycleBackgroundEffect.AnimationSeconds);
             if (adr.Progress > 1d)
             {
                 CurrentColor = adr.TargetColor;
@@ -74,14 +74,14 @@ internal class BackgroundEffectState : EffectState
     public LightDataRecord[] LightData { get; set; } = Array.Empty<LightDataRecord>();
 }
 
-internal sealed class BackgroundEffect : NDPBaseEffect
+internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 {
     public const double AnimationSeconds = 10d;
 
     private static double GetRandomAnimationCooldown(Random random)
         => random.NextDouble().Remap(0d, 1d, 2d, 10d);
 
-    public override BackgroundEffectState CreateState(StateContext ctx) => new();
+    public override BackgroundEffectState CreateState(BackgroundStateContext ctx) => new();
 
     public override void Update(EffectContext ctx, EffectState effectState)
     {

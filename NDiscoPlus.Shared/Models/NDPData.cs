@@ -1,4 +1,4 @@
-﻿using NDiscoPlus.Shared.Effects.Effect;
+﻿using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -7,21 +7,9 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
 
-public record EffectRecord
-{
-    internal NDPEffect? Effect { get; }
-    internal TimeSpan Start { get; }
-
-    internal EffectRecord(NDPEffect? effect, TimeSpan start)
-    {
-        Effect = effect;
-        Start = start;
-    }
-}
-
 public class NDPData
 {
-    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette referencePalette, NDPColorPalette effectPalette, NDPTimings timings, IEnumerable<EffectRecord> effects)
+    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette referencePalette, NDPColorPalette effectPalette, NDPTimings timings, IList<EffectRecord> effects)
     {
         Track = track;
         Context = context;

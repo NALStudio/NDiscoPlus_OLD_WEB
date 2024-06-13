@@ -1,20 +1,26 @@
 ﻿using NDiscoPlus.Shared.Effects.BaseEffects;
-using NDiscoPlus.Shared.Effects.Effects;
 using NDiscoPlus.Shared.Models;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 
-namespace NDiscoPlus.Shared.Effects.Effect;
+namespace NDiscoPlus.Shared.Effects.Effects;
 
-internal abstract class NDPEffect : NDPBaseEffect
+internal abstract class NDPEffect
 {
     public static readonly ImmutableList<NDPEffect> All = [
-        BrightLightEffect.Default(),
-        BrightLightEffect.Slow(),
-        BrightLightEffect.White(),
+        BrightLightEffect.Default(EffectIntensity.Medium),
+        BrightLightEffect.Slow(EffectIntensity.VeryLow),
+        BrightLightEffect.White(EffectIntensity.High),
     ];
 
-    public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = All.GroupBy(e => e.Intensity).ToFrozenDictionary(x => x.Key, x => (IList<NDPEffect>)x.ToImmutableArray());
+    public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = Enum.GetValues<EffectIntensity>()
+        .Select(i => new KeyValuePair<EffectIntensity, IList<NDPEffect>>(i, All.Where(eff => eff.Intensity == i).ToImmutableList()))
+        .ToImmutableDictionary();
+
+
+    public abstract EffectState CreateState(StateContext ctx);
+    public abstract void Update(EffectContext ctx, EffectState effectState);
+
 
     /// <summary>An effect specialised in categorisation by intensity.</summary>
     /// <param name="intensity">Describes the intensity of this effect. 1 (lowest) - 5 (highest)</param>

@@ -2,6 +2,7 @@
 using HueApi.ColorConverters.Original.Extensions;
 using HueApi.Models;
 using NDiscoPlus.Shared.Effects.BaseEffects;
+using NDiscoPlus.Shared.Effects.Effects;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using SkiaSharp;
@@ -22,15 +23,21 @@ public class LightInterpreterConfig
 
 public class LightInterpreter
 {
-    private record EffectData(NDPBaseEffect Effect, EffectState State)
+    private record EffectData(NDPEffect Effect, EffectState State)
     {
-        public static EffectData CreateForEffect(LightInterpreter parent, NDPBaseEffect effect)
+        public static EffectData? CreateForEffect(LightInterpreter parent, EffectRecord effect, EffectState? previousState)
         {
+            if (effect.Effect is null)
+                return null;
+
             StateContext ctx = new(
-                lightCount: parent.Lights.Count
+                lightCount: parent.Lights.Count,
+                sectionData: new SectionData(effect.Section),
+                previousState: previousState
             );
-            EffectState state = effect.CreateState(ctx);
-            return new(effect, state);
+
+            EffectState state = effect.Effect.CreateState(ctx);
+            return new(effect.Effect, state);
         }
     }
 
@@ -43,16 +50,23 @@ public class LightInterpreter
     private int beatIndex;
     private int tatumIndex;
 
+
     private Random random = new();
     private Stopwatch? deltaTimeSW;
 
-    private EffectData? backgroundEffect;
+    private NDPBackgroundEffect? backgroundEffect;
+    private EffectState? backgroundEffectState;
+
+    private int effectIndex;
+    private EffectData? effect;
 
     void Reset()
     {
         barIndex = -1;
         beatIndex = -1;
         tatumIndex = -1;
+
+        effectIndex = -1;
     }
 
     public LightInterpreter(LightInterpreterConfig config, params NDPLight[] lights)
@@ -99,7 +113,7 @@ public class LightInterpreter
         }
     }
 
-    private static (int BeatIndex, bool BeatChanged) UpdateBeats(TimeSpan progress, IList<NDPInterval> timings, int previousIndex)
+    private static (int NewIndex, bool IndexChanged) UpdateIndex(TimeSpan progress, IList<NDPInterval> timings, int previousIndex)
     {
         int newIndex = FindBeatIndex(progress, timings, previousIndex);
         return (newIndex, newIndex != previousIndex);
@@ -107,7 +121,9 @@ public class LightInterpreter
 
     public IReadOnlyList<NDPLight> Update(TimeSpan progress, NDPData data)
     {
-        backgroundEffect ??= EffectData.CreateForEffect(this, new BackgroundEffect());
+
+        backgroundEffect ??= new ColorCycleBackgroundEffect();
+        backgroundEffectState ??= backgroundEffect.CreateState(new BackgroundStateContext(lightCount: Lights.Count));
 
         bool isNewTrack = false;
         if (trackId != data.Track.Id)
@@ -118,9 +134,27 @@ public class LightInterpreter
         }
 
         // data update
-        (barIndex, bool newBar) = UpdateBeats(progress, data.Timings.Bars, barIndex);
-        (beatIndex, bool newBeat) = UpdateBeats(progress, data.Timings.Beats, beatIndex);
-        (tatumIndex, bool newTatum) = UpdateBeats(progress, data.Timings.Tatums, tatumIndex);
+        (barIndex, bool newBar) = UpdateIndex(progress, data.Timings.Bars, barIndex);
+        (beatIndex, bool newBeat) = UpdateIndex(progress, data.Timings.Beats, beatIndex);
+        (tatumIndex, bool newTatum) = UpdateIndex(progress, data.Timings.Tatums, tatumIndex);
+
+        (effectIndex, bool newEffect) = UpdateIndex(progress, data.Effects.Select(e => e.Interval).ToArray(), effectIndex);
+        if (newEffect)
+        {
+            if (effectIndex < 0)
+            {
+                effect = null;
+            }
+            else
+            {
+                EffectState? oldState = effect?.State;
+                effect = EffectData.CreateForEffect(
+                    this,
+                    data.Effects[effectIndex],
+                    oldState
+                );
+            }
+        }
 
         double deltaTime;
         if (deltaTimeSW is not null)
@@ -133,6 +167,7 @@ public class LightInterpreter
             deltaTimeSW = Stopwatch.StartNew();
             deltaTime = 0d;
         }
+
 
         EffectContext ctx = new(
             config: Config,
@@ -156,7 +191,8 @@ public class LightInterpreter
         );
 
         // light update
-        backgroundEffect.Effect.Update(ctx, backgroundEffect.State);
+        backgroundEffect.Update(ctx, backgroundEffectState);
+        effect?.Effect.Update(ctx, effect.State);
 
         return Lights;
     }

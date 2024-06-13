@@ -1,5 +1,6 @@
 ﻿using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using SpotifyAPI.Web;
 using System;
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
 
-public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioAnalysis Analysis)
+public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioFeatures Features, TrackAudioAnalysis Analysis)
 {
     /// <summary>
     /// Serialize to pass object to workers.
@@ -40,7 +41,7 @@ public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioAnalysis Analys
 public class NDiscoPlusService
 {
     HttpClient? http;
-    Random? random;
+    readonly Random random = new();
 
     public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
     [
@@ -52,7 +53,6 @@ public class NDiscoPlusService
 
     private NDPColorPalette GetRandomDefaultPalette()
     {
-        random ??= new Random();
         return DefaultPalettes[random.Next(DefaultPalettes.Count)];
     }
 
@@ -74,12 +74,16 @@ public class NDiscoPlusService
     {
         NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
 
+        MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
+        ImmutableArray<EffectRecord> effects = effectGen.Generate(args).ToImmutableArray();
+
         return new NDPData(
-            args.Track,
-            new NDPContext(),
-            palette,
-            effectPalette,
-            NDPTimings.FromAnalysis(args.Analysis)
+            track: args.Track,
+            context: new NDPContext(),
+            referencePalette: palette,
+            effectPalette: effectPalette,
+            timings: NDPTimings.FromAnalysis(args.Analysis),
+            effects: effects
         );
     }
 

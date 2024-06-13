@@ -14,6 +14,12 @@ internal static class DoubleHelpers
     public static double Remap01(this double value, double from1, double to1)
         => (value - from1) / (to1 - from1);
 
+    public static double Clamp(this double value, double min, double max)
+        => Math.Clamp(value, min, max);
+
+    public static double Clamp01(this double value)
+         => Math.Clamp(value, 0d, 1d);
+
     public static double Lerp(double a, double b, double t)
         => a + (b - a) * Math.Clamp(t, 0d, 1d);
 

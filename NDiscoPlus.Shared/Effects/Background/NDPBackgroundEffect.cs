@@ -4,14 +4,13 @@ namespace NDiscoPlus.Shared.Effects.BaseEffects;
 
 internal abstract class EffectState;
 
-internal abstract class NDPBaseEffect
+internal abstract class NDPBackgroundEffect
 {
-    /// <summary>A common base effect architecture</summary>
-    protected NDPBaseEffect()
+    protected NDPBackgroundEffect()
     {
     }
 
-    public abstract EffectState CreateState(StateContext ctx);
+    public abstract EffectState CreateState(BackgroundStateContext ctx);
 
     public abstract void Update(EffectContext ctx, EffectState effectState);
 }

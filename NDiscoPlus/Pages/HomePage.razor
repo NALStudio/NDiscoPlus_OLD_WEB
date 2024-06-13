@@ -329,9 +329,10 @@
     {
         logger.LogInformation("Computing new data for track: '{}' ({})...", track.Name, track.Id);
 
+        TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        NDiscoPlusArgs args = new(track, analysis);
+        NDiscoPlusArgs args = new(track, features, analysis);
         string argsSerialized = NDiscoPlusArgs.Serialize(args);
 
         string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
