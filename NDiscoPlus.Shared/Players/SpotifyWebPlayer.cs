@@ -34,10 +34,13 @@ record PlayingContext
 
 public class SpotifyWebPlayer : SpotifyPlayer
 {
-    const int pollRate = 5; // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
+    // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
+    const int fastPollRate = 2;
+    const int regularPollRate = 5;
 
-    const int contextWindowSize = 45 / 5; // How many polls we can fit in 45 seconds.
+    const int contextWindowSize = 10; // 10 * 5 seconds = 50 seconds (max 50 second context window size)
     const int eliminateExtremesWhen = 5; // eliminate extremes when count is more or equal than
+    const int useFastPollRateUntilCount = eliminateExtremesWhen; // poll quicker before context count is more or equal (so that we can start to use statistical positioning (eliminate extremes) earlier)
 
     const double seekToleranceSeconds = 5;
 
@@ -65,9 +68,9 @@ public class SpotifyWebPlayer : SpotifyPlayer
         this.logger = logger;
     }
 
-    private async Task _UnrestrictedFetchPlayer()
+    private async Task _UnrestrictedFetchPlayer(int? debugPollRate = null)
     {
-        logger?.LogInformation("Fetching new playing context...");
+        logger?.LogInformation("Fetching new playing context... (poll rate: {})", debugPollRate?.ToString() ?? "null");
         CurrentlyPlayingContext? playContext = await client.Player.GetCurrentPlayback();
         HandleUpdate(playContext);
     }
@@ -82,10 +85,10 @@ public class SpotifyWebPlayer : SpotifyPlayer
     /// <summary>
     /// Returns null if there is a fetch already running.
     /// </summary>
-    private Task FetchPlayer()
+    private Task FetchPlayer(int? debugPollRate = null)
     {
         if (playerFetch is null || playerFetch.IsCompleted)
-            playerFetch = _UnrestrictedFetchPlayer();
+            playerFetch = _UnrestrictedFetchPlayer(debugPollRate: debugPollRate);
         return playerFetch;
     }
 
@@ -152,8 +155,10 @@ public class SpotifyWebPlayer : SpotifyPlayer
 
         PlayingContext lastContext = contexts[^1];
         TimeSpan ahead = DateTimeOffset.UtcNow - lastContext.FetchTimestamp;
+
+        int pollRate = contexts.Length < useFastPollRateUntilCount ? fastPollRate : regularPollRate;
         if (ahead.TotalSeconds > pollRate)
-            FetchPlayer();
+            FetchPlayer(debugPollRate: pollRate);
 
         if (contexts.Length < 1)
             return null;

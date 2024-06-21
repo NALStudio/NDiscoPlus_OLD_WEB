@@ -24,65 +24,61 @@ internal class BrightLightState : EffectState
 
     public class Animation
     {
-        public static readonly (double forw, double back) AnimationRatio = (1, 4);
-
         public int LightIndex { get; }
 
-        public double Progress { get; private set; }
-        public bool IsFinished => (Progress >= Duration);
+        public double ProgressSeconds { get; private set; }
+        public bool IsFinished => ProgressSeconds >= DurationSeconds;
 
-        public double Duration { get; }
-        public double ForwDuration => Duration * (AnimationRatio.forw / (AnimationRatio.forw + AnimationRatio.back));
-        public double BackDuration => Duration * (AnimationRatio.back / (AnimationRatio.forw + AnimationRatio.back));
+        public double FadeInSeconds { get; }
+        public double FadeOutSeconds { get; }
+        public double DurationSeconds => FadeInSeconds + FadeOutSeconds;
 
         public RGBColor? TargetColor { get; }
 
 
-        public Animation(int lightIndex, double duration, RGBColor? targetColor)
+        public Animation(int lightIndex, BrightLightState parent)
         {
             LightIndex = lightIndex;
-            Duration = duration;
 
-            Progress = duration;
+            ProgressSeconds = 0d;
 
-            TargetColor = targetColor;
+            FadeInSeconds = parent.FadeInSeconds;
+            FadeOutSeconds = parent.FadeOutSeconds;
+
+            TargetColor = parent.White ? new RGBColor(1d, 1d, 1d) : null;
         }
 
         public double Update(double deltaTime)
         {
-            if (Progress >= Duration)
-                return GetBrightness();
-
-            Progress += deltaTime;
+            if (IsFinished)
+                throw new InvalidOperationException("Animation was updated after finish.");
+            ProgressSeconds += deltaTime;
             return GetBrightness();
         }
 
         private double GetBrightness()
         {
-            double p = Progress.Clamp(0, Duration);
-            if (p < ForwDuration)
+            double p = ProgressSeconds.Clamp(0, DurationSeconds);
+            if (p < FadeInSeconds)
             {
-                return p / ForwDuration;
+                return p / FadeInSeconds;
             }
             else
             {
-                double pp = p - ForwDuration;
-                double back = pp / BackDuration;
+                double pp = p - FadeInSeconds;
+                double back = pp / FadeOutSeconds;
                 return 1d - back;
             }
         }
-
-        public void Restart()
-        {
-            Progress = 0d;
-        }
     }
 
-    public ImmutableArray<Animation> Animations { get; }
-    public double ForwardSpeed { get; }
-    public double BackwardSpeed { get; }
+    public double FadeInSeconds { get; }
+    public double FadeOutSeconds { get; }
 
-    public BrightLightState? PreviousState { get; }
+    public List<Animation> Animations { get; }
+    public bool White { get; }
+
+    public int LatestIndex { get; set; }
 
     public BrightLightState(StateContext ctx, bool white, bool slow)
     {
@@ -92,11 +88,14 @@ internal class BrightLightState : EffectState
 
         double animationDuration = syncDuration * maxSimultaneousAnimations;
 
-        Animations = Enumerable.Range(0, ctx.LightCount)
-            .Select(i => new Animation(i, animationDuration, white ? new RGBColor(1d, 1d, 1d) : null))
-            .ToImmutableArray();
+        FadeInSeconds = 0.2d * animationDuration;
+        FadeOutSeconds = 0.8d * animationDuration;
 
-        PreviousState = (ctx.PreviousState as BrightLightState);
+        Animations = new();
+        White = white;
+
+        if (ctx.PreviousState is BrightLightState previous)
+            Animations.AddRange(previous.Animations);
     }
 }
 
@@ -104,8 +103,6 @@ internal sealed class BrightLightEffect : NDPEffect
 {
     private bool white;
     private bool slow;
-
-    private EffectSync Sync => slow ? EffectSync.Bar : EffectSync.Beat;
 
     private BrightLightEffect(bool white, bool slow, EffectIntensity intensity) : base(intensity)
     {
@@ -128,26 +125,26 @@ internal sealed class BrightLightEffect : NDPEffect
     {
         BrightLightState state = (BrightLightState)effectState;
 
-        if (ctx.GetSync(Sync))
+        TimingContext timing = slow ? ctx.BarTiming : ctx.BeatTiming;
+
+        if (timing.NextIndex != state.LatestIndex
+            && timing.UntilNext is TimeSpan un
+            && un.TotalSeconds < (state.FadeInSeconds / 2d))
+        {
+            state.LatestIndex = timing.NextIndex;
             NewAnimation(ctx, state);
+        }
 
         UpdateAnimations(ctx, state.Animations);
-
-        if (state.PreviousState is not null)
-            UpdateAnimations(ctx, state.PreviousState.Animations, ignoreIfFinished: true);
     }
 
-    public static void UpdateAnimations(EffectContext ctx, IList<BrightLightState.Animation> animations, bool ignoreIfFinished = false)
+    public static void UpdateAnimations(EffectContext ctx, List<BrightLightState.Animation> animations, bool ignoreIfFinished = false)
     {
-        for (int i = 0; i < animations.Count; i++)
+        foreach (var anim in animations)
         {
-            var anim = animations[i];
-            var light = ctx.Lights[i];
+            NDPLight light = ctx.Lights[anim.LightIndex];
 
             double brightness = anim.Update(ctx.DeltaTime);
-
-            if (anim.IsFinished && ignoreIfFinished)
-                continue;
 
             light.Brightness = DoubleHelpers.Lerp(ctx.Config.BaseBrightness, ctx.Config.MaxBrightness, brightness);
             if (anim.TargetColor is RGBColor target)
@@ -156,24 +153,45 @@ internal sealed class BrightLightEffect : NDPEffect
                 light.Color = ColorHelpers.Gradient(light.Color, target, brightness);
             }
         }
+
+        animations.RemoveAll(a => a.IsFinished);
     }
 
     private static void NewAnimation(EffectContext ctx, BrightLightState state)
     {
-        BrightLightState.Animation[] idle = state.Animations.Where(a => a.IsFinished).ToArray();
-        if (state.PreviousState is not null)
+        if (state.Animations.Count < ctx.Lights.Count)
         {
-            idle = idle.Where(a =>
-            {
-                BrightLightState.Animation oldAnim = state.PreviousState.Animations[a.LightIndex];
-                Debug.Assert(oldAnim.LightIndex == a.LightIndex);
-                return oldAnim.IsFinished;
-            }).ToArray();
+            HashSet<int> reservedLights = state.Animations.Select(l => l.LightIndex).ToHashSet();
+            int[] freeLights = Enumerable.Range(0, ctx.Lights.Count).Where(index => !reservedLights.Contains(index)).ToArray();
+            int lightIndex = freeLights[ctx.Random.Next(freeLights.Length)];
+            // TODO: Adjust fade out by the duration until the next bar/beat
+            // Fade in and fade out logic probably needs to be separated (different lists?)
+            state.Animations.Add(new BrightLightState.Animation(lightIndex, state));
         }
+        else
+        {
+            Debug.Assert(state.Animations.Count > 0);
+            // when there are no animation slots left
+            // (tempo and bars/beats don't match or previous animation state has swallowed all idle slots)
+            int? maxIndex = null;
+            for (int i = 0; i < state.Animations.Count; i++)
+            {
+                if (maxIndex.HasValue)
+                {
+                    if (state.Animations[i].ProgressSeconds > state.Animations[maxIndex.Value].ProgressSeconds)
+                        maxIndex = i;
+                }
+                else
+                {
+                    maxIndex = i;
+                }
+            }
 
-        if (idle.Length > 0)
-            idle[ctx.Random.Next(idle.Length)].Restart();
-        else // fallback if tempo and bars/beats don't match or the previous animation has swallowed all idle slots
-            state.Animations.MaxBy(a => a.Progress)?.Restart();
+            if (maxIndex.HasValue)
+            {
+                state.Animations[maxIndex.Value] =
+                    new BrightLightState.Animation(state.Animations[maxIndex.Value].LightIndex, state);
+            }
+        }
     }
 }

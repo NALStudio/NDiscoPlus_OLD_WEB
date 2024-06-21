@@ -182,12 +182,9 @@ public class LightInterpreter
 
             newTrack: isNewTrack,
 
-            barIndex: barIndex,
-            newBar: newBar,
-            beatIndex: beatIndex,
-            newBeat: newBeat,
-            tatumIndex: tatumIndex,
-            newTatum: newTatum
+            barTiming: TimingContext.Construct(progress, barIndex, newBar, data.Timings.Bars),
+            beatTiming: TimingContext.Construct(progress, beatIndex, newBar, data.Timings.Beats),
+            tatumTiming: TimingContext.Construct(progress, tatumIndex, newBar, data.Timings.Tatums)
         );
 
         // light update

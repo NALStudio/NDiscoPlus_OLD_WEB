@@ -83,6 +83,9 @@ internal class MusicEffectGenerator
         {
             Section currentSection = args.Analysis.Sections[i];
 
+            // As some sections that come after drops are actually quieter,
+            // it might be beneficial to compare the strobes for x seconds
+            // before and after the section change to determine if a drop happened
             intensity = ComputeContextAwareIntensity(
                 intensity,
                 previousSection: i > 0 ? args.Analysis.Sections[i - 1] : null,
