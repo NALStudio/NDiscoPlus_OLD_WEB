@@ -8,9 +8,9 @@ namespace NDiscoPlus.Shared.Effects.Effects;
 internal abstract class NDPEffect
 {
     public static readonly ImmutableList<NDPEffect> All = [
-        BrightLightEffect.Default(EffectIntensity.Medium),
+        BrightLightEffect.Default(EffectIntensity.High),
         BrightLightEffect.Slow(EffectIntensity.VeryLow),
-        BrightLightEffect.White(EffectIntensity.High),
+        BrightLightEffect.White(EffectIntensity.VeryHigh),
     ];
 
     public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = Enum.GetValues<EffectIntensity>()

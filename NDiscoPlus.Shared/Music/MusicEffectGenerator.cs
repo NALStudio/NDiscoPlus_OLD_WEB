@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Shared.Effects.Effects;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using SpotifyAPI.Web;
 using System.Collections.Immutable;
@@ -33,7 +34,7 @@ public record EffectRecord
     }
 }
 
-internal class MusicEffectGenerator
+public class MusicEffectGenerator
 {
     private record struct IntensityComparison(double Tempo, double Loudness)
     {
@@ -44,12 +45,21 @@ internal class MusicEffectGenerator
             => new(Tempo: features.Tempo, Loudness: features.Loudness);
     }
 
-    public IDictionary<EffectIntensity, NDPEffect?> Effects { get; }
+    internal IDictionary<EffectIntensity, NDPEffect?> Effects { get; }
 
     private static readonly EffectIntensity minIntensity = Enum.GetValues<EffectIntensity>().Min();
     private static readonly EffectIntensity maxIntensity = Enum.GetValues<EffectIntensity>().Max();
 
-    public MusicEffectGenerator(IEnumerable<KeyValuePair<EffectIntensity, NDPEffect?>> effects)
+    private static EffectIntensity ClampIntensity(int intensity)
+    {
+        if (intensity > (int)maxIntensity)
+            return maxIntensity;
+        if (intensity < (int)minIntensity)
+            return minIntensity;
+        return (EffectIntensity)intensity;
+    }
+
+    internal MusicEffectGenerator(IEnumerable<KeyValuePair<EffectIntensity, NDPEffect?>> effects)
     {
         Effects = effects.ToImmutableDictionary();
     }
@@ -57,7 +67,7 @@ internal class MusicEffectGenerator
     /// <summary>
     /// Create a new music effect generator with a random configuration.
     /// </summary>
-    public static MusicEffectGenerator CreateRandom(Random random)
+    internal static MusicEffectGenerator CreateRandom(Random random)
     {
         EffectIntensity[] effectIntensities = Enum.GetValues<EffectIntensity>();
 
@@ -75,103 +85,119 @@ internal class MusicEffectGenerator
         return new MusicEffectGenerator(effects);
     }
 
-    public IEnumerable<EffectRecord> Generate(NDiscoPlusArgs args)
+    internal IEnumerable<EffectRecord> Generate(NDiscoPlusArgs args)
     {
-        EffectIntensity? intensity = null;
-
-        for (int i = 0; i < args.Analysis.Sections.Count; i++)
+        foreach ((EffectIntensity intensity, Section section) in ComputeIntensities(args))
         {
-            Section currentSection = args.Analysis.Sections[i];
-
-            // As some sections that come after drops are actually quieter,
-            // it might be beneficial to compare the strobes for x seconds
-            // before and after the section change to determine if a drop happened
-            intensity = ComputeContextAwareIntensity(
-                intensity,
-                previousSection: i > 0 ? args.Analysis.Sections[i - 1] : null,
-                args.Features,
-                section: currentSection,
-                isLastSection: i >= (args.Analysis.Sections.Count - 1)
-            );
-
             NDPEffect? effect = null;
-            if (Effects.TryGetValue(intensity.Value, out NDPEffect? v1))
+            if (Effects.TryGetValue(intensity, out NDPEffect? v1))
                 effect ??= v1;
-            if (Effects.TryGetValue(intensity.Value + 1, out NDPEffect? v2))
+            if (Effects.TryGetValue(intensity + 1, out NDPEffect? v2))
                 effect ??= v2;
-            if (Effects.TryGetValue(intensity.Value - 1, out NDPEffect? v3))
+            if (Effects.TryGetValue(intensity - 1, out NDPEffect? v3))
                 effect ??= v3;
 
-            yield return EffectRecord.FindAndCreate(effect, currentSection);
+            yield return EffectRecord.FindAndCreate(effect, section);
         }
     }
 
-    private static EffectIntensity ComputeContextAwareIntensity(
-        EffectIntensity? previousIntensity,
-        Section? previousSection,
-        TrackAudioFeatures features,
-        Section section,
-        bool isLastSection
-    )
+    public static IEnumerable<(EffectIntensity intensity, Section section)> ComputeIntensities(NDiscoPlusArgs args)
     {
-        if (previousIntensity is EffectIntensity pIntensity)
+        TrackAudioFeatures features = args.Features;
+        TrackAudioAnalysis analysis = args.Analysis;
+
+        int? previousIntensity = null;
+        bool previousWasDoubleJumped = false;
+
+        Section? loudestSection = analysis.Sections.MaxBy(s => s.Loudness);
+
+        // TODO: Better intensity generation
+        // either move everything down when hitting maximum
+        // or add tolerance to intensity changes when section loudnesses are pretty much the same
+
+        for (int i = 0; i < analysis.Sections.Count; i++)
         {
-            Debug.Assert(previousSection is not null);
+            Section section = analysis.Sections[i];
+            bool isLastSection = i >= (args.Analysis.Sections.Count - 1);
 
-            int intensity = (int)pIntensity;
+            Section? previousSection = i > 0 ? analysis.Sections[i - 1] : null;
 
-            double intensityComparison = CompareIntensities(section, previousSection);
-            if (intensityComparison >= 0)
+            int intensity;
+            if (previousIntensity is int pIntensity)
             {
-                intensity++;
-            }
-            else
-            {
-                if (isLastSection && intensityComparison > -0.1d)
+                Debug.Assert(previousSection is not null);
+                intensity = pIntensity;
+
+                double intensityComparison = CompareIntensities(section, previousSection);
+                if (intensityComparison >= 0)
                     intensity++;
                 else
                     intensity--;
+
+                if (section == loudestSection && intensity < (int)maxIntensity)
+                {
+                    intensity++;
+                    previousWasDoubleJumped = true;
+                }
+                if (previousWasDoubleJumped && !isLastSection)
+                    intensity--;
+            }
+            else
+            {
+                Debug.Assert(previousSection is null);
+
+                intensity = (int)IntensityFromFeatures(features);
+
+                // if section is less intensive than features, decrement intensity if possible
+                // we do this to be extra conservative with the first section's intensity
+                // as it determines the rest of the song's intensity and usually is one of the calmer parts of the song.
+                if (CompareIntensities(section, features) < 0)
+                    intensity--;
+                if (section.Loudness < -15)
+                    intensity--;
             }
 
-            if (intensity > (int)maxIntensity)
-                intensity = (int)maxIntensity;
-            else if (intensity < (int)minIntensity)
-                intensity = (int)minIntensity;
-
-            return (EffectIntensity)intensity;
-        }
-        else
-        {
-            Debug.Assert(previousSection is null);
-
-            int intensity = (int)IntensityFromFeatures(features);
-
-            // if section is less intensive than features, decrement intensity if possible
-            // we do this to be extra conservative with the first section's intensity
-            // as it determines the rest of the song's intensity and usually is one of the calmer parts of the song.
-            if (intensity > (int)minIntensity && CompareIntensities(section, features) < 0)
-                intensity--;
-
-            return (EffectIntensity)intensity;
+            yield return (ClampIntensity(intensity), section);
+            previousIntensity = intensity;
         }
     }
 
     /// <summary>
-    /// Compute an intensity value (approximately in the range of -1 to 1) for a in relation to b.
+    /// Compute an intensity value (in the range of -1 to 1) for a in relation to b.
     /// </summary>
     private static double CompareIntensities(IntensityComparison a, IntensityComparison b)
     {
-        // when a.Tempo == b.Tempo => (1d) - 1d => 0d
-        // when a.Tempo > b.Tempo => for example (2d) - 1d => 1d;
-        double[] refCollection = [
-            (a.Tempo / b.Tempo) - 1d,
-            (a.Loudness / b.Loudness) - 1d
-        ];
+        //static double DirectComparison(double a, double b)
+        //{
+        //    ArgumentOutOfRangeException.ThrowIfLessThan(a, 0, nameof(a));
+        //    ArgumentOutOfRangeException.ThrowIfLessThan(b, 0, nameof(b));
 
-        return refCollection.Sum() / refCollection.Length;
+        //    return ((a / b) - 1d).Clamp(-1, 1); // clamp since x / 0 => infinity
+        //}
+
+        static double NegativeComparison(double a, double b)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(a, 0, nameof(a));
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(b, 0, nameof(b));
+
+            return (b / a) - 1d;
+        }
+
+        //// when a.Tempo == b.Tempo => (1d) - 1d => 0d
+        //// when a.Tempo > b.Tempo => for example (2d) - 1d => 1d;
+        //double[] refCollection = [
+        //    DirectComparison(a.Tempo, b.Tempo),
+        //    NegativeComparison(a.Loudness, b.Loudness)
+        //];
+        //
+        //return refCollection.Sum() / refCollection.Length;
+
+        // there are parts where Tempo == 0 so if b = 0 => a / b => infinite => 1 which isn't ideal
+        // as usually these parts aren't even more intensive than a.
+        return NegativeComparison(a.Loudness, b.Loudness);
     }
 
-    private static EffectIntensity IntensityFromFeatures(TrackAudioFeatures features)
+    public static EffectIntensity IntensityFromFeatures(TrackAudioFeatures features)
     {
         // range: 0 - 4 where 4 is very rare
         int intensityRef = (int)(features.Energy * 4f);

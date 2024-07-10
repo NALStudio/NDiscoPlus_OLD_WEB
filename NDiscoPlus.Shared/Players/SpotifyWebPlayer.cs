@@ -208,7 +208,14 @@ public class SpotifyWebPlayer : SpotifyPlayer
             }
             else
             {
-                break;
+                // if index is 0, we are at a point before track refreshing should happen
+                // we should thus discard all next track fetches if there are any.
+
+                // check for null so we don't unnecessarily fill the array on each frame
+                if (i == 0 && nextTrackFetches[i] is not null)
+                    Array.Fill(nextTrackFetches, null);
+
+                break; // break so we don't unnecessarily check for the next refreshes as they should be ordered from largest to smallest anyway
             }
         }
 
@@ -236,7 +243,10 @@ public class SpotifyWebPlayer : SpotifyPlayer
         {
             Task<FullTrack?>? nextTrackFetch = nextTrackFetches[i];
             if (nextTrackFetch?.IsCompleted == true)
+            {
                 nextTrack = nextTrackFetch.Result;
+                break;
+            }
         }
 
         return new SpotifyPlayerContext(

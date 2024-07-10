@@ -8,11 +8,12 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
-internal enum EffectIntensity
+public enum EffectIntensity
 {
     VeryLow = 1,
     Low = 2,
     Medium = 3,
     High = 4,
     VeryHigh = 5,
+    Maximum = 6,
 }

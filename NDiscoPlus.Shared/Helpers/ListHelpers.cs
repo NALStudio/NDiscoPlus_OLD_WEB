@@ -4,7 +4,7 @@ namespace NDiscoPlus.Shared.Helpers;
 
 readonly record struct GroupDistance(int Index, double Distance);
 
-internal static class ListHelpers
+public static class ListHelpers
 {
     /// <summary>
     /// start is inclusive, end is exclusive.

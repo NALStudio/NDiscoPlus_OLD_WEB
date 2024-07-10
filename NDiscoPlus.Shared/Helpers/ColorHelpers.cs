@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Helpers;
-internal static class ColorHelpers
+public static class ColorHelpers
 {
     public static RGBColor ToHueColor(this SKColor color) => new((int)color.Red, (int)color.Green, (int)color.Blue);
 
@@ -35,6 +35,8 @@ internal static class ColorHelpers
     /// </summary>
     public static RGBColor Gradient(RGBColor color1, RGBColor color2, double mix)
     {
+        // This is stolen from StackOverflow, but I can't remember where
+
         static double sRGBInverseCompanding(double x)
         {
             if (x <= 0.04045d)

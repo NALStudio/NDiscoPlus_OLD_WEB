@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Helpers;
-internal static class RandomHelpers
+public static class RandomHelpers
 {
     /// <summary>
     /// Pick an item from a list using weights.
