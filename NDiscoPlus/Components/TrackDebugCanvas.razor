@@ -13,6 +13,11 @@
     const int canvasWidth = 1000;
     const int canvasHeight = 500;
 
+    public const int StatCount = 2;
+
+    [Parameter]
+    public int StatIndex { get; set; } = 0;
+
     [Parameter]
     public string Style { get; set; } = "";
 
@@ -35,165 +40,15 @@
         System.Diagnostics.Debug.Assert(_canvas is not null);
         await using (Context2D ctx = await _canvas.GetContext2DAsync())
         {
+            TrackDebugCanvasRender render = StatIndex switch
+            {
+                0 => new TrackDebugCanvasRenderMeta(ctx, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                1 => new TrackDebugCanvasRenderSegments(ctx, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                _ => throw new InvalidOperationException($"No renderer for stat index: {StatIndex}")
+            };
+
             await ctx.ClearRectAsync(0d, 0d, canvasWidth, canvasHeight);
-
-            await new Renderer(ctx, canvasWidth, canvasHeight, Context, Features, Analysis).RenderAsync();
-        }
-    }
-
-    private struct Renderer
-    {
-        Context2D canvas;
-
-        int canvasWidth;
-        int canvasHeight;
-
-        SpotifyPlayerContext player;
-        TrackAudioFeatures features;
-        TrackAudioAnalysis analysis;
-
-        public Renderer(Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis)
-        {
-            this.canvas = canvas;
-
-            this.canvasWidth = canvasWidth;
-            this.canvasHeight = canvasHeight;
-
-            this.player = context;
-            this.features = features;
-            this.analysis = analysis;
-        }
-
-        public async Task RenderAsync()
-        {
-            int trackHeight = 50;
-            int trackY = canvasHeight - trackHeight;
-
-            int sectionsHeight = 100;
-            int sectionsY = trackY - sectionsHeight;
-
-            int intensitiesHeight = 25;
-            int intensitiesY = sectionsY - intensitiesHeight;
-
-            await RenderTrack(y: trackY, height: trackHeight);
-            await RenderSections(y: sectionsY, height: sectionsHeight);
-
-            await RenderPlayer();
-        }
-
-        double Transform(TimeSpan time)
-            => Transform(time.TotalSeconds);
-
-        double Transform(double time)
-        {
-            double length = player.Track.Length.TotalSeconds;
-
-            double progress = time / length;
-
-            return progress * canvasWidth;
-        }
-
-        async Task RenderTrack(int y, int height)
-        {
-            EffectIntensity intensity = MusicEffectGenerator.IntensityFromFeatures(features);
-
-            await RenderIntensity(intensity, 0d, y, canvasWidth, height);
-            // keep using RenderIntensity's text color
-
-            string[] data = ["Track Features:", $"{features.Loudness} dB", $"{features.Tempo} BPM"];
-
-            double textY = 0d;
-            foreach (string d in data)
-            {
-                TextMetrics metrics = await canvas.MeasureTextAsync(d);
-
-                double fontHeight = metrics.FontBoundingBoxAscent + metrics.FontBoundingBoxDescent;
-                textY += fontHeight;
-
-                await canvas.FillTextAsync(d, 0d, y + textY);
-            }
-        }
-
-        async Task RenderSections(int y, int height)
-        {
-            (EffectIntensity intensity, Section section)[] intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis)).ToArray();
-
-            for (int i = 0; i < intensities.Length; i++)
-            {
-                (EffectIntensity intensity, Section section) = intensities[i];
-
-                double x = Transform(section.Start);
-                double width = Transform(section.Duration);
-
-                await RenderIntensity(intensity, x, y, width, height, centerTextVertically: false);
-                // keep using RenderIntensity's text color
-
-                string[] data = [$"Section {i}:", $"{section.Loudness} dB", $"{section.Tempo} BPM", $"{section.Duration:.000} seconds"];
-
-                double textY = 0d;
-                foreach (string d in data)
-                {
-                    TextMetrics metrics = await canvas.MeasureTextAsync(d);
-
-                    double fontHeight = metrics.FontBoundingBoxAscent + metrics.FontBoundingBoxDescent;
-                    textY += fontHeight;
-
-                    await canvas.FillTextAsync(d, x, y + textY);
-                }
-            }
-        }
-
-        async Task RenderIntensity(EffectIntensity intensity, double x, double y, double width, double height, bool centerTextVertically = true)
-        {
-            EffectIntensity[] allIntensities = Enum.GetValues<EffectIntensity>();
-            EffectIntensity minIntensity = allIntensities.Min();
-            EffectIntensity maxIntensity = allIntensities.Max();
-
-            double hue = DoubleHelpers.Remap((int)intensity, (int)minIntensity, (int)maxIntensity, 0d, 120d);
-            string hsl50 = $"hsl({(int)hue}, 100%, 50%)";
-            string hsl35 = $"hsl({(int)hue}, 100%, 35%)";
-
-            await canvas.FillStyleAsync(hsl50);
-            await canvas.LineWidthAsync(1);
-            await canvas.StrokeStyleAsync(hsl35);
-
-            await canvas.FillRectAsync(x, y, width, height);
-            await canvas.StrokeRectAsync(x, y, width, height);
-
-            await canvas.FillStyleAsync(hsl35);
-
-            string intensityText = $"{intensity:G} ({intensity:D})";
-
-            TextMetrics metrics = await canvas.MeasureTextAsync(intensityText);
-
-            double textY = height - metrics.FontBoundingBoxDescent;
-            if (centerTextVertically)
-                textY /= 2d;
-
-            // clipping
-            await canvas.SaveAsync();
-            await canvas.BeginPathAsync();
-            await canvas.RectAsync(x, y, width, height);
-            await canvas.ClipAsync(FillRule.NonZero);
-
-            // text
-            await canvas.FillTextAsync(intensityText, x + ((width - metrics.Width) / 2d), y + textY);
-
-            // remove clipping
-            await canvas.RestoreAsync();
-        }
-
-        async Task RenderPlayer()
-        {
-            double pos = Transform(player.Progress);
-
-            await canvas.StrokeStyleAsync("#000000");
-            await canvas.LineWidthAsync(2);
-
-            await canvas.BeginPathAsync();
-            await canvas.MoveToAsync(pos, 0d);
-            await canvas.LineToAsync(pos, canvasHeight);
-            await canvas.StrokeAsync();
+            await render.RenderAsync();
         }
     }
 }

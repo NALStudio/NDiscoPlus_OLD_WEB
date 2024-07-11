@@ -34,6 +34,8 @@ public record EffectRecord
     }
 }
 
+public readonly record struct ComputedIntensity(EffectIntensity Intensity, Section Section);
+
 public class MusicEffectGenerator
 {
     private record struct IntensityComparison(double Tempo, double Loudness)
@@ -47,17 +49,8 @@ public class MusicEffectGenerator
 
     internal IDictionary<EffectIntensity, NDPEffect?> Effects { get; }
 
-    private static readonly EffectIntensity minIntensity = Enum.GetValues<EffectIntensity>().Min();
-    private static readonly EffectIntensity maxIntensity = Enum.GetValues<EffectIntensity>().Max();
-
-    private static EffectIntensity ClampIntensity(int intensity)
-    {
-        if (intensity > (int)maxIntensity)
-            return maxIntensity;
-        if (intensity < (int)minIntensity)
-            return minIntensity;
-        return (EffectIntensity)intensity;
-    }
+    private static readonly int minIntensity = Enum.GetValues<EffectIntensity>().Min(i => (int)i);
+    private static readonly int maxIntensity = Enum.GetValues<EffectIntensity>().Max(i => (int)i);
 
     internal MusicEffectGenerator(IEnumerable<KeyValuePair<EffectIntensity, NDPEffect?>> effects)
     {
@@ -101,19 +94,17 @@ public class MusicEffectGenerator
         }
     }
 
-    public static IEnumerable<(EffectIntensity intensity, Section section)> ComputeIntensities(NDiscoPlusArgs args)
+    public static List<ComputedIntensity> ComputeIntensities(NDiscoPlusArgs args)
     {
         TrackAudioFeatures features = args.Features;
         TrackAudioAnalysis analysis = args.Analysis;
 
         int? previousIntensity = null;
-        bool previousWasDoubleJumped = false;
+        bool doubleJumped = false;
 
         Section? loudestSection = analysis.Sections.MaxBy(s => s.Loudness);
 
-        // TODO: Better intensity generation
-        // either move everything down when hitting maximum
-        // or add tolerance to intensity changes when section loudnesses are pretty much the same
+        List<ComputedIntensity> values = new();
 
         for (int i = 0; i < analysis.Sections.Count; i++)
         {
@@ -134,13 +125,29 @@ public class MusicEffectGenerator
                 else
                     intensity--;
 
+                if (doubleJumped && !isLastSection)
+                    intensity--;
+
                 if (section == loudestSection && intensity < (int)maxIntensity)
                 {
                     intensity++;
-                    previousWasDoubleJumped = true;
+                    doubleJumped = true;
                 }
-                if (previousWasDoubleJumped && !isLastSection)
+                else
+                {
+                    doubleJumped = false;
+                }
+
+                if (intensity > maxIntensity && !doubleJumped)
+                {
                     intensity--;
+                    AdjustDown(values);
+                }
+
+                if (intensity > maxIntensity)
+                    intensity = maxIntensity;
+                if (intensity < minIntensity)
+                    intensity = minIntensity;
             }
             else
             {
@@ -155,10 +162,33 @@ public class MusicEffectGenerator
                     intensity--;
                 if (section.Loudness < -15)
                     intensity--;
+
+                if (intensity < minIntensity)
+                    intensity = minIntensity;
+                Debug.Assert(intensity <= maxIntensity);
             }
 
-            yield return (ClampIntensity(intensity), section);
+            Debug.Assert(intensity >= minIntensity, "Intensity must be verified and adjusted inside the if statement.");
+            Debug.Assert(intensity <= maxIntensity, "Intensity must be verified and adjusted inside the if statement.");
+            values.Add(new ComputedIntensity((EffectIntensity)intensity, section));
             previousIntensity = intensity;
+        }
+
+        return values;
+    }
+
+    private static void AdjustDown(List<ComputedIntensity> values)
+    {
+        for (int i = 0; i < values.Count; i++)
+        {
+            ComputedIntensity computed = values[i];
+
+            int intensity = (int)computed.Intensity;
+            intensity--;
+            if (intensity < minIntensity)
+                intensity = minIntensity;
+
+            values[i] = computed with { Intensity = (EffectIntensity)intensity };
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿@page "/debug"
+@page "/debug/{pageIndex:int}"
 
 @using NDiscoPlus.Components
 @using NDiscoPlus.Constants
@@ -13,17 +14,26 @@
 @inject NavigationManager navigationManager
 
 <div style="width:100vw; height:100vh; align-content:center;">
-    @if(canvasCtx is null)
+    @if (PageIndex is null)
     {
-        <h3>No Track Data</h3>
+        <h3 style="text-align:center;">Redirecting...</h3>
+    }
+    else if (PageIndex.Value < 0 || PageIndex.Value > TrackDebugCanvas.StatCount)
+    {
+        <h3 style="text-align:center;">Invalid Page Index</h3>
+    }
+    else if(canvasCtx is null)
+    {
+        <h3 style="text-align:center;">No Track Data</h3>
     }
     else
     {
         <img width="256"
             src="@canvasCtx.Context.Track.ImageUrl"
             style="display:block; margin-left:auto; margin-right:auto;" />
-        <h3 style="text-align:center">@canvasCtx.Context.Track.Name</h3>
+        <h3 style="text-align:center;">@canvasCtx.Context.Track.Name</h3>
         <TrackDebugCanvas Style="display:block; margin-left:auto; margin-right:auto"
+                          StatIndex="@PageIndex.Value"
                           Context="@canvasCtx.Context"
                           Features="@canvasCtx.Features"
                           Analysis="@canvasCtx.Analysis" />
@@ -31,6 +41,9 @@
 </div>
 
 @code {
+    [Parameter]
+    public int? PageIndex { get; set; } = null;
+
     SpotifyClient? spotify = null;
 
     CanvasContext? canvasCtx;
@@ -39,6 +52,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!PageIndex.HasValue)
+            navigationManager.NavigateTo("./debug/0", replace: true);
+
         StoredSpotifyRefreshToken? refreshToken = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
         if (refreshToken is StoredSpotifyRefreshToken rt && NDPConstants.SpotifyScope.All(s => refreshToken.Scope.Contains(s)))
         {
