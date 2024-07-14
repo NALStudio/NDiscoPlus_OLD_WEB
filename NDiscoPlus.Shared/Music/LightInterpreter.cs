@@ -15,8 +15,6 @@ namespace NDiscoPlus.Shared.Music;
 
 public class LightInterpreterConfig
 {
-    public double BackgroundRPM { get; init; } = 5d;
-
     public double BaseBrightness { get; init; } = 0.5d;
     public double MaxBrightness { get; init; } = 1d;
 }

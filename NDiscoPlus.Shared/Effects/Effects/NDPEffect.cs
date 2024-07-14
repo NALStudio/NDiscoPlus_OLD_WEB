@@ -17,7 +17,6 @@ internal abstract class NDPEffect
         .Select(i => new KeyValuePair<EffectIntensity, IList<NDPEffect>>(i, All.Where(eff => eff.Intensity == i).ToImmutableList()))
         .ToImmutableDictionary();
 
-
     public abstract EffectState CreateState(StateContext ctx);
     public abstract void Update(EffectContext ctx, EffectState effectState);
 

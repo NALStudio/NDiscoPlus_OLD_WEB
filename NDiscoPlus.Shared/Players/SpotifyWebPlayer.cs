@@ -47,7 +47,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
     // At which positions to refresh the next track at the end. Set as empty to disable.
     static readonly TimeSpan[] refreshNextTrackFromEnd = [TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)];
 
-    static readonly TimeSpan NextSongTolerance = TimeSpan.FromMilliseconds(100); // Add a bit of tolerance to make sure we don't spam Spotify with requests
+    static readonly TimeSpan NextSongTolerance = TimeSpan.FromMilliseconds(250); // Add a bit of tolerance to make sure we don't spam Spotify with requests
 
     private readonly SpotifyClient client;
 

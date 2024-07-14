@@ -21,7 +21,7 @@ public static class DoubleHelpers
          => Math.Clamp(value, 0d, 1d);
 
     public static double Lerp(double a, double b, double t)
-        => a + (b - a) * Math.Clamp(t, 0d, 1d);
+        => a + (b - a) * Clamp01(t);
 
     public static double LerpUnclamped(double a, double b, double t)
         => a + (b - a) * t;

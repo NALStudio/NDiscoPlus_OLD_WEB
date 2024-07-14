@@ -25,8 +25,8 @@
 <PageTitle>NDiscoPlus</PageTitle>
 
 <div style="width:100vw; height:100vh">
-    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(90deg, @(gradient.TopLeft), @(gradient.TopRight));">
-        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
+    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(in srgb-linear 90deg, @(gradient.TopLeft), @(gradient.TopRight));">
+        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(in srgb-linear 90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
         <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
             @if(context is not null) {
                 <MudImage
@@ -128,10 +128,10 @@
     static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
     LightInterpreter gradientLights = new(
         new LightInterpreterConfig(),
-        new NDPLight(null, new HueApi.Models.HuePosition(-1, 1, 1)),
-        new NDPLight(null, new HueApi.Models.HuePosition(1, 1, 1)),
-        new NDPLight(null, new HueApi.Models.HuePosition(-1, -1, -1)),
-        new NDPLight(null, new HueApi.Models.HuePosition(1, -1, -1))
+        new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1)),
+        new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1)),
+        new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1)),
+        new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1))
     );
 
     readonly NDPDataContainer data = new();
@@ -408,15 +408,16 @@
             return "#" + newColor.ToHex();
         }
 
-        if (lights.Count != 4)
-            throw new ArgumentException("Exactly four lights should be provided.", nameof(lights));
+        // use null so that if not all screen lights are included in the light list, we crash.
+        string[] colors = new string[4];
+        foreach (NDPLight light in lights.Where(l => l.Id is ScreenLightId))
+        {
+            ScreenLightId id = (ScreenLightId)light.Id;
+            colors[id.Index] = ComputeHTMLColor(light);
+        }
 
-        string c0 = ComputeHTMLColor(lights[0]);
-        string c1 = ComputeHTMLColor(lights[1]);
-        string c2 = ComputeHTMLColor(lights[2]);
-        string c3 = ComputeHTMLColor(lights[3]);
-
-        return new FourCornerGradient(c0, c1, c2, c3);
+        Debug.Assert(colors.All(c => c is not null));
+        return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
     }
     #endregion
 }

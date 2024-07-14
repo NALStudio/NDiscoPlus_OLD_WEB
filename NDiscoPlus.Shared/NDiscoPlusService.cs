@@ -45,10 +45,22 @@ public class NDiscoPlusService
 
     public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
     [
-        new NDPColorPalette(new(255, 0, 0), new(0, 255, 255), new(255, 105, 180), new(102, 51, 153)),
-        new NDPColorPalette(new(15, 192, 252), new(123, 29, 175), new(255, 47, 185), new(212, 255, 71)),
-        new NDPColorPalette(new(255, 0, 0), new(0, 255, 0), new(0, 0, 255), new(255, 255, 0)),
-        new NDPColorPalette(new(164, 20, 217), new(255, 128, 43), new(249, 225, 5), new(52, 199, 165), new(93, 80, 206)),
+        // sRGB
+        new NDPColorPalette(NDPColor.FromSRGB(255, 0, 0), NDPColor.FromSRGB(0, 255, 255), NDPColor.FromSRGB(255, 105, 180), NDPColor.FromSRGB(102, 51, 153)),
+        new NDPColorPalette(NDPColor.FromSRGB(15, 192, 252), NDPColor.FromSRGB(123, 29, 175), NDPColor.FromSRGB(255, 47, 185), NDPColor.FromSRGB(212, 255, 71)),
+        new NDPColorPalette(NDPColor.FromSRGB(255, 0, 0), NDPColor.FromSRGB(0, 255, 0), NDPColor.FromSRGB(0, 0, 255), NDPColor.FromSRGB(255, 255, 0)),
+        new NDPColorPalette(NDPColor.FromSRGB(164, 20, 217), NDPColor.FromSRGB(255, 128, 43), NDPColor.FromSRGB(249, 225, 5), NDPColor.FromSRGB(52, 199, 165), NDPColor.FromSRGB(93, 80, 206)),
+
+        // Hue color space
+        // six colors might be a bit excessive, but I was annoyed that the final lerp was missing.
+        new NDPColorPalette(
+            ColorGamut.hueGamutC.Red.ToColor(),
+            NDPColor.Lerp(ColorGamut.hueGamutC.Red.ToColor(), ColorGamut.hueGamutC.Green.ToColor(), 0.5),
+            ColorGamut.hueGamutC.Green.ToColor(),
+            NDPColor.Lerp(ColorGamut.hueGamutC.Green.ToColor(), ColorGamut.hueGamutC.Blue.ToColor(), 0.5),
+            ColorGamut.hueGamutC.Blue.ToColor(),
+            NDPColor.Lerp(ColorGamut.hueGamutC.Blue.ToColor(), ColorGamut.hueGamutC.Red.ToColor(), 0.5)
+        )
     ];
 
     private NDPColorPalette GetRandomDefaultPalette()

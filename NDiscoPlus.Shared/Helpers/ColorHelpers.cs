@@ -9,14 +9,16 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.Shared.Helpers;
 public static class ColorHelpers
 {
-    public static RGBColor ToHueColor(this SKColor color) => new((int)color.Red, (int)color.Green, (int)color.Blue);
+    private static readonly double rgbCnvMult = Math.BitDecrement(256d);
 
-    public static SKColor ToSKColor(this RGBColor color)
+    public static string ToHTMLColor(double r, double g, double b, double alpha = 1d)
     {
-        byte red = (byte)(color.R * 255.99);
-        byte green = (byte)(color.G * 255.99);
-        byte blue = (byte)(color.B * 255.99);
-        return new SKColor(red, green, blue);
+        byte red = (byte)(r * rgbCnvMult);
+        byte green = (byte)(g * rgbCnvMult);
+        byte blue = (byte)(b * rgbCnvMult);
+        byte alpha_ = (byte)(alpha * rgbCnvMult);
+
+        return $"#{red:x2}{green:x2}{blue:x2}{alpha_:x2}";
     }
 
     public static RGBColor Lerp(RGBColor a, RGBColor b, double t)
@@ -30,61 +32,21 @@ public static class ColorHelpers
         );
     }
 
-    /// <summary>
-    /// Computes a gradient color with mix (same as t in Lerp). This takes gamma into account.
-    /// </summary>
-    public static RGBColor Gradient(RGBColor color1, RGBColor color2, double mix)
+    // https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ
+    public static double SRGBInverseCompanding(double c)
     {
-        // This is stolen from StackOverflow, but I can't remember where
+        if (c <= 0.04045d)
+            return c / 12.92d;
+        else
+            return Math.Pow((c + 0.055d) / 1.055d, 2.4d);
+    }
 
-        static double sRGBInverseCompanding(double x)
-        {
-            if (x <= 0.04045d)
-                return x / 12.92d;
-            else
-                return Math.Pow((x + 0.055d) / 1.055d, 2.4d);
-        }
-
-        static double sRGBCompanding(double x)
-        {
-            if (x <= 0.0031308d)
-                return x * 12.92d;
-            else
-                return (1.055d * Math.Pow(x, 1d / 2.4d)) - 0.055d;
-        }
-
-        double r1 = sRGBInverseCompanding(color1.R);
-        double g1 = sRGBInverseCompanding(color1.G);
-        double b1 = sRGBInverseCompanding(color1.B);
-
-        double r2 = sRGBInverseCompanding(color2.R);
-        double g2 = sRGBInverseCompanding(color2.G);
-        double b2 = sRGBInverseCompanding(color2.B);
-
-        double r = DoubleHelpers.Lerp(r1, r2, mix);
-        double g = DoubleHelpers.Lerp(g1, g2, mix);
-        double b = DoubleHelpers.Lerp(b1, b2, mix);
-
-        const double gamma = 0.43;
-        double brightness1 = Math.Pow(r1 + g1 + b1, gamma);
-        double brightness2 = Math.Pow(r2 + g2 + b2, gamma);
-
-        double brightness = DoubleHelpers.Lerp(brightness1, brightness2, mix);
-        double intensity = Math.Pow(brightness, 1 / gamma);
-
-        double rgbSum = r + g + b;
-        if (rgbSum != 0)
-        {
-            double factor = intensity / rgbSum;
-            r *= factor;
-            g *= factor;
-            b *= factor;
-        }
-
-        return new RGBColor(
-            sRGBCompanding(r),
-            sRGBCompanding(g),
-            sRGBCompanding(b)
-        );
+    // https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB
+    public static double SRGBCompanding(double c)
+    {
+        if (c <= 0.0031308d)
+            return c * 12.92d;
+        else
+            return (1.055d * Math.Pow(c, 1d / 2.4d)) - 0.055d;
     }
 }

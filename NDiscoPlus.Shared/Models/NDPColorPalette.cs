@@ -1,39 +1,45 @@
-﻿using HueApi.ColorConverters;
-using NDiscoPlus.Shared.Helpers;
+﻿using NDiscoPlus.Shared.Helpers;
 using SkiaSharp;
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
-public readonly struct NDPColorPalette : IReadOnlyList<SKColor>
+public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
 {
-    private readonly ImmutableArray<SKColor> colors;
+    private readonly ImmutableArray<NDPColor> colors;
 
     public readonly int Count => colors.Length;
 
-    public SKColor this[int index] => colors[index];
+    public NDPColor this[int index] => colors[index];
+
+    public NDPColorPalette(IEnumerable<NDPColor> colors)
+    {
+        this.colors = colors.ToImmutableArray();
+    }
+
+    public NDPColorPalette(params NDPColor[] colors)
+    {
+        this.colors = colors.ToImmutableArray();
+    }
 
     public NDPColorPalette(IEnumerable<SKColor> colors)
     {
-        this.colors = colors.ToImmutableArray();
+        this.colors = colors.Select(c => NDPColor.FromSRGB(c.Red / 255d, c.Green / 255d, c.Blue / 255d)).ToImmutableArray();
     }
 
-    public NDPColorPalette(params SKColor[] colors)
+    public readonly IList<NDPColor> Colors => colors;
+
+
+    public string[] HtmlColors => GetHtmlColors().ToArray();
+    private IEnumerable<string> GetHtmlColors()
     {
-        this.colors = colors.ToImmutableArray();
+        foreach (NDPColor c in colors)
+        {
+            (double r, double g, double b) = c.ToSRGB();
+            yield return ColorHelpers.ToHTMLColor(r, g, b);
+        }
     }
 
-    public readonly IList<SKColor> Colors => colors;
-
-    public readonly RGBColor[] HueColors => colors.Select(c => c.ToHueColor()).ToArray();
-
-    public string[] HtmlColors => colors.Select((c) => $"#{c.Red:x2}{c.Green:x2}{c.Blue:x2}").ToArray();
-
-    public IEnumerator<SKColor> GetEnumerator() => ((IEnumerable<SKColor>)colors).GetEnumerator();
+    public IEnumerator<NDPColor> GetEnumerator() => ((IEnumerable<NDPColor>)colors).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
