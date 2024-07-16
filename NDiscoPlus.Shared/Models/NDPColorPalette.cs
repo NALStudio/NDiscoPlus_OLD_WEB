@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.Models.Color;
 using SkiaSharp;
 using System.Collections;
 using System.Collections.Immutable;

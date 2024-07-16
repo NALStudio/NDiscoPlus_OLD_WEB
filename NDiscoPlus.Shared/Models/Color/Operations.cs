@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NDiscoPlus.Shared.Models.NDPColor;
+namespace NDiscoPlus.Shared.Models.Color;
 public readonly partial struct NDPColor
 {
     public NDPColor Clamp(ColorGamut gamut)

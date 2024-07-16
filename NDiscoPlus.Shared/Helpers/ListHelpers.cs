@@ -47,14 +47,4 @@ public static class ListHelpers
 
         yield return TakeRange(values, lastIndex, values.Count).ToArray();
     }
-
-    /// <summary>
-    /// Picks a random element from the list.
-    /// </summary>
-    /// <param name="random">The Random provider used. Defaults to <see cref="Random.Shared"/></param>
-    public static T Random<T>(this IList<T> values, Random? random = null)
-    {
-        random ??= System.Random.Shared;
-        return values[random.Next(values.Count)];
-    }
 }

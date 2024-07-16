@@ -1,4 +1,4 @@
-﻿namespace NDiscoPlus.Shared.Models.NDPColor;
+﻿namespace NDiscoPlus.Shared.Models.Color;
 public readonly partial struct NDPColor
 {
     /// <summary>

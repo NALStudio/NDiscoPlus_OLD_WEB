@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NDiscoPlus.Shared.Models.NDPColor;
+namespace NDiscoPlus.Shared.Models.Color;
 public readonly partial struct NDPColor
 {
     // https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ

@@ -1,139 +1,64 @@
 ﻿using HueApi.ColorConverters;
+using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
-using SkiaSharp;
-using System.Diagnostics;
+using NDiscoPlus.Shared.Models.Color;
 
 namespace NDiscoPlus.Shared.Effects.BaseEffects;
 
-internal class BackgroundEffectState : EffectState
-{
-    internal record class AnimationDataRecord
-    {
-        public RGBColor TargetColor { get; set; }
-        public double Progress { get; set; }
-
-        public AnimationDataRecord(RGBColor target)
-        {
-            TargetColor = target;
-            Progress = 0d;
-        }
-    }
-
-    // class because struct is copied between functions
-    internal record class LightDataRecord
-    {
-        public RGBColor CurrentColor { get; set; }
-        public double AnimationCooldown { get; private set; }
-        public AnimationDataRecord? Animation { get; set; }
-
-        public LightDataRecord(RGBColor color, double animationCooldown)
-        {
-            CurrentColor = color;
-            AnimationCooldown = animationCooldown;
-            Animation = null;
-        }
-
-        public void ResetCooldown(double newCooldown)
-        {
-            AnimationCooldown = newCooldown;
-        }
-
-        public RGBColor UpdateColor(double deltaTime)
-        {
-            if (Animation is AnimationDataRecord adr)
-            {
-                return UpdateAnimation(deltaTime, adr);
-            }
-            else
-            {
-                AnimationCooldown -= deltaTime;
-                if (AnimationCooldown < 0d)
-                    AnimationCooldown = 0d;
-
-                return CurrentColor;
-            }
-        }
-
-        private RGBColor UpdateAnimation(double deltaTime, AnimationDataRecord adr)
-        {
-            adr.Progress += (deltaTime / ColorCycleBackgroundEffect.AnimationSeconds);
-            if (adr.Progress > 1d)
-            {
-                CurrentColor = adr.TargetColor;
-                Animation = null;
-                return CurrentColor;
-            }
-            else
-            {
-                return ColorHelpers.Gradient(CurrentColor, adr.TargetColor, adr.Progress);
-            }
-        }
-    }
-
-    public LightDataRecord[] LightData { get; set; } = Array.Empty<LightDataRecord>();
-}
-
 internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 {
+    private readonly struct Animation
+    {
+        public LightId LightId { get; }
+        public TimeSpan End { get; }
+
+        public Animation(LightId light, TimeSpan end)
+        {
+            LightId = light;
+            End = end;
+        }
+    }
+
     public const double AnimationSeconds = 10d;
 
-    private static double GetRandomAnimationCooldown(Random random)
-        => random.NextDouble().Remap(0d, 1d, 2d, 10d);
 
-    public override BackgroundEffectState CreateState(BackgroundStateContext ctx) => new();
-
-    public override void Update(EffectContext ctx, EffectState effectState)
+    public override void Generate(BackgroundContext ctx, BackgroundChannel channel)
     {
-        BackgroundEffectState state = (BackgroundEffectState)effectState;
+        TimeSpan animationDuration = TimeSpan.FromSeconds(AnimationSeconds);
 
-        if (ctx.NewTrack)
-            Reset(ctx, state);
+        List<Animation> animations = channel.Lights.Select(l => new Animation(l.Id, GetRandomAnimationCooldown(ctx.Random))).ToList();
 
-        Debug.Assert(ctx.Lights.Count == state.LightData.Length);
-        for (int i = 0; i < state.LightData.Length; i++)
+        bool running = true;
+        while (running)
         {
-            var lightData = state.LightData[i];
+            TimeSpan time = animations.Min(a => a.End);
+            animations.RemoveAll(a => a.End <= time);
 
-            ctx.Lights[i].Color = lightData.UpdateColor(ctx.DeltaTime);
+            if (animations.Count >= channel.Lights.Count)
+                continue;
 
-            if (lightData.AnimationCooldown <= 0d)
+            foreach (NDPLight l in channel.Lights.Where(l => animations.All(a => l.Id != a.LightId)))
             {
-                _ = TryCreateAnimation(ctx, state, lightData);
-                lightData.ResetCooldown(GetRandomAnimationCooldown(ctx.Random));
+                TimeSpan animationEnd = time + animationDuration + GetRandomAnimationCooldown(ctx.Random);
+                if (animationEnd > ctx.Duration)
+                {
+                    running = false;
+                    continue; // continue creating animations for the rest of the lights.
+                }
+
+                animations.Add(new Animation(l.Id, animationEnd));
+                channel.Add(new BackgroundTransition(l.Id, time, animationDuration, PickNewRandomColor(ctx)));
             }
         }
     }
 
-    static void Reset(EffectContext ctx, BackgroundEffectState state)
-    {
-        state.LightData = new BackgroundEffectState.LightDataRecord[ctx.Lights.Count];
+    private static TimeSpan GetRandomAnimationCooldown(Random random)
+        => TimeSpan.FromSeconds(random.NextDouble().Remap(0d, 1d, 2d, 10d));
 
-        for (int i = 0; i < state.LightData.Length; i++)
-        {
-            state.LightData[i] = new BackgroundEffectState.LightDataRecord(
-                PickNewRandomColor(ctx.Random, ctx.Palette, state),
-                GetRandomAnimationCooldown(ctx.Random)
-            );
-        }
-    }
-
-    static bool TryCreateAnimation(EffectContext ctx, BackgroundEffectState state, BackgroundEffectState.LightDataRecord lightData)
-    {
-        if (lightData.Animation is not null)
-            return false;
-
-        NDPColor color = PickNewRandomColor(ctx.Random, ctx.Palette, state);
-        if (lightData.CurrentColor == color)
-            return false;
-
-        lightData.Animation = new(color);
-        return true;
-    }
-
-    static NDPColor PickNewRandomColor(Random random, NDPColorPalette palette, BackgroundEffectState state)
+    static NDPColor PickNewRandomColor(BackgroundContext ctx)
     {
         // Custom function so that we can switch to a more fancy randomizer in the future if needed.
-        return palette[random.Next(palette.Count)];
+        return ctx.Palette[ctx.Random.Next(ctx.Palette.Count)];
     }
 }

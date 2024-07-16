@@ -9,20 +9,6 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
-internal readonly struct SectionData
-{
-    private readonly Section section;
-
-    public SectionData(Section section)
-    {
-        this.section = section;
-    }
-
-    public double MinutesPerBeat => 1d / section.Tempo;
-    public double SecondsPerBeat => MinutesPerBeat * 60d;
-    public double SecondsPerBar => SecondsPerBeat * section.TimeSignature;
-}
-
 internal readonly struct TimingContext
 {
     public TimingContext(int currentIndex, NDPInterval? current, bool isNew, TimeSpan? progress, int nextIndex, NDPInterval? next, TimeSpan? untilNext)

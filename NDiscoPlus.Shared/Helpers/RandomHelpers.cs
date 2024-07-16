@@ -9,13 +9,21 @@ namespace NDiscoPlus.Shared.Helpers;
 public static class RandomHelpers
 {
     /// <summary>
+    /// Picks a random element from the list.
+    /// </summary>
+    public static T Choice<T>(this Random random, IList<T> values)
+    {
+        return values[random.Next(values.Count)];
+    }
+
+    /// <summary>
     /// Pick an item from a list using weights.
     /// </summary>
     /// <param name="random">null for <see cref="Random.Shared"/></param>
-    public static T WeightedRandom<T>(IList<T> values, IList<int> weights, Random? random)
+    public static T WeightedChoice<T>(this Random random, IList<T> values, IList<int> weights)
     {
         int sum = weights.Sum();
-        int rand = (random ?? Random.Shared).Next(sum);
+        int rand = random.Next(sum);
 
         int cumsum = 0;
         for (int i = 0; i < weights.Count; i++)

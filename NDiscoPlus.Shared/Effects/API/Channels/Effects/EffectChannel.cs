@@ -1,4 +1,6 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Models.Color;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 
@@ -23,6 +25,16 @@ public readonly struct Effect
         Position = position;
         Duration = duration;
     }
+
+    public Effect(LightId light, TimeSpan position, TimeSpan duration, NDPColor color) : this(light: light, position: position, duration: duration)
+    {
+        Color = color;
+    }
+
+    public Effect(LightId light, TimeSpan position, TimeSpan duration, double brightness) : this(light: light, position: position, duration: duration)
+    {
+        Brightness = brightness;
+    }
 }
 
 public class EffectChannel : Channel
@@ -31,7 +43,7 @@ public class EffectChannel : Channel
     private readonly List<Effect> effects = new();
 
     public void Add(Effect effect)
-        => effects.Add(effect);
+        => Bisect.InsortRight(effects, effect, e => e.Start);
 
     /// <summary>
     /// <para>
@@ -54,4 +66,20 @@ public class EffectChannel : Channel
     /// </summary>
     public void Purge(TimeSpan start, TimeSpan end)
         => effects.RemoveAll(e => e.End >= start || e.Start < end);
+
+    public IEnumerable<NDPLight> GetBusyLights(TimeSpan position)
+    {
+        foreach (Effect eff in effects.Where(e => e.End >= position || e.Start < position))
+            yield return lights[eff.LightId];
+    }
+
+    public IEnumerable<NDPLight> GetAvailableLights(TimeSpan position)
+    {
+        HashSet<LightId> reserved = GetBusyLights(position).Select(l => l.Id).ToHashSet();
+        foreach (NDPLight light in lights.Values)
+        {
+            if (!reserved.Contains(light.Id))
+                yield return light;
+        }
+    }
 }

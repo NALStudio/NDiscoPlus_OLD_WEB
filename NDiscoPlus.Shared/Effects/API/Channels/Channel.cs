@@ -6,7 +6,7 @@ public abstract class Channel
 {
     public IList<NDPLight> Lights => lights.Values;
 
-    readonly FrozenDictionary<LightId, NDPLight> lights;
+    protected readonly FrozenDictionary<LightId, NDPLight> lights;
 
     protected Channel(params NDPLight[] lights)
     {

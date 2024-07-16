@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Music;
+﻿using NDiscoPlus.Shared.Effects.API;
+using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -7,28 +8,22 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
 
-public class NDPData
+internal class NDPData
 {
-    public NDPData(SpotifyPlayerTrack track, NDPContext context, NDPColorPalette referencePalette, NDPColorPalette effectPalette, NDPTimings timings, IList<EffectRecord> effects)
+    public NDPData(SpotifyPlayerTrack track, NDPColorPalette referencePalette, NDPColorPalette effectPalette, EffectAPI effects)
     {
         Track = track;
-        Context = context;
         ReferencePalette = referencePalette;
         EffectPalette = effectPalette;
-        Timings = timings;
-        Effects = effects.ToImmutableArray();
+        Effects = effects;
     }
 
     public SpotifyPlayerTrack Track { get; }
 
-    public NDPContext Context { get; }
-
     public NDPColorPalette ReferencePalette { get; }
     public NDPColorPalette EffectPalette { get; }
 
-    public NDPTimings Timings { get; }
-
-    public IList<EffectRecord> Effects { get; }
+    public EffectAPI Effects { get; }
 
     public static string Serialize(NDPData data)
     {

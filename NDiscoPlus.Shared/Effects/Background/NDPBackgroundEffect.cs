@@ -3,8 +3,6 @@ using NDiscoPlus.Shared.Models;
 
 namespace NDiscoPlus.Shared.Effects.BaseEffects;
 
-internal abstract class EffectState;
-
 internal abstract class NDPBackgroundEffect
 {
     protected NDPBackgroundEffect()

@@ -1,6 +1,10 @@
-﻿using NDiscoPlus.Shared.Helpers;
+﻿using NDiscoPlus.Shared.Effects.API;
+using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects;
+using NDiscoPlus.Shared.Effects.BaseEffects;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
-using NDiscoPlus.Shared.Models.NDPColor;
+using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using SpotifyAPI.Web;
@@ -88,15 +92,32 @@ public class NDiscoPlusService
         NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
 
         MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
-        ImmutableArray<EffectRecord> effects = effectGen.Generate(args).ToImmutableArray();
+        IEnumerable<EffectRecord> effects = effectGen.Generate(args);
+
+        EffectAPI api = new(
+            [
+                new StrobeEffectChannel(),
+                new FlashEffectChannel(),
+                new DefaultEffectChannel()
+            ],
+            new BackgroundChannel()
+        );
+        foreach (EffectRecord eff in effects)
+        {
+            EffectContextX ctx = EffectContextX.Create(
+                random: random,
+                analysis: args.Analysis,
+                section: eff.Section
+            );
+
+            eff.Effect?.Generate(ctx, api);
+        }
 
         return new NDPData(
             track: args.Track,
-            context: new NDPContext(),
             referencePalette: palette,
             effectPalette: effectPalette,
-            timings: NDPTimings.FromAnalysis(args.Analysis),
-            effects: effects
+            effects: api
         );
     }
 

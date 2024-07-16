@@ -19,7 +19,7 @@ internal abstract class NDPEffect
         .Select(i => new KeyValuePair<EffectIntensity, IList<NDPEffect>>(i, All.Where(eff => eff.Intensity == i).ToImmutableList()))
         .ToImmutableDictionary();
 
-    public abstract void Generate(EffectContext ctx, EffectAPI api);
+    public abstract void Generate(EffectContextX ctx, EffectAPI api);
 
 
     /// <summary>An effect specialised in categorisation by intensity.</summary>

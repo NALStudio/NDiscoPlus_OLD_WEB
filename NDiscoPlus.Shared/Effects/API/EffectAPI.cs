@@ -1,16 +1,18 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared.Effects.API;
-public class EffectAPI
+
+internal class EffectAPI
 {
     public IList<EffectChannel> Channels => channels.Values;
     private readonly FrozenDictionary<Type, EffectChannel> channels;
 
     public BackgroundChannel Background { get; }
 
-    public EffectAPI(params EffectChannel[] channels)
+    public EffectAPI(EffectChannel[] channels, BackgroundChannel background)
     {
         Dictionary<Type, EffectChannel> chnls = new();
         foreach (EffectChannel c in channels)
@@ -21,24 +23,30 @@ public class EffectAPI
 
         this.channels = chnls.ToFrozenDictionary();
 
-        Background = new BackgroundChannel();
+        Background = background;
     }
 
 
-    public T? GetChannel<T>() where T : EffectChannel
+    public T GetChannel<T>() where T : EffectChannel
+        => (T)GetChannel(typeof(T));
+
+    public EffectChannel GetChannel(Type type)
+        => channels[type];
+
+    public bool TryGetChannel<T>([MaybeNullWhen(false)] out T channel) where T : EffectChannel
     {
-        EffectChannel? c = GetChannel(typeof(T));
-        if (c is not null)
-            return (T)c;
+        if (TryGetChannel(typeof(T), out EffectChannel? chnl))
+        {
+            channel = (T)chnl;
+            return true;
+        }
         else
-            return null;
-    }
+        {
+            channel = null;
+            return false;
+        }
 
-    public EffectChannel? GetChannel(Type type)
-    {
-        if (channels.TryGetValue(type, out EffectChannel? value))
-            return value;
-        else
-            return null;
     }
+    public bool TryGetChannel(Type type, [MaybeNullWhen(false)] out EffectChannel channel)
+        => channels.TryGetValue(type, out channel);
 }
