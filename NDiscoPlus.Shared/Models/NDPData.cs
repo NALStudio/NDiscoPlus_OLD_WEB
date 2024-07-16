@@ -23,10 +23,7 @@ public class NDPData
 
     public NDPContext Context { get; }
 
-    [JsonConverter(typeof(ColorPaletteConverter))]
     public NDPColorPalette ReferencePalette { get; }
-
-    [JsonConverter(typeof(ColorPaletteConverter))]
     public NDPColorPalette EffectPalette { get; }
 
     public NDPTimings Timings { get; }
@@ -44,35 +41,5 @@ public class NDPData
     {
         NDPData? d = JsonSerializer.Deserialize<NDPData>(data);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
-    }
-}
-
-class ColorPaletteConverter : JsonConverter<NDPColorPalette>
-{
-    public override NDPColorPalette Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-            throw new JsonException();
-        reader.Read();
-
-        List<SKColor> colors = [];
-
-        while (reader.TokenType != JsonTokenType.EndArray)
-        {
-            colors.Add(SKColor.Parse(reader.GetString()));
-            reader.Read();
-        }
-
-        return new NDPColorPalette(colors);
-    }
-
-    public override void Write(Utf8JsonWriter writer, NDPColorPalette value, JsonSerializerOptions options)
-    {
-        writer.WriteStartArray();
-
-        foreach (SKColor color in value.Colors)
-            writer.WriteStringValue(color.ToString());
-
-        writer.WriteEndArray();
     }
 }

@@ -8,4 +8,6 @@ public class ScreenLightId : LightId
         Index = index;
     }
 
+    public override int GetHashCode()
+        => HashCode.Combine(GetType(), Index);
 }

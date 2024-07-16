@@ -1,5 +1,6 @@
 ﻿using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Models.NDPColor;
 using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using SpotifyAPI.Web;

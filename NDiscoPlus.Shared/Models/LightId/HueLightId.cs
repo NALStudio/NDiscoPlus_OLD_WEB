@@ -7,4 +7,7 @@ public class HueLightId : LightId
     {
         ChannelId = channelId;
     }
+
+    public override int GetHashCode()
+        => HashCode.Combine(GetType(), ChannelId);
 }

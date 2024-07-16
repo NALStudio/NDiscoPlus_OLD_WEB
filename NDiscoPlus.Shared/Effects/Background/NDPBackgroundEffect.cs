@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Models;
 
 namespace NDiscoPlus.Shared.Effects.BaseEffects;
 
@@ -10,7 +11,5 @@ internal abstract class NDPBackgroundEffect
     {
     }
 
-    public abstract EffectState CreateState(BackgroundStateContext ctx);
-
-    public abstract void Update(EffectContext ctx, EffectState effectState);
+    public abstract void Generate(BackgroundContext ctx, BackgroundChannel channel);
 }

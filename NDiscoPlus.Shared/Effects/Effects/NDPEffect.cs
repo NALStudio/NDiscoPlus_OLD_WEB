@@ -1,4 +1,6 @@
-﻿using NDiscoPlus.Shared.Effects.BaseEffects;
+﻿using NDiscoPlus.Shared.Effects.API;
+using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Models;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
@@ -17,8 +19,7 @@ internal abstract class NDPEffect
         .Select(i => new KeyValuePair<EffectIntensity, IList<NDPEffect>>(i, All.Where(eff => eff.Intensity == i).ToImmutableList()))
         .ToImmutableDictionary();
 
-    public abstract EffectState CreateState(StateContext ctx);
-    public abstract void Update(EffectContext ctx, EffectState effectState);
+    public abstract void Generate(EffectContext ctx, EffectAPI api);
 
 
     /// <summary>An effect specialised in categorisation by intensity.</summary>

@@ -15,39 +15,11 @@ public readonly record struct NDPInterval(TimeSpan Start, TimeSpan Duration)
     {
         return t >= Start && t <= End;
     }
-}
 
-public class NDPTimings
-{
-    public NDPTimings(ImmutableArray<NDPInterval> bars, ImmutableArray<NDPInterval> beats, ImmutableArray<NDPInterval> tatums)
+    public static explicit operator NDPInterval(TimeInterval interval)
     {
-        this.bars = bars;
-        this.beats = beats;
-        this.tatums = tatums;
-    }
-
-    [JsonInclude]
-    private ImmutableArray<NDPInterval> bars;
-    [JsonIgnore]
-    public IList<NDPInterval> Bars => bars;
-
-    [JsonInclude]
-    private ImmutableArray<NDPInterval> beats;
-    [JsonIgnore]
-    public IList<NDPInterval> Beats => beats;
-
-    [JsonInclude]
-    private ImmutableArray<NDPInterval> tatums;
-    [JsonIgnore]
-    public IList<NDPInterval> Tatums => tatums;
-
-
-    public static NDPTimings FromAnalysis(TrackAudioAnalysis analysis)
-    {
-        return new NDPTimings(
-            bars: analysis.Bars.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray(),
-            beats: analysis.Beats.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray(),
-            tatums: analysis.Tatums.Select(b => new NDPInterval(TimeSpan.FromSeconds(b.Start), TimeSpan.FromSeconds(b.Duration))).ToImmutableArray()
-        );
+        TimeSpan start = TimeSpan.FromSeconds(interval.Start);
+        TimeSpan duration = TimeSpan.FromSeconds(interval.Duration);
+        return new NDPInterval(Start: start, Duration: duration);
     }
 }

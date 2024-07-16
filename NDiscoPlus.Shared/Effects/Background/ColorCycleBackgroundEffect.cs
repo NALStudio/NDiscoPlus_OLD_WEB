@@ -123,7 +123,7 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
         if (lightData.Animation is not null)
             return false;
 
-        RGBColor color = PickNewRandomColor(ctx.Random, ctx.Palette, state);
+        NDPColor color = PickNewRandomColor(ctx.Random, ctx.Palette, state);
         if (lightData.CurrentColor == color)
             return false;
 
@@ -131,9 +131,9 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
         return true;
     }
 
-    static RGBColor PickNewRandomColor(Random random, NDPColorPalette palette, BackgroundEffectState state)
+    static NDPColor PickNewRandomColor(Random random, NDPColorPalette palette, BackgroundEffectState state)
     {
         // Custom function so that we can switch to a more fancy randomizer in the future if needed.
-        return palette[random.Next(palette.Count)].ToHueColor();
+        return palette[random.Next(palette.Count)];
     }
 }
