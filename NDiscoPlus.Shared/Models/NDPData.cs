@@ -8,9 +8,10 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
 
-internal class NDPData
+public class NDPData
 {
-    public NDPData(SpotifyPlayerTrack track, NDPColorPalette referencePalette, NDPColorPalette effectPalette, EffectAPI effects)
+    [JsonConstructor]
+    internal NDPData(SpotifyPlayerTrack track, NDPColorPalette referencePalette, NDPColorPalette effectPalette, EffectAPI effects)
     {
         Track = track;
         ReferencePalette = referencePalette;
@@ -23,7 +24,8 @@ internal class NDPData
     public NDPColorPalette ReferencePalette { get; }
     public NDPColorPalette EffectPalette { get; }
 
-    public EffectAPI Effects { get; }
+    [JsonInclude]
+    internal EffectAPI Effects { get; }
 
     public static string Serialize(NDPData data)
     {

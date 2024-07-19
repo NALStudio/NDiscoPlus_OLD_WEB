@@ -65,7 +65,7 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
     async Task RenderSections(int y, int height)
     {
-        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis));
+        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis, new NDiscoPlusArgsLights()));
 
         for (int i = 0; i < intensities.Count; i++)
         {

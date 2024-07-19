@@ -22,12 +22,11 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 
     public const double AnimationSeconds = 10d;
 
-
     public override void Generate(BackgroundContext ctx, BackgroundChannel channel)
     {
         TimeSpan animationDuration = TimeSpan.FromSeconds(AnimationSeconds);
 
-        List<Animation> animations = channel.Lights.Select(l => new Animation(l.Id, GetRandomAnimationCooldown(ctx.Random))).ToList();
+        List<Animation> animations = channel.Lights.Values.Select(l => new Animation(l.Id, GetRandomAnimationCooldown(ctx.Random))).ToList();
 
         bool running = true;
         while (running)
@@ -38,7 +37,7 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
             if (animations.Count >= channel.Lights.Count)
                 continue;
 
-            foreach (NDPLight l in channel.Lights.Where(l => animations.All(a => l.Id != a.LightId)))
+            foreach (NDPLight l in channel.Lights.Values.Where(l => animations.All(a => l.Id != a.LightId)))
             {
                 TimeSpan animationEnd = time + animationDuration + GetRandomAnimationCooldown(ctx.Random);
                 if (animationEnd > ctx.Duration)

@@ -11,12 +11,15 @@ public static class ColorHelpers
 {
     private static readonly double rgbCnvMult = Math.BitDecrement(256d);
 
+    /// <summary>
+    /// Arguments are clamped to the range 0-1.
+    /// </summary>
     public static string ToHTMLColor(double r, double g, double b, double alpha = 1d)
     {
-        byte red = (byte)(r * rgbCnvMult);
-        byte green = (byte)(g * rgbCnvMult);
-        byte blue = (byte)(b * rgbCnvMult);
-        byte alpha_ = (byte)(alpha * rgbCnvMult);
+        byte red = (byte)(r.Clamp01() * rgbCnvMult);
+        byte green = (byte)(g.Clamp01() * rgbCnvMult);
+        byte blue = (byte)(b.Clamp01() * rgbCnvMult);
+        byte alpha_ = (byte)(alpha.Clamp01() * rgbCnvMult);
 
         return $"#{red:x2}{green:x2}{blue:x2}{alpha_:x2}";
     }

@@ -15,12 +15,27 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
 
-public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioFeatures Features, TrackAudioAnalysis Analysis)
+public class NDiscoPlusArgs
 {
+    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, NDiscoPlusArgsLights lights)
+    {
+        Track = track;
+        Features = features;
+        Analysis = analysis;
+        Lights = lights;
+    }
+
+    public SpotifyPlayerTrack Track { get; }
+    public TrackAudioFeatures Features { get; }
+    public TrackAudioAnalysis Analysis { get; }
+
+    public NDiscoPlusArgsLights Lights { get; }
+
     /// <summary>
     /// Serialize to pass object to workers.
     /// Serialized representation is currently JSON, but might change in the future.
@@ -43,6 +58,74 @@ public record NDiscoPlusArgs(SpotifyPlayerTrack Track, TrackAudioFeatures Featur
     }
 }
 
+public class NDiscoPlusArgsLights
+{
+    [JsonInclude]
+    private ImmutableArray<NDPLight> strobe;
+    [JsonInclude]
+    private ImmutableArray<NDPLight> flash;
+    [JsonInclude]
+    private ImmutableArray<NDPLight> effect;
+    [JsonInclude]
+    private ImmutableArray<NDPLight> background;
+
+    public NDiscoPlusArgsLights()
+    {
+        strobe = ImmutableArray<NDPLight>.Empty;
+        flash = ImmutableArray<NDPLight>.Empty;
+        effect = ImmutableArray<NDPLight>.Empty;
+        background = ImmutableArray<NDPLight>.Empty;
+    }
+
+    [JsonConstructor]
+    private NDiscoPlusArgsLights(ImmutableArray<NDPLight> strobe, ImmutableArray<NDPLight> flash, ImmutableArray<NDPLight> effect, ImmutableArray<NDPLight> background)
+    {
+        this.strobe = strobe;
+        this.flash = flash;
+        this.effect = effect;
+        this.background = background;
+    }
+
+    [JsonIgnore]
+    public IList<NDPLight> Strobe
+    {
+        get { return strobe; }
+        init { strobe = value.ToImmutableArray(); }
+    }
+
+    [JsonIgnore]
+    public IList<NDPLight> Flash
+    {
+        get { return flash; }
+        init { flash = value.ToImmutableArray(); }
+    }
+
+    [JsonIgnore]
+    public IList<NDPLight> Effect
+    {
+        get { return effect; }
+        init { effect = value.ToImmutableArray(); }
+    }
+
+    [JsonIgnore]
+    public IList<NDPLight> Background
+    {
+        get { return background; }
+        init { background = value.ToImmutableArray(); }
+    }
+
+    public static NDiscoPlusArgsLights CreateSingleChannel(IEnumerable<NDPLight> lights)
+        => CreateSingleChannel(lights.ToImmutableArray());
+
+    public static NDiscoPlusArgsLights CreateSingleChannel(params NDPLight[] lights)
+        => CreateSingleChannel(lights.ToImmutableArray());
+
+    public static NDiscoPlusArgsLights CreateSingleChannel(ImmutableArray<NDPLight> lights)
+    {
+        return new(lights, lights, lights, lights);
+    }
+}
+
 public class NDiscoPlusService
 {
     HttpClient? http;
@@ -51,10 +134,10 @@ public class NDiscoPlusService
     public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
     [
         // sRGB
-        new NDPColorPalette(NDPColor.FromSRGB(255, 0, 0), NDPColor.FromSRGB(0, 255, 255), NDPColor.FromSRGB(255, 105, 180), NDPColor.FromSRGB(102, 51, 153)),
-        new NDPColorPalette(NDPColor.FromSRGB(15, 192, 252), NDPColor.FromSRGB(123, 29, 175), NDPColor.FromSRGB(255, 47, 185), NDPColor.FromSRGB(212, 255, 71)),
-        new NDPColorPalette(NDPColor.FromSRGB(255, 0, 0), NDPColor.FromSRGB(0, 255, 0), NDPColor.FromSRGB(0, 0, 255), NDPColor.FromSRGB(255, 255, 0)),
-        new NDPColorPalette(NDPColor.FromSRGB(164, 20, 217), NDPColor.FromSRGB(255, 128, 43), NDPColor.FromSRGB(249, 225, 5), NDPColor.FromSRGB(52, 199, 165), NDPColor.FromSRGB(93, 80, 206)),
+        new NDPColorPalette(new SKColor(255, 0, 0), new SKColor(0, 255, 255), new SKColor(255, 105, 180), new SKColor(102, 51, 153)),
+        new NDPColorPalette(new SKColor(15, 192, 252), new SKColor(123, 29, 175), new SKColor(255, 47, 185), new SKColor(212, 255, 71)),
+        new NDPColorPalette(new SKColor(255, 0, 0), new SKColor(0, 255, 0), new SKColor(0, 0, 255), new SKColor(255, 255, 0)),
+        new NDPColorPalette(new SKColor(164, 20, 217), new SKColor(255, 128, 43), new SKColor(249, 225, 5), new SKColor(52, 199, 165), new SKColor(93, 80, 206)),
 
         // Hue color space
         // six colors might be a bit excessive, but I was annoyed that the final lerp was missing.
@@ -89,29 +172,39 @@ public class NDiscoPlusService
 
     public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
     {
-        NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
-
         MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
-        IEnumerable<EffectRecord> effects = effectGen.Generate(args);
+
+        NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
 
         EffectAPI api = new(
             [
-                new StrobeEffectChannel(),
-                new FlashEffectChannel(),
-                new DefaultEffectChannel()
+                new StrobeEffectChannel(args.Lights.Strobe),
+                new FlashEffectChannel(args.Lights.Flash),
+                new DefaultEffectChannel(args.Lights.Effect)
             ],
-            new BackgroundChannel()
+            new BackgroundChannel(args.Lights.Background)
         );
-        foreach (EffectRecord eff in effects)
+
+        // TODO: Strobes
+
+        // TODO: Flahes
+
+        // Effects
+        foreach (EffectRecord eff in effectGen.Generate(args))
         {
-            EffectContextX ctx = EffectContextX.Create(
+            EffectContext ctx = EffectContext.Create(
                 random: random,
+                palette: effectPalette,
                 analysis: args.Analysis,
                 section: eff.Section
             );
 
             eff.Effect?.Generate(ctx, api);
         }
+
+        // Background
+        BackgroundContext bCtx = new(random, effectPalette, args.Analysis);
+        new ColorCycleBackgroundEffect().Generate(bCtx, api.Background);
 
         return new NDPData(
             track: args.Track,

@@ -1,11 +1,15 @@
-﻿namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
+﻿using NDiscoPlus.Shared.Models;
+
+namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 
 /// <summary>
 /// Used for normal effects.
 /// </summary>
 public class DefaultEffectChannel : EffectChannel
 {
-
+    public DefaultEffectChannel(IList<NDPLight> lights) : base(lights)
+    {
+    }
 }
 
 /// <summary>
@@ -13,7 +17,9 @@ public class DefaultEffectChannel : EffectChannel
 /// </summary>
 public class FlashEffectChannel : EffectChannel
 {
-
+    public FlashEffectChannel(IList<NDPLight> lights) : base(lights)
+    {
+    }
 }
 
 /// <summary>
@@ -21,5 +27,7 @@ public class FlashEffectChannel : EffectChannel
 /// </summary>
 public class StrobeEffectChannel : EffectChannel
 {
-
+    public StrobeEffectChannel(IList<NDPLight> lights) : base(lights)
+    {
+    }
 }

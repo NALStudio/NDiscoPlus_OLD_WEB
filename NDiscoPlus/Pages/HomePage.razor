@@ -8,6 +8,8 @@
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models.Color
 @using NDiscoPlus.Shared.Music
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Players
@@ -127,13 +129,7 @@
 
     FourCornerGradient gradient = _defaultGradient;
     static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
-    LightInterpreter gradientLights = new(
-        new LightInterpreterConfig(),
-        new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1)),
-        new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1)),
-        new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1)),
-        new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1))
-    );
+    LightInterpreter gradientLights = new(new LightInterpreterConfig());
 
     readonly NDPDataContainer data = new();
     List<FetchTask> fetchTasks = new();
@@ -333,11 +329,20 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        NDiscoPlusArgs args = new(track, features, analysis);
+        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(
+            new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), ColorGamut.sRGB),
+            new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), ColorGamut.sRGB),
+            new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), ColorGamut.sRGB),
+            new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), ColorGamut.sRGB)
+        );
+        NDiscoPlusArgs args = new(track, features, analysis, lights);
+
         string argsSerialized = NDiscoPlusArgs.Serialize(args);
 
-        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
-        var d = NDPData.Deserialize(dataSerialized);
+        // string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
+        // var d = NDPData.Deserialize(dataSerialized);
+
+        NDPData d = await new NDiscoPlusService().ComputeDataWithImageColors(args);
 
         logger.LogInformation("Data computed: '{}' ({}).", track.Name, track.Id);
         return d;
@@ -393,28 +398,20 @@
             return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
     }
 
-    static FourCornerGradient GetGradient(IReadOnlyList<NDPLight> lights)
+    static FourCornerGradient GetGradient(IReadOnlyDictionary<LightId, NDPColor> lights)
     {
-        static string ComputeHTMLColor(NDPLight light)
+        static string ComputeHTMLColor(NDPColor color)
         {
-            HueApi.ColorConverters.RGBColor color = light.Color;
-            double brightness = light.Brightness;
-
-            HueApi.ColorConverters.RGBColor newColor = new(
-                color.R * brightness,
-                color.G * brightness,
-                color.B * brightness
-            );
-
-            return "#" + newColor.ToHex();
+            (double r, double g, double b) = color.ToSRGB();
+            return ColorHelpers.ToHTMLColor(r, g, b);
         }
 
         // use null so that if not all screen lights are included in the light list, we crash.
         string[] colors = new string[4];
-        foreach (NDPLight light in lights.Where(l => l.Id is ScreenLightId))
+        foreach ((LightId light, NDPColor color) in lights.Where(l => l.Key is ScreenLightId))
         {
-            ScreenLightId id = (ScreenLightId)light.Id;
-            colors[id.Index] = ComputeHTMLColor(light);
+            ScreenLightId id = (ScreenLightId)light;
+            colors[id.Index] = ComputeHTMLColor(color);
         }
 
         Debug.Assert(colors.All(c => c is not null));

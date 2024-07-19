@@ -19,16 +19,17 @@ public readonly partial struct NDPColor
         return new NDPColor(x: closest.X, y: closest.Y, brightness: Brightness);
     }
 
-    public static NDPColor Lerp(NDPColor c1, NDPColor c2, double t)
+    public static NDPColor LerpUnclamped(NDPColor c1, NDPColor c2, double t)
     {
-        t = t.Clamp01();
-
         return new(
             x: DoubleHelpers.LerpUnclamped(c1.X, c2.X, t),
             y: DoubleHelpers.LerpUnclamped(c1.Y, c2.Y, t),
             brightness: DoubleHelpers.LerpUnclamped(c1.Brightness, c2.Brightness, t)
         );
     }
+
+    public static NDPColor Lerp(NDPColor c1, NDPColor c2, double t)
+        => LerpUnclamped(c1, c2, t.Clamp01());
 
     // In the second answer after Mark's answer, there is a comparison with xyY color mixing
     // and that looked good, so I'll be using that instead.

@@ -1,8 +1,10 @@
 ﻿using NDiscoPlus.Shared.Helpers;
 using System;
 using System.Collections;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,15 +13,15 @@ namespace NDiscoPlus.Shared.Models;
 
 public readonly record struct NDPLightBounds(double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ);
 
-public sealed class NDPLightCollection : IReadOnlyList<NDPLight>
+public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>, IEnumerable<NDPLight>
 {
-    private readonly NDPLight[] lights;
+    private readonly FrozenDictionary<LightId, NDPLight> lights;
 
     public NDPLightBounds Bounds { get; }
 
-    private NDPLightCollection(NDPLight[] lights, NDPLightBounds bounds)
+    private NDPLightCollection(IEnumerable<NDPLight> lights, NDPLightBounds bounds)
     {
-        this.lights = lights;
+        this.lights = lights.ToFrozenDictionary(key => key.Id);
         Bounds = bounds;
     }
     /// <summary>
@@ -27,8 +29,7 @@ public sealed class NDPLightCollection : IReadOnlyList<NDPLight>
     /// </summary>
     public List<NDPLight[]> GroupX(int count)
     {
-        return ListHelpers.GroupCloseBy(
-            lights,
+        return lights.Values.GroupCloseBy(
             count,
             (a, b) => Math.Abs(a.Position.X - b.Position.X)
         ).ToList();
@@ -39,8 +40,7 @@ public sealed class NDPLightCollection : IReadOnlyList<NDPLight>
     /// </summary>
     public List<NDPLight[]> GroupY(int count)
     {
-        return ListHelpers.GroupCloseBy(
-            lights,
+        return lights.Values.GroupCloseBy(
             count,
             (a, b) => Math.Abs(a.Position.Y - b.Position.Y)
         ).ToList();
@@ -51,8 +51,7 @@ public sealed class NDPLightCollection : IReadOnlyList<NDPLight>
     /// </summary>
     public List<NDPLight[]> GroupZ(int count)
     {
-        return ListHelpers.GroupCloseBy(
-            lights,
+        return lights.Values.GroupCloseBy(
             count,
             (a, b) => Math.Abs(a.Position.Z - b.Position.Z)
         ).ToList();
@@ -99,10 +98,16 @@ public sealed class NDPLightCollection : IReadOnlyList<NDPLight>
         );
     }
 
-    public int Count => lights.Length;
+    public IEnumerable<LightId> Keys => lights.Keys;
+    public IEnumerable<NDPLight> Values => lights.Values;
 
-    public NDPLight this[int index] => lights[index];
+    public int Count => lights.Count;
+    public NDPLight this[LightId key] => lights[key];
 
-    public IEnumerator<NDPLight> GetEnumerator() => ((IEnumerable<NDPLight>)lights).GetEnumerator();
-    IEnumerator IEnumerable.GetEnumerator() => lights.GetEnumerator();
+    public bool ContainsKey(LightId key) => lights.ContainsKey(key);
+    public bool TryGetValue(LightId key, [MaybeNullWhen(false)] out NDPLight value) => lights.TryGetValue(key, out value);
+
+    public IEnumerator<NDPLight> GetEnumerator() => ((IEnumerable<NDPLight>)lights.Values).GetEnumerator();
+    IEnumerator<KeyValuePair<LightId, NDPLight>> IEnumerable<KeyValuePair<LightId, NDPLight>>.GetEnumerator() => lights.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

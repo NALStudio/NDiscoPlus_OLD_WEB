@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using NDiscoPlus.Shared.Models.Color;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;

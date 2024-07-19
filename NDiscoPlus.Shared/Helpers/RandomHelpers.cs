@@ -13,7 +13,10 @@ public static class RandomHelpers
     /// </summary>
     public static T Choice<T>(this Random random, IList<T> values)
     {
-        return values[random.Next(values.Count)];
+        int valuesCount = values.Count;
+        if (valuesCount < 1)
+            throw new ArgumentOutOfRangeException(nameof(values), "Cannot choose an element from an empty list.");
+        return values[random.Next(valuesCount)];
     }
 
     /// <summary>

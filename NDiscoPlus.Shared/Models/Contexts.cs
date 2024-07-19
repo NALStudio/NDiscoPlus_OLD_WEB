@@ -47,43 +47,46 @@ internal class BaseContext
     }
 }
 
-internal class BackgroundContext : BaseContext
+internal sealed class BackgroundContext : BaseContext
 {
-    public Random Random { get; }
-
-    public TimeSpan Duration { get; }
-
-    public IList<NDPInterval> Bars => bars;
-    public IList<NDPInterval> Beats => beats;
-    public IList<NDPInterval> Tatums => tatums;
-
-    private readonly ImmutableArray<NDPInterval> bars;
-    private readonly ImmutableArray<NDPInterval> beats;
-    private readonly ImmutableArray<NDPInterval> tatums;
-
-    public BackgroundContext(Random random, TrackAudioAnalysis analysis) : base(
-        random: random,
-        start: TimeSpan.Zero,
-        duration: TimeSpan.FromSeconds(analysis.Track.Duration),
-        loudness: analysis.Track.Loudness,
-        tempo: analysis.Track.Tempo,
-        key: analysis.Track.Key,
-        mode: analysis.Track.Mode,
-        timeSignature: analysis.Track.TimeSignature,
-        bars: analysis.Bars,
-        beats: analysis.Beats,
-        tatums: analysis.Tatums
-    )
+    public BackgroundContext(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis)
+        : base(
+            random: random,
+            palette: palette,
+            start: TimeSpan.Zero,
+            duration: TimeSpan.FromSeconds(analysis.Track.Duration),
+            loudness: analysis.Track.Loudness,
+            tempo: analysis.Track.Tempo,
+            key: analysis.Track.Key,
+            mode: analysis.Track.Mode,
+            timeSignature: analysis.Track.TimeSignature,
+            bars: analysis.Bars,
+            beats: analysis.Beats,
+            tatums: analysis.Tatums
+        )
     { }
 }
 
-internal class EffectContextX : BaseContext
+internal sealed class EffectContext : BaseContext
 {
-    private EffectContextX(Random random, TimeSpan start, TimeSpan duration, double loudness, double tempo, int key, int mode, int timeSignature, IEnumerable<TimeInterval> bars, IEnumerable<TimeInterval> beats, IEnumerable<TimeInterval> tatums) : base(random, start, duration, loudness, tempo, key, mode, timeSignature, bars, beats, tatums)
-    {
-    }
+    private EffectContext(Random random, NDPColorPalette palette, TimeSpan start, TimeSpan duration, double loudness, double tempo, int key, int mode, int timeSignature, IEnumerable<TimeInterval> bars, IEnumerable<TimeInterval> beats, IEnumerable<TimeInterval> tatums)
+        : base(
+            random: random,
+            palette: palette,
+            start: start,
+            duration: duration,
+            loudness: loudness,
+            tempo: tempo,
+            key: key,
+            mode: mode,
+            timeSignature: timeSignature,
+            bars: bars,
+            beats: beats,
+            tatums: tatums
+        )
+    { }
 
-    public static EffectContextX Create(Random random, TrackAudioAnalysis analysis, Section section)
+    public static EffectContext Create(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis, Section section)
     {
         static bool StartIsValid(Section section, TimeInterval interval)
             => TimeSpan.FromSeconds(interval.Start) >= TimeSpan.FromSeconds(section.Start);
@@ -97,8 +100,9 @@ internal class EffectContextX : BaseContext
         TimeSpan start = TimeSpan.FromSeconds(section.Start);
         TimeSpan duration = TimeSpan.FromSeconds(section.Duration);
 
-        return new EffectContextX(
+        return new EffectContext(
             random: random,
+            palette: palette,
             start: start,
             duration: duration,
             loudness: section.Loudness,

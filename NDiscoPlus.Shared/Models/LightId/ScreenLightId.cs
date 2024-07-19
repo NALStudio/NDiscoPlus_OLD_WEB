@@ -10,4 +10,7 @@ public class ScreenLightId : LightId
 
     public override int GetHashCode()
         => HashCode.Combine(GetType(), Index);
+
+    public override bool Equals(object? obj)
+        => obj is ScreenLightId sli && Index == sli.Index;
 }

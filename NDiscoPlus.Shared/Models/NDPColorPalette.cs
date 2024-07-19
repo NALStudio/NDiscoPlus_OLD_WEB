@@ -28,6 +28,9 @@ public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
         this.colors = colors.Select(c => NDPColor.FromSRGB(c.Red / 255d, c.Green / 255d, c.Blue / 255d)).ToImmutableArray();
     }
 
+    public NDPColorPalette(params SKColor[] colors) : this((IEnumerable<SKColor>)colors)
+    { }
+
     public readonly IList<NDPColor> Colors => colors;
 
 

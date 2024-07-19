@@ -28,8 +28,8 @@ public readonly partial struct NDPColor
         double z = 1d - x - y;
 
         double Y = Brightness;
-        double X = Y / y * x;
-        double Z = Y / y * z;
+        double X = (Y / y) * x;
+        double Z = (Y / y) * z;
 
         return (X, Y, Z);
     }

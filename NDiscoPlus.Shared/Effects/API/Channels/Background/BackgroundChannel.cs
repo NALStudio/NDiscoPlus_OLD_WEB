@@ -23,13 +23,33 @@ public readonly struct BackgroundTransition
         Duration = duration;
         Color = color;
     }
+
+    public NDPColor Interpolate(TimeSpan progress, NDPColor from)
+    {
+        double t = (progress - Start) / Duration;
+        return NDPColor.Lerp(from, Color, t);
+    }
 }
 
 public class BackgroundChannel : Channel
 {
-    public IList<BackgroundTransition> Transitions => transitions.AsReadOnly();
-    private readonly List<BackgroundTransition> transitions = new();
+    public BackgroundChannel(IList<NDPLight> lights) : base(lights)
+    {
+    }
+
+    private readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
 
     public void Add(BackgroundTransition transition)
-        => Bisect.InsortRight(transitions, transition, t => t.Start);
+    {
+        if (!transitions.TryGetValue(transition.LightId, out List<BackgroundTransition>? trans))
+        {
+            trans = new();
+            transitions.Add(transition.LightId, trans);
+        }
+
+        Bisect.InsortRight(trans, transition, t => t.Start);
+    }
+
+    public IList<BackgroundTransition> GetTransitions(LightId light)
+        => transitions[light].AsReadOnly();
 }

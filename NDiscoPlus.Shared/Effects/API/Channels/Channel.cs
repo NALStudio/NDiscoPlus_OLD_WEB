@@ -4,13 +4,13 @@ using System.Collections.Frozen;
 namespace NDiscoPlus.Shared.Effects.API.Channels;
 public abstract class Channel
 {
-    public IList<NDPLight> Lights => lights.Values;
+    public NDPLightCollection Lights => lights;
 
-    protected readonly FrozenDictionary<LightId, NDPLight> lights;
+    protected readonly NDPLightCollection lights;
 
-    protected Channel(params NDPLight[] lights)
+    protected Channel(IList<NDPLight> lights)
     {
-        this.lights = lights.ToFrozenDictionary(keySelector: l => l.Id);
+        this.lights = NDPLightCollection.Create(lights);
     }
 
     public NDPLight GetLight(LightId id) => lights[id];

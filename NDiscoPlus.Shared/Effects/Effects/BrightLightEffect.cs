@@ -3,6 +3,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
+using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Effects.Effects;
 
@@ -26,7 +27,7 @@ internal sealed class BrightLightEffect : NDPEffect
     public static BrightLightEffect White(EffectIntensity intensity)
         => new(white: true, slow: false, intensity: intensity);
 
-    public override void Generate(EffectContextX ctx, EffectAPI api)
+    public override void Generate(EffectContext ctx, EffectAPI api)
     {
         EffectChannel? channel = api.GetChannel<DefaultEffectChannel>();
         if (channel is null)
@@ -35,6 +36,15 @@ internal sealed class BrightLightEffect : NDPEffect
         int maxSimultaneousAnimations = (int)(channel.Lights.Count * (2d / 3d));
 
         double syncDuration = slow ? ctx.SecondsPerBar : ctx.SecondsPerBeat;
+        if (double.IsPositiveInfinity(syncDuration))
+        {
+            // if syncDuration == Infinity since Tempo == 0
+            // do not generate any effects when this is the case
+            // as there are no beats to really generate on anyways...
+            Debug.Assert(ctx.Tempo == 0d);
+            return;
+        }
+
         IList<NDPInterval> syncIntervals = slow ? ctx.Bars : ctx.Beats;
 
         double animationDuration = syncDuration * maxSimultaneousAnimations;
@@ -42,6 +52,7 @@ internal sealed class BrightLightEffect : NDPEffect
         double fadeInSeconds = 0.2d * animationDuration;
         double fadeOutSeconds = 0.8d * animationDuration;
 
+        // TODO: Use strobe light color
         NDPColor? color = white ? NDPColor.FromLinearRGB(1d, 1d, 1d) : null;
 
         foreach (NDPInterval interval in syncIntervals)
@@ -51,15 +62,20 @@ internal sealed class BrightLightEffect : NDPEffect
             TimeSpan pos = interval.Start;
 
             NDPLight[] lights = channel.GetAvailableLights(pos).ToArray();
-            NDPLight l = ctx.Random.Choice(lights);
+            NDPLight light;
+            if (lights.Length > 0)
+                light = ctx.Random.Choice(lights);
+            else
+                light = channel.GetLight(channel.GetBusyEffects(pos).MinBy(e => e.End).LightId);
 
             Effect eff = new(
-                l.Id,
+                light.Id,
                 interval.Start,
                 TimeSpan.FromSeconds(animationDuration)
             )
             {
-                Color = color,
+                X = color?.X,
+                Y = color?.Y,
                 Brightness = 1d,
                 FadeIn = TimeSpan.FromSeconds(fadeInSeconds),
                 FadeOut = TimeSpan.FromSeconds(fadeOutSeconds)
