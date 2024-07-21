@@ -1,0 +1,161 @@
+﻿@page "/effectVisualizer"
+@using Excubo.Blazor.Canvas
+@using Excubo.Blazor.Canvas.Contexts
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@using SkiaSharp
+
+
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+
+<div style="width:100vw; height:100vh; align-content:center; background:black">
+    @if (NDPData is null)
+    {
+        <h3 style="text-align:center;">No NDP Data</h3>
+    }
+    else
+    {
+        <img width="256"
+             src="@NDPData.Track.ImageUrl"
+             style="display:block; margin-left:auto; margin-right:auto;" />
+        <h3 style="text-align:center;">@NDPData.Track.Name</h3>
+        <div style="overflow-x: scroll">
+            <Canvas width=@canvasWidth
+                    height=@canvasHeight
+                    @ref=_canvas />
+        </div>
+    }
+</div>
+
+@code {
+    const int canvasWidth = 5000;
+    int canvasHeight = 0;
+    const int rowHeight = 25;
+
+    private Canvas? _canvas;
+
+    NDPData? NDPData = null;
+
+    class PositionTransformer
+    {
+        private TimeSpan effectMaxEnd;
+
+        public PositionTransformer(NDPData data)
+        {
+            effectMaxEnd = data.Effects.Effects.Max(e => e.End);
+        }
+
+        public double Transform(TimeSpan time)
+            => Transform(time.TotalSeconds);
+
+        public double Transform(double time)
+        {
+            double length = effectMaxEnd.TotalSeconds;
+
+            double progress = time / length;
+
+            return progress * canvasWidth;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string? serialized = await localStorage.GetItemAsStringAsync("effectVisualizerNDPData");
+        if (serialized is not null)
+            NDPData = NDPData.Deserialize(serialized);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (NDPData is null)
+            return;
+
+        System.Diagnostics.Debug.Assert(_canvas is not null);
+        await using (Context2D ctx = await _canvas.GetContext2DAsync())
+        {
+            await ctx.ClearRectAsync(0d, 0d, canvasWidth, canvasHeight);
+            int height = await RenderAsync(ctx, NDPData);
+            if (height != canvasHeight)
+            {
+                canvasHeight = height;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private static async Task<int> RenderAsync(Context2D ctx, NDPData data)
+    {
+        Random random = new();
+        PositionTransformer transformer = new(data);
+
+        int y = 0;
+        IGrouping<LightId, Effect>[] grouped = data.Effects.Effects.GroupBy(e => e.LightId).ToArray();
+        for (int i = 0; i < grouped.Length; i++)
+        {
+            double colorHue = (i / (double)grouped.Length);
+
+            SKColor color = SKColor.FromHsv((float)(colorHue * 360d), 10f, 50f);
+            y += await RenderLight(ctx, transformer, y, color, grouped[i]);   
+        }
+
+        return y;
+    }
+
+    private static async Task<int> RenderLight(Context2D ctx, PositionTransformer transformer, int y, SKColor background, IEnumerable<Effect> effects_)
+    {
+        Effect[] effects = effects_.ToArray();
+
+        int maxYIndex = 0;
+        List<(Effect Effect, int Y)> computed = new();
+        for (int i = 0; i < effects.Length; i++)
+        {
+            Effect effect = effects[i];
+
+            int yIndex = effects[..i].Count(e => e.End >= effect.Start && e.Start < effect.End);
+            if (yIndex > maxYIndex)
+                maxYIndex = yIndex;
+
+            computed.Add((effect, yIndex * rowHeight));
+        }
+
+        int height = (maxYIndex + 1) * rowHeight;
+
+        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColor(background.Red / 255d, background.Green / 255d, background.Blue / 255d));
+        await ctx.FillRectAsync(0d, y, canvasWidth, height);
+        foreach ((Effect effect, int effectY) in computed)
+            await RenderEffect(ctx, transformer, y + height - effectY - rowHeight, rowHeight, effect);
+
+        return height;
+    }
+
+    private static async Task RenderEffect(Context2D ctx, PositionTransformer transformer, int y, int height, Effect effect)
+    {
+        double posX = transformer.Transform(effect.Position);
+
+        (double r, double g, double b) = effect.GetColor(NDPColor.FromSRGB(1d, 1d, 1d)).ToSRGB();
+        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColor(r, g, b));
+        await ctx.FillRectAsync(posX, y, transformer.Transform(effect.Duration), height);
+
+        if (effect.FadeIn > TimeSpan.Zero)
+        {
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(transformer.Transform(effect.Start), y + height);
+            await ctx.LineToAsync(posX + 0.5d, y); // + 0.5d since rounding errors produce ugly thin lines between segments
+            await ctx.LineToAsync(posX + 0.5d, y + height);
+            await ctx.FillAsync(FillRule.NonZero);
+        }
+
+        if (effect.FadeOut > TimeSpan.Zero)
+        {
+            double endX = transformer.Transform(effect.Position + effect.Duration);
+
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(transformer.Transform(effect.End), y + height);
+            await ctx.LineToAsync(endX, y);
+            await ctx.LineToAsync(endX, y + height);
+            await ctx.FillAsync(FillRule.NonZero);
+        }
+    }
+}

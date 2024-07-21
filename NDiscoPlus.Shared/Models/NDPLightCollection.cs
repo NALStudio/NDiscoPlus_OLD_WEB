@@ -7,6 +7,8 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
@@ -19,9 +21,9 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
 
     public NDPLightBounds Bounds { get; }
 
-    private NDPLightCollection(IEnumerable<NDPLight> lights, NDPLightBounds bounds)
+    private NDPLightCollection(Dictionary<LightId, NDPLight> lights, NDPLightBounds bounds)
     {
-        this.lights = lights.ToFrozenDictionary(key => key.Id);
+        this.lights = lights.ToFrozenDictionary();
         Bounds = bounds;
     }
     /// <summary>
@@ -58,9 +60,9 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     }
 
 
-    public static NDPLightCollection Create(IList<NDPLight> lights)
+    public static NDPLightCollection Create(IEnumerable<NDPLight> lights)
     {
-        NDPLight[] lightArr = new NDPLight[lights.Count];
+        Dictionary<LightId, NDPLight> lightDict = new();
 
         double minX = 0;
         double maxX = 0;
@@ -69,10 +71,9 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
         double minZ = 0;
         double maxZ = 0;
 
-        for (int i = 0; i < lights.Count; i++)
+        foreach (NDPLight light in lights)
         {
-            NDPLight light = lights[i];
-            lightArr[i] = light;
+            lightDict.Add(light.Id, light);
 
             double x = light.Position.X;
             double y = light.Position.Y;
@@ -93,7 +94,7 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
         }
 
         return new NDPLightCollection(
-            lightArr,
+            lightDict,
             new NDPLightBounds(MinX: minX, MaxX: maxX, MinY: minY, MaxY: maxY, MinZ: minZ, MaxZ: maxZ)
         );
     }

@@ -1,7 +1,11 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
+using NDiscoPlus.Shared.Models;
+using System.Collections;
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Effects.API;
 
@@ -49,4 +53,7 @@ internal class EffectAPI
     }
     public bool TryGetChannel(Type type, [MaybeNullWhen(false)] out EffectChannel channel)
         => channels.TryGetValue(type, out channel);
+
+    public ExportedEffectsCollection Export()
+        => new(this);
 }

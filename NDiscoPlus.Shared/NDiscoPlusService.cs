@@ -210,7 +210,7 @@ public class NDiscoPlusService
             track: args.Track,
             referencePalette: palette,
             effectPalette: effectPalette,
-            effects: api
+            effects: api.Export()
         );
     }
 

@@ -1,7 +1,5 @@
-﻿using HueApi.Entertainment.Models;
-using NDiscoPlus.Shared.Effects.API.Channels.Background;
+﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
-using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
@@ -11,7 +9,7 @@ namespace NDiscoPlus.Shared.Music;
 
 public class LightInterpreterConfig
 {
-    public double BaseBrightness { get; init; } = 0.5d;
+    public double BaseBrightness { get; init; } = 0.1d;
 
     public double MinBrightness { get; init; } = 0d;
     public double MaxBrightness { get; init; } = 1d;
@@ -31,14 +29,11 @@ public class LightInterpreter
 
     IEnumerable<(LightId Light, NDPColor Color)> UpdateBackground(TimeSpan progress, NDPData data)
     {
-        BackgroundChannel background = data.Effects.Background;
-
         int index = -1;
-        foreach (NDPLight light in data.Effects.Background.Lights.Values)
+        foreach ((LightId lightId, IList<BackgroundTransition> transitions) in data.Effects.BackgroundTransitions)
         {
             index++;
 
-            IList<BackgroundTransition> transitions = background.GetTransitions(light.Id);
             int bIndex = Bisect.BisectRight(transitions, progress, t => t.Start);
             // transitions[bIndex].Start > progress
             // transitions[bIndex - 1].Start <= progress
@@ -75,14 +70,12 @@ public class LightInterpreter
             }
 
             color = new(color.X, color.Y, Config.BaseBrightness);
-            yield return (light.Id, color);
+            yield return (lightId, color);
         }
     }
 
-    void UpdateChannel(TimeSpan progress, EffectChannel channel, ref Dictionary<LightId, NDPColor> lights)
+    void UpdateEffects(TimeSpan progress, IList<Effect> effects, ref Dictionary<LightId, NDPColor> lights)
     {
-        IList<Effect> effects = channel.Effects;
-
         // exclusive
         int endIndex = Bisect.BisectRight(effects, progress, t => t.Start);
         // effects[endIndex].Start > progress
@@ -97,9 +90,10 @@ public class LightInterpreter
         for (int i = startIndex; i < endIndex; i++)
         {
             Effect effect = effects[i];
-            // BUG: If background has different lights than effects, this fetch fails
-            // in the future we should create the old color on the fly so that its x and y are same as effect color, but brightness is 0
-            NDPColor oldColor = lights[effect.LightId];
+
+            if (!lights.TryGetValue(effect.LightId, out NDPColor oldColor))
+                oldColor = effect.GetColor(NDPColor.FromLinearRGB(1d, 1d, 1d));
+
             NDPColor newColor = effect.Interpolate(progress, oldColor);
             double remappedBrightness = newColor.Brightness.Remap(0d, 1d, Config.MinBrightness, Config.MaxBrightness);
             lights[effect.LightId] = new(newColor.X, newColor.Y, remappedBrightness);
@@ -110,12 +104,8 @@ public class LightInterpreter
     {
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
-        IList<EffectChannel> channels = data.Effects.Channels;
-
-        // UNCOMMENT WHEN BACKGROUND TESTING IS FINISHED
         // iterate in reverse so that later channels override the previous channels (strobes override flashes, flashes override default effects, ...)
-        // for (int i = channels.Count - 1; i >= 0; i--)
-        //     UpdateChannel(progress, channels[i], ref lights);
+        UpdateEffects(progress, data.Effects.Effects, ref lights);
 
         double deltaTime;
         if (deltaTimeSW is not null)

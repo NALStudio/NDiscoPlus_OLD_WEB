@@ -3,6 +3,8 @@ public class HueLightId : LightId
 {
     public byte ChannelId { get; }
 
+    public override string HumanReadableString => $"Hue Light (id: {ChannelId})";
+
     public HueLightId(byte channelId)
     {
         ChannelId = channelId;

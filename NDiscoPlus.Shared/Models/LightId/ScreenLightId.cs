@@ -3,6 +3,8 @@ public class ScreenLightId : LightId
 {
     public int Index { get; }
 
+    public override string HumanReadableString => $"Screen Light (index: {Index})";
+
     public ScreenLightId(int index)
     {
         Index = index;

@@ -88,13 +88,12 @@ internal sealed class EffectContext : BaseContext
 
     public static EffectContext Create(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis, Section section)
     {
-        static bool StartIsValid(Section section, TimeInterval interval)
+        static bool StartInsideSectionStart(Section section, TimeInterval interval)
             => TimeSpan.FromSeconds(interval.Start) >= TimeSpan.FromSeconds(section.Start);
-        static bool EndIsValid(Section section, TimeInterval interval)
+        static bool StartInsideSectionEnd(Section section, TimeInterval interval)
         {
             TimeSpan sectionEnd = TimeSpan.FromSeconds(section.Start) + TimeSpan.FromSeconds(section.Duration);
-            TimeSpan intervalEnd = TimeSpan.FromSeconds(interval.Start) + TimeSpan.FromSeconds(interval.Duration);
-            return intervalEnd < sectionEnd;
+            return TimeSpan.FromSeconds(interval.Start) < sectionEnd;
         }
 
         TimeSpan start = TimeSpan.FromSeconds(section.Start);
@@ -110,9 +109,9 @@ internal sealed class EffectContext : BaseContext
             key: section.Key,
             mode: section.Mode,
             timeSignature: section.TimeSignature,
-            bars: analysis.Bars.SkipWhile(b => !StartIsValid(section, b)).TakeWhile(b => EndIsValid(section, b)),
-            beats: analysis.Beats.SkipWhile(b => !StartIsValid(section, b)).TakeWhile(b => EndIsValid(section, b)),
-            tatums: analysis.Tatums.SkipWhile(t => !StartIsValid(section, t)).TakeWhile(t => EndIsValid(section, t))
+            bars: analysis.Bars.SkipWhile(b => !StartInsideSectionStart(section, b)).TakeWhile(b => StartInsideSectionEnd(section, b)),
+            beats: analysis.Beats.SkipWhile(b => !StartInsideSectionStart(section, b)).TakeWhile(b => StartInsideSectionEnd(section, b)),
+            tatums: analysis.Tatums.SkipWhile(t => !StartInsideSectionStart(section, t)).TakeWhile(t => StartInsideSectionEnd(section, t))
         );
     }
 }

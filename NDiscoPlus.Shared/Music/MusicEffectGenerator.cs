@@ -119,7 +119,7 @@ public class MusicEffectGenerator
                 Debug.Assert(previousSection is not null);
                 intensity = pIntensity;
 
-                double intensityComparison = CompareIntensities(section, previousSection);
+                int intensityComparison = CompareIntensities(section, previousSection);
                 if (intensityComparison >= 0)
                     intensity++;
                 else
@@ -195,36 +195,11 @@ public class MusicEffectGenerator
     /// <summary>
     /// Compute an intensity value (in the range of -1 to 1) for a in relation to b.
     /// </summary>
-    private static double CompareIntensities(IntensityComparison a, IntensityComparison b)
+    private static int CompareIntensities(IntensityComparison a, IntensityComparison b)
     {
-        //static double DirectComparison(double a, double b)
-        //{
-        //    ArgumentOutOfRangeException.ThrowIfLessThan(a, 0, nameof(a));
-        //    ArgumentOutOfRangeException.ThrowIfLessThan(b, 0, nameof(b));
-
-        //    return ((a / b) - 1d).Clamp(-1, 1); // clamp since x / 0 => infinity
-        //}
-
-        static double NegativeComparison(double a, double b)
-        {
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(a, 0, nameof(a));
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(b, 0, nameof(b));
-
-            return (b / a) - 1d;
-        }
-
-        //// when a.Tempo == b.Tempo => (1d) - 1d => 0d
-        //// when a.Tempo > b.Tempo => for example (2d) - 1d => 1d;
-        //double[] refCollection = [
-        //    DirectComparison(a.Tempo, b.Tempo),
-        //    NegativeComparison(a.Loudness, b.Loudness)
-        //];
-        //
-        //return refCollection.Sum() / refCollection.Length;
-
-        // there are parts where Tempo == 0 so if b = 0 => a / b => infinite => 1 which isn't ideal
-        // as usually these parts aren't even more intensive than a.
-        return NegativeComparison(a.Loudness, b.Loudness);
+        // Only compare loudness for now
+        // as comparing tempo etc. made this method unreliable.
+        return a.Loudness.CompareTo(b.Loudness);
     }
 
     public static EffectIntensity IntensityFromFeatures(TrackAudioFeatures features)

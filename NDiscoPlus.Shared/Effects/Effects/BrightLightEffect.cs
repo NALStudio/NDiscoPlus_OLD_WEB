@@ -71,7 +71,7 @@ internal sealed class BrightLightEffect : NDPEffect
             Effect eff = new(
                 light.Id,
                 interval.Start,
-                TimeSpan.FromSeconds(animationDuration)
+                TimeSpan.Zero
             )
             {
                 X = color?.X,

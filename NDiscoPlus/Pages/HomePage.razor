@@ -17,12 +17,14 @@
 @using SpotifyAPI.Web
 @using System.Diagnostics
 @using System.Text.Json
+@using System.Web
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger;
 @inject ILogger<SpotifyWebPlayer> playerLogger;
 @inject IWorkerFactory workerFactory;
+@inject IJSRuntime JSRuntime;
 
 <PageTitle>NDiscoPlus</PageTitle>
 
@@ -102,6 +104,16 @@
         </MudStack>
     </MudPaper>
 }
+@if (!isPlaying)
+{
+    <MudStack Style="position:fixed; top:0; left:0; padding:16px">
+        <MudIconButton Icon="@Icons.Material.Rounded.Settings" Size="Size.Large" />
+        <MudIconButton Disabled="@(data.CurrentTrackData is null)"
+                       Icon="@Icons.Material.Rounded.BugReport"
+                       Size="Size.Large"
+                       OnClick="@(async () => await OpenEffectVisualizer(data.CurrentTrackData!))" />
+    </MudStack>
+}
 
 <style>
     .next_track_fadein {
@@ -173,6 +185,18 @@
         ndpService = await ndpWorker.CreateBackgroundServiceAsync<NDiscoPlusService>();
 
         new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
+    }
+
+    async Task OpenEffectVisualizer(NDPData? data)
+    {
+        ArgumentNullException.ThrowIfNull(data, nameof(data));
+
+        await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", NDPData.Serialize(data));
+
+        string serialized = NDPData.Serialize(data);
+        string urlEncoded = HttpUtility.UrlEncode(serialized);
+
+        await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
     }
 
     #region Lights
@@ -339,10 +363,8 @@
 
         string argsSerialized = NDiscoPlusArgs.Serialize(args);
 
-        // string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
-        // var d = NDPData.Deserialize(dataSerialized);
-
-        NDPData d = await new NDiscoPlusService().ComputeDataWithImageColors(args);
+        string dataSerialized = await ndpService!.RunAsync(s => s.ComputeDataWithImageColorsFromSerialized(argsSerialized));
+        var d = NDPData.Deserialize(dataSerialized);
 
         logger.LogInformation("Data computed: '{}' ({}).", track.Name, track.Id);
         return d;

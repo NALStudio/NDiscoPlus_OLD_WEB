@@ -5,6 +5,8 @@ using System.Text.Json.Serialization;
 namespace NDiscoPlus.Shared.Models;
 public abstract class LightId
 {
+    public abstract string HumanReadableString { get; }
+
     public abstract override bool Equals(object? obj);
     public abstract override int GetHashCode();
 
