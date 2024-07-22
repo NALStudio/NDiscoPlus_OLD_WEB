@@ -37,7 +37,7 @@
                 <MudImage
                     Src="@context.Track.ImageUrl"
                     Width="256"
-                Height="256"/>
+                    Height="256"/>
             }
             else
             {
@@ -187,11 +187,20 @@
         new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
     }
 
-    async Task OpenEffectVisualizer(NDPData? data)
+    async Task OpenEffectVisualizer(NDPData data)
     {
         ArgumentNullException.ThrowIfNull(data, nameof(data));
 
         await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", NDPData.Serialize(data));
+
+        TrackAudioAnalysis? analysis;
+        if (spotify is not null)
+            analysis = await spotify.Tracks.GetAudioAnalysis(data.Track.Id);
+        else
+            analysis = null;
+
+        string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
+        await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
 
         string serialized = NDPData.Serialize(data);
         string urlEncoded = HttpUtility.UrlEncode(serialized);

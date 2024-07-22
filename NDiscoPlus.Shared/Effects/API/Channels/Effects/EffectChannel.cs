@@ -66,13 +66,17 @@ public readonly struct Effect
 
     public NDPColor Interpolate(TimeSpan progress, NDPColor from)
     {
+        NDPColor to = GetColor(from);
+
+        if (progress >= Position && progress < (Position + Duration))
+            return to;
+
         double t;
         if (progress < Position)
             t = (progress - Start) / FadeIn;
         else
             t = 1d - ((progress - (Position + Duration)) / FadeOut);
 
-        NDPColor to = GetColor(from);
         return NDPColor.Lerp(from, to, t);
     }
 }

@@ -6,6 +6,8 @@
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Models.Color
 @using SkiaSharp
+@using SpotifyAPI.Web
+@using System.Text.Json
 
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
@@ -37,6 +39,7 @@
     private Canvas? _canvas;
 
     NDPData? NDPData = null;
+    TrackAudioAnalysis? TrackAnalysis = null;
 
     class PositionTransformer
     {
@@ -65,6 +68,10 @@
         string? serialized = await localStorage.GetItemAsStringAsync("effectVisualizerNDPData");
         if (serialized is not null)
             NDPData = NDPData.Deserialize(serialized);
+
+        string? serializedAnalysis = await localStorage.GetItemAsStringAsync("effectVisualizerTrackAnalysis");
+        if (!string.IsNullOrEmpty(serializedAnalysis))
+            TrackAnalysis = JsonSerializer.Deserialize<TrackAudioAnalysis>(serializedAnalysis);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -76,7 +83,7 @@
         await using (Context2D ctx = await _canvas.GetContext2DAsync())
         {
             await ctx.ClearRectAsync(0d, 0d, canvasWidth, canvasHeight);
-            int height = await RenderAsync(ctx, NDPData);
+            int height = await RenderAsync(ctx, NDPData, TrackAnalysis);
             if (height != canvasHeight)
             {
                 canvasHeight = height;
@@ -85,7 +92,7 @@
         }
     }
 
-    private static async Task<int> RenderAsync(Context2D ctx, NDPData data)
+    private static async Task<int> RenderAsync(Context2D ctx, NDPData data, TrackAudioAnalysis? analysis)
     {
         Random random = new();
         PositionTransformer transformer = new(data);
@@ -100,7 +107,25 @@
             y += await RenderLight(ctx, transformer, y, color, grouped[i]);   
         }
 
+        if (analysis is not null)
+            await RenderBeats(ctx, transformer, y, analysis.Beats);
+
         return y;
+    }
+
+    private static async Task RenderBeats(Context2D ctx, PositionTransformer transformer, int height, List<TimeInterval> beats)
+    {
+        await ctx.StrokeStyleAsync("#ff0000");
+        await ctx.LineWidthAsync(1d);
+
+        foreach (TimeInterval beat in beats)
+        {
+            double x = transformer.Transform(beat.Start);
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(x, 0d);
+            await ctx.LineToAsync(x, height);
+            await ctx.StrokeAsync();
+        }
     }
 
     private static async Task<int> RenderLight(Context2D ctx, PositionTransformer transformer, int y, SKColor background, IEnumerable<Effect> effects_)
