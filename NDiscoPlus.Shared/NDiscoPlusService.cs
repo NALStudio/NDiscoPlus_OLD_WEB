@@ -1,6 +1,7 @@
 ﻿using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -22,11 +23,12 @@ namespace NDiscoPlus.Shared;
 
 public class NDiscoPlusArgs
 {
-    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, NDiscoPlusArgsLights lights)
+    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
     {
         Track = track;
         Features = features;
         Analysis = analysis;
+        Effects = effects;
         Lights = lights;
     }
 
@@ -34,6 +36,7 @@ public class NDiscoPlusArgs
     public TrackAudioFeatures Features { get; }
     public TrackAudioAnalysis Analysis { get; }
 
+    public EffectConfig Effects { get; }
     public NDiscoPlusArgsLights Lights { get; }
 
     /// <summary>
@@ -161,10 +164,32 @@ public class NDiscoPlusService
         const int MinPaletteCount = 4;
         const int MaxPaletteCount = 5;
 
-        if (palette.Count < MinPaletteCount)
+        // cull out similar colors
+        List<NDPColor> newPalette = new(capacity: palette.Count);
+        for (int i = 0; i < palette.Count; i++)
+        {
+            NDPColor col = palette[i];
+
+            bool append = true;
+            for (int j = 0; j < i; j++)
+            {
+                NDPColor c = palette[j];
+
+                double xDist = col.X - c.X;
+                double yDist = col.Y - c.Y;
+                double distance = Math.Sqrt((xDist * xDist) + (yDist * yDist));
+                if (distance < 0.1)
+                    append = false;
+            }
+
+            if (append)
+                newPalette.Add(col);
+        }
+
+        if (newPalette.Count < MinPaletteCount)
             return GetRandomDefaultPalette();
 
-        if (palette.Count > MaxPaletteCount)
+        if (newPalette.Count > MaxPaletteCount)
             return new NDPColorPalette(palette.Take(MaxPaletteCount));
 
         return palette;
@@ -177,6 +202,7 @@ public class NDiscoPlusService
         NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
 
         EffectAPI api = new(
+            args.Effects,
             [
                 new StrobeEffectChannel(args.Lights.Strobe),
                 new FlashEffectChannel(args.Lights.Flash),
@@ -204,12 +230,17 @@ public class NDiscoPlusService
 
         // Background
         BackgroundContext bCtx = new(random, effectPalette, args.Analysis);
-        new ColorCycleBackgroundEffect().Generate(bCtx, api.Background);
+        new ColorCycleBackgroundEffect().Generate(bCtx, api);
+
+        float endOfFadeIn = args.Analysis.Track.EndOfFadeIn;
+        float startOfFadeOut = args.Analysis.Track.StartOfFadeOut;
 
         return new NDPData(
             track: args.Track,
             referencePalette: palette,
             effectPalette: effectPalette,
+
+            effectConfig: api.Config,
             effects: api.Export()
         );
     }

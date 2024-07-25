@@ -2,6 +2,7 @@
 @using Excubo.Blazor.Canvas
 @using Excubo.Blazor.Canvas.Contexts
 @using NDiscoPlus.Shared.Effects.API.Channels.Effects
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
 @using NDiscoPlus.Shared.Helpers
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Models.Color
@@ -47,7 +48,7 @@
 
         public PositionTransformer(NDPData data)
         {
-            effectMaxEnd = data.Effects.Effects.Max(e => e.End);
+            effectMaxEnd = data.Effects.Effects.SelectMany(e => e).Max(e => e.End);
         }
 
         public double Transform(TimeSpan time)
@@ -98,7 +99,7 @@
         PositionTransformer transformer = new(data);
 
         int y = 0;
-        IGrouping<LightId, Effect>[] grouped = data.Effects.Effects.GroupBy(e => e.LightId).ToArray();
+        IGrouping<LightId, Effect>[] grouped = data.Effects.Effects.SelectMany(e => e).GroupBy(e => e.LightId).ToArray();
         for (int i = 0; i < grouped.Length; i++)
         {
             double colorHue = (i / (double)grouped.Length);
@@ -108,14 +109,17 @@
         }
 
         if (analysis is not null)
-            await RenderBeats(ctx, transformer, y, analysis.Beats);
+        {
+            await RenderIntervals(ctx, transformer, y, "#ff0000", analysis.Beats);
+            // await RenderIntervals(ctx, transformer, y, "#0000ff", analysis.Bars);
+        }
 
         return y;
     }
 
-    private static async Task RenderBeats(Context2D ctx, PositionTransformer transformer, int height, List<TimeInterval> beats)
+    private static async Task RenderIntervals(Context2D ctx, PositionTransformer transformer, int height, string color, List<TimeInterval> beats)
     {
-        await ctx.StrokeStyleAsync("#ff0000");
+        await ctx.StrokeStyleAsync(color);
         await ctx.LineWidthAsync(1d);
 
         foreach (TimeInterval beat in beats)

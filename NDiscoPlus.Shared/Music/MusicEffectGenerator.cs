@@ -7,30 +7,18 @@ using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Music;
 
-public record EffectRecord
+internal record EffectRecord
 {
-    public int? EffectIndex { get; init; }
-    internal NDPEffect? Effect => EffectIndex.HasValue ? NDPEffect.All[EffectIndex.Value] : null;
+    public NDPEffect? Effect { get; }
 
-    public Section Section { get; init; }
-    public NDPInterval Interval { get; init; }
+    public Section Section { get; }
+    // public NDPInterval Interval { get; }
 
-    public EffectRecord(int? effectIndex, Section section)
+    public EffectRecord(NDPEffect? effect, Section section)
     {
-        EffectIndex = effectIndex;
+        Effect = effect;
         Section = section;
-        Interval = NDPInterval.FromSeconds(section.Start, section.Duration);
-    }
-
-    internal static EffectRecord FindAndCreate(NDPEffect? effect, Section section)
-    {
-        int? effectIndex;
-        if (effect is null)
-            effectIndex = null;
-        else
-            effectIndex = NDPEffect.All.IndexOf(effect);
-
-        return new EffectRecord(effectIndex, section);
+        // Interval = NDPInterval.FromSeconds(section.Start, section.Duration);
     }
 }
 
@@ -83,14 +71,20 @@ public class MusicEffectGenerator
         foreach ((EffectIntensity intensity, Section section) in ComputeIntensities(args))
         {
             NDPEffect? effect = null;
-            if (Effects.TryGetValue(intensity, out NDPEffect? v1))
-                effect ??= v1;
-            if (Effects.TryGetValue(intensity + 1, out NDPEffect? v2))
-                effect ??= v2;
-            if (Effects.TryGetValue(intensity - 1, out NDPEffect? v3))
-                effect ??= v3;
+            if (Effects.TryGetValue(intensity, out NDPEffect? vDefault))
+                effect ??= vDefault;
+            if (Effects.TryGetValue(intensity - 1, out NDPEffect? vLower))
+                effect ??= vLower;
+            if (Effects.TryGetValue(intensity + 1, out NDPEffect? vHigher))
+                effect ??= vHigher;
 
-            yield return EffectRecord.FindAndCreate(effect, section);
+            // tempo < 1 is unrealistic, either there aren't any beats or they don't make any sense.
+            // if tempo of 0 is handled correctly, animations happen in weird places where they don't make sense
+            // and if it is not handled correctly, the application crashes
+            // in either case, we don't want to generate any effects when tempo is 0.
+            if (section.Tempo < 1f)
+                effect = null;
+            yield return new EffectRecord(effect, section);
         }
     }
 

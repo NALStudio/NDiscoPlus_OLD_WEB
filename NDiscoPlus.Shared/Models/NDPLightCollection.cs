@@ -99,10 +99,14 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
         );
     }
 
-    public IEnumerable<LightId> Keys => lights.Keys;
-    public IEnumerable<NDPLight> Values => lights.Values;
+    public IList<LightId> Keys => lights.Keys;
+    public IList<NDPLight> Values => lights.Values;
 
     public int Count => lights.Count;
+
+    IEnumerable<LightId> IReadOnlyDictionary<LightId, NDPLight>.Keys => Keys;
+    IEnumerable<NDPLight> IReadOnlyDictionary<LightId, NDPLight>.Values => Values;
+
     public NDPLight this[LightId key] => lights[key];
 
     public bool ContainsKey(LightId key) => lights.ContainsKey(key);

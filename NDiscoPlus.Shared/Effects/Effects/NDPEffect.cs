@@ -13,6 +13,13 @@ internal abstract class NDPEffect
         BrightLightEffect.Default(EffectIntensity.High),
         BrightLightEffect.Slow(EffectIntensity.VeryLow),
         BrightLightEffect.White(EffectIntensity.VeryHigh),
+
+        new ColorSwitchEffect(EffectIntensity.Medium),
+
+        new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Horizontal, EffectIntensity.Maximum),
+        new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Vertical, EffectIntensity.Maximum),
+        new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.RandomPattern, EffectIntensity.Maximum),
+        new RandomStrobeLightEffect(EffectIntensity.Maximum)
     ];
 
     public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = Enum.GetValues<EffectIntensity>()

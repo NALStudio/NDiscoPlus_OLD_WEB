@@ -8,6 +8,7 @@
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
 @using NDiscoPlus.Shared.Helpers
 @using NDiscoPlus.Shared.Models.Color
 @using NDiscoPlus.Shared.Music
@@ -108,10 +109,13 @@
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
         <MudIconButton Icon="@Icons.Material.Rounded.Settings" Size="Size.Large" />
-        <MudIconButton Disabled="@(data.CurrentTrackData is null)"
-                       Icon="@Icons.Material.Rounded.BugReport"
-                       Size="Size.Large"
-                       OnClick="@(async () => await OpenEffectVisualizer(data.CurrentTrackData!))" />
+        @if (DebugEnabled)
+        {
+            <MudIconButton Disabled="@(data.CurrentTrackData is null)"
+                           Icon="@Icons.Material.Rounded.BugReport"
+                           Size="Size.Large"
+                           OnClick="@(async () => await OpenEffectVisualizer(data.CurrentTrackData!))" />
+        }
     </MudStack>
 }
 
@@ -127,6 +131,13 @@
 </style>
 
 @code {
+    #if DEBUG
+    public bool DebugEnabled { get; } = true;
+    #else
+    [SupplyParameterFromQuery(Name = "debug")]
+    public bool DebugEnabled { get; init; }
+    #endif
+
     record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
@@ -141,7 +152,7 @@
 
     FourCornerGradient gradient = _defaultGradient;
     static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
-    LightInterpreter gradientLights = new(new LightInterpreterConfig());
+    LightInterpreter gradientLights = new();
 
     readonly NDPDataContainer data = new();
     List<FetchTask> fetchTasks = new();
@@ -368,7 +379,8 @@
             new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), ColorGamut.sRGB),
             new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), ColorGamut.sRGB)
         );
-        NDiscoPlusArgs args = new(track, features, analysis, lights);
+        EffectConfig effects = new();
+        NDiscoPlusArgs args = new(track, features, analysis, effects, lights);
 
         string argsSerialized = NDiscoPlusArgs.Serialize(args);
 

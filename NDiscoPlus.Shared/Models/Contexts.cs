@@ -12,18 +12,69 @@ internal class BaseContext
     public TimeSpan Duration { get; }
     public TimeSpan End => Start + Duration;
 
+    /// <summary>
+    /// The overall loudness of the effect's section in decibels (dB).
+    /// </summary>
     public double Loudness { get; }
+
+    /// <summary>
+    /// <para>The overall estimated tempo of the effect's section in beats per minute (BPM).</para>
+    /// <para>In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration.</para>
+    /// </summary>
     public double Tempo { get; }
+
+    /// <summary>
+    /// <para>The estimated overall key of the effect's section.</para>
+    /// <para>The values in this field ranging from 0 to 11 mapping to pitches using standard Pitch Class notation (E.g. 0 = C, 1 = C♯/D♭, 2 = D, and so on). If no key was detected, the value is -1.</para>
+    /// </summary>
     public int Key { get; }
+
+    /// <summary>
+    /// <para>Indicates the modality (major or minor) of the effect's section, the type of scale from which its melodic content is derived.</para>
+    /// <para>This field will contain a 0 for "minor", a 1 for "major", or a -1 for no result.</para>
+    /// <para>Note that the major key (e.g. C major) could more likely be confused with the minor key at 3 semitones lower (e.g. A minor) as both keys carry the same pitches.</para>
+    /// </summary>
     public int Mode { get; }
+
+    /// <summary>
+    /// <para>An estimated time signature.</para>
+    /// <para>The time signature (meter) is a notational convention to specify how many beats are in each bar (or measure).</para>
+    /// <para>The value is in the range of [3, 7] indicating time signatures from "3/4", to "7/4".</para>
+    /// </summary>
     public int TimeSignature { get; }
 
+    /// <summary>
+    /// <para>How many minutes there are in a beat.</para>
+    /// <para>Inverse of <see cref="Tempo"/>.</para>
+    /// </summary>
     public double MinutesPerBeat => 1d / Tempo;
+
+    /// <summary>
+    /// How many seconds there are in a beat.
+    /// </summary>
     public double SecondsPerBeat => MinutesPerBeat * 60d;
+
+    /// <summary>
+    /// How many seconds there are in a bar.
+    /// </summary>
     public double SecondsPerBar => SecondsPerBeat * TimeSignature;
 
+    /// <summary>
+    /// <para>The time intervals of the bars throughout the effect's section.</para>
+    /// <para>A bar (or measure) is a segment of time defined as <see cref="TimeSignature"/> number of beats.</para>
+    /// </summary>
     public IList<NDPInterval> Bars => bars;
+
+    /// <summary>
+    /// <para>The time intervals of beats throughout the effect's section.</para>
+    /// <para>A beat is the basic time unit of a piece of music; for example, each tick of a metronome.</para>
+    /// <para>Beats are typically multiples of tatums.</para>
+    /// </summary>
     public IList<NDPInterval> Beats => beats;
+
+    /// <summary>
+    /// A tatum represents the lowest regular pulse train that a listener intuitively infers from the timing of perceived musical events (segments).
+    /// </summary>
     public IList<NDPInterval> Tatums => tatums;
 
     private readonly ImmutableArray<NDPInterval> bars;
@@ -92,18 +143,16 @@ internal sealed class EffectContext : BaseContext
             => TimeSpan.FromSeconds(interval.Start) >= TimeSpan.FromSeconds(section.Start);
         static bool StartInsideSectionEnd(Section section, TimeInterval interval)
         {
-            TimeSpan sectionEnd = TimeSpan.FromSeconds(section.Start) + TimeSpan.FromSeconds(section.Duration);
+            TimeSpan sectionEnd = TimeSpan.FromSeconds(section.Start + section.Duration);
             return TimeSpan.FromSeconds(interval.Start) < sectionEnd;
         }
 
-        TimeSpan start = TimeSpan.FromSeconds(section.Start);
-        TimeSpan duration = TimeSpan.FromSeconds(section.Duration);
 
         return new EffectContext(
             random: random,
             palette: palette,
-            start: start,
-            duration: duration,
+            start: TimeSpan.FromSeconds(section.Start),
+            duration: TimeSpan.FromSeconds(section.Duration),
             loudness: section.Loudness,
             tempo: section.Tempo,
             key: section.Key,

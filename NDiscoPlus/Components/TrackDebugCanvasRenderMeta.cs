@@ -1,6 +1,7 @@
 ﻿using Excubo.Blazor.Canvas;
 using Excubo.Blazor.Canvas.Contexts;
 using NDiscoPlus.Shared;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Music;
@@ -65,7 +66,7 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
     async Task RenderSections(int y, int height)
     {
-        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis, new NDiscoPlusArgsLights()));
+        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis, new EffectConfig(), new NDiscoPlusArgsLights()));
 
         for (int i = 0; i < intensities.Count; i++)
         {

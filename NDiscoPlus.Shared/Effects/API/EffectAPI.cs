@@ -1,5 +1,7 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using System.Collections;
 using System.Collections.Frozen;
@@ -11,13 +13,17 @@ namespace NDiscoPlus.Shared.Effects.API;
 
 internal class EffectAPI
 {
+    public EffectConfig Config { get; }
+
     public IList<EffectChannel> Channels => channels.Values;
     private readonly FrozenDictionary<Type, EffectChannel> channels;
 
     public BackgroundChannel Background { get; }
 
-    public EffectAPI(EffectChannel[] channels, BackgroundChannel background)
+    public EffectAPI(EffectConfig config, EffectChannel[] channels, BackgroundChannel background)
     {
+        Config = config;
+
         Dictionary<Type, EffectChannel> chnls = new();
         foreach (EffectChannel c in channels)
         {
@@ -55,5 +61,12 @@ internal class EffectAPI
         => channels.TryGetValue(type, out channel);
 
     public ExportedEffectsCollection Export()
-        => new(this);
+    {
+        FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions = Background.ToFrozenDictionary(key => key.Key, value => value.Value.ToImmutableArray());
+
+        return new ExportedEffectsCollection(
+            effects: Channels.Select(c => c.Effects),
+            backgroundTransitions: Background.Select(x => new KeyValuePair<LightId, IList<BackgroundTransition>>(x.Key, x.Value))
+        );
+    }
 }

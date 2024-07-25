@@ -64,7 +64,7 @@ public static class RandomHelpers
             int end = index + chunkSize;
             if (i < leftOver)
                 end++;
-            output[i] = randomized[index..end];
+            output.Add(randomized[index..end]);
             index = end;
         }
 

@@ -1,4 +1,5 @@
 ﻿using HueApi.ColorConverters;
+using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -22,8 +23,10 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 
     public const double AnimationSeconds = 10d;
 
-    public override void Generate(BackgroundContext ctx, BackgroundChannel channel)
+    public override void Generate(BackgroundContext ctx, EffectAPI api)
     {
+        BackgroundChannel channel = api.Background;
+
         TimeSpan animationDuration = TimeSpan.FromSeconds(AnimationSeconds);
 
         List<Animation> animations = channel.Lights.Values.Select(l => new Animation(l.Id, GetRandomAnimationCooldown(ctx.Random))).ToList();
@@ -46,8 +49,11 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
                     continue; // continue creating animations for the rest of the lights.
                 }
 
+                NDPColor color = PickNewRandomColor(ctx);
+                color = color.CopyWith(brightness: api.Config.BaseBrightness);
+
                 animations.Add(new Animation(l.Id, animationEnd));
-                channel.Add(new BackgroundTransition(l.Id, time, animationDuration, PickNewRandomColor(ctx)));
+                channel.Add(new BackgroundTransition(l.Id, time, animationDuration, color));
             }
         }
     }
