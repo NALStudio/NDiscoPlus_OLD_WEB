@@ -3,6 +3,17 @@
 namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 
 /// <summary>
+/// <para>Used for effects that should be drawn under other effects that haven't yet finished.</para>
+/// <para>Contains the same lights as background.</para>
+/// </summary>
+public class BackgroundEffectChannel : EffectChannel
+{
+    public BackgroundEffectChannel(IList<NDPLight> lights) : base(lights)
+    {
+    }
+}
+
+/// <summary>
 /// Used for normal effects.
 /// </summary>
 public class DefaultEffectChannel : EffectChannel

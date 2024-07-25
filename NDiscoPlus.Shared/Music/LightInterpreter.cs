@@ -4,10 +4,24 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
-using System.Collections.Immutable;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Music;
+
+public readonly record struct LightInterpreterResult
+{
+    public LightInterpreterResult(ReadOnlyDictionary<LightId, NDPColor> lights, double frameTime)
+    {
+        Lights = lights;
+        FrameTime = frameTime;
+    }
+
+    public IDictionary<LightId, NDPColor> Lights { get; }
+
+    public double FrameTime { get; }
+    public double FPS => 1d / FrameTime;
+}
 
 public class LightInterpreter
 {
@@ -71,7 +85,7 @@ public class LightInterpreter
         // inclusive
         int startIndex = Bisect.BisectLeft(effects, progress, 0, endIndex, t => t.End);
         // effects[startIndex].End >= progress
-        // effects[startIndex].End < progress
+        // effects[startIndex - 1].End < progress
 
         // Effects that are later in the list override previous effects
         for (int i = startIndex; i < endIndex; i++)
@@ -80,6 +94,8 @@ public class LightInterpreter
 
             if (!lights.TryGetValue(effect.LightId, out NDPColor oldColor))
             {
+                // if no previous color found, use effect color
+                // if effect doesn't have color, use strobe color
                 oldColor = effect.GetColor(config.StrobeColor)
                                  .CopyWith(brightness: 0d);
             }
@@ -88,7 +104,7 @@ public class LightInterpreter
         }
     }
 
-    public IReadOnlyDictionary<LightId, NDPColor> Update(TimeSpan progress, NDPData data)
+    public LightInterpreterResult Update(TimeSpan progress, NDPData data)
     {
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
@@ -114,6 +130,9 @@ public class LightInterpreter
         // TODO: Clamp color to light gamut
         // foreach (LightId id in lights.Keys)
         //     lights[id] = lights[id].Clamp()
-        return lights.AsReadOnly();
+        return new LightInterpreterResult(
+            lights: lights.AsReadOnly(),
+            frameTime: deltaTime
+        );
     }
 }

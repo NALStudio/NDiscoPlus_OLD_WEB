@@ -136,25 +136,36 @@
     {
         Effect[] effects = effects_.ToArray();
 
-        int maxYIndex = 0;
-        List<(Effect Effect, int Y)> computed = new();
+        List<List<Effect>> computed = new();
         for (int i = 0; i < effects.Length; i++)
         {
             Effect effect = effects[i];
 
-            int yIndex = effects[..i].Count(e => e.End >= effect.Start && e.Start < effect.End);
-            if (yIndex > maxYIndex)
-                maxYIndex = yIndex;
-
-            computed.Add((effect, yIndex * rowHeight));
+            int yIndex = 0;
+            List<Effect> yEffects;
+            while (true)
+            {
+                if (yIndex >= computed.Count)
+                    computed.Add(new());
+                yEffects = computed[yIndex];
+                if (yEffects.Any(e => e.End >= effect.Start && e.Start < effect.End))
+                    yIndex++;
+                else
+                    break;
+            }
+            yEffects.Add(effect);
         }
 
-        int height = (maxYIndex + 1) * rowHeight;
+        int height = computed.Count * rowHeight;
 
         await ctx.FillStyleAsync(ColorHelpers.ToHTMLColor(background.Red / 255d, background.Green / 255d, background.Blue / 255d));
         await ctx.FillRectAsync(0d, y, canvasWidth, height);
-        foreach ((Effect effect, int effectY) in computed)
-            await RenderEffect(ctx, transformer, y + height - effectY - rowHeight, rowHeight, effect);
+
+        for (int effectY = 0; effectY < computed.Count; effectY++)
+        {
+            foreach (Effect effect in computed[effectY])
+                await RenderEffect(ctx, transformer, y + effectY * rowHeight, rowHeight, effect);
+        }
 
         return height;
     }

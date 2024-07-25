@@ -27,7 +27,7 @@
 @inject IWorkerFactory workerFactory;
 @inject IJSRuntime JSRuntime;
 
-<PageTitle>NDiscoPlus</PageTitle>
+<PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div style="width:100vw; height:100vh">
                                                                                 <!-- xyY colorspace isn't supported, use linear rgb instead :( -->
@@ -147,6 +147,7 @@
     }
 
     readonly record struct FetchTask(string TrackId, Task<NDPData> Task);
+    readonly record struct InterpreterFPS(double Average, double Min);
 
     const string TimespanFormat = @"mm\:ss";
 
@@ -159,6 +160,11 @@
 
     bool isPlaying = false;
     bool playStarting = false;
+
+    const int targetFps = 75;
+    InterpreterFPS? interpreterFps;
+    const int interpreterFpsFramesCount = 25;
+    List<double> interpreterFpsFrames = new(capacity: interpreterFpsFramesCount);
 
     SpotifyClient? spotify = null;
     SpotifyPlayerContext? context = null;
@@ -238,13 +244,13 @@
 
     async Task StartPlaying()
     {
-        await Task.Delay(1000);
+        await Task.Delay(500);
         isPlaying = true;
     }
 
     async Task StopPlaying()
     {
-        await Task.Delay(1000);
+        await Task.Delay(500);
         isPlaying = false;
     }
     #endregion
@@ -256,7 +262,8 @@
             return;
 
         SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
-        await foreach(SpotifyPlayerContext? context in player.ListenAsync(50)) {
+        await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps))
+        {
             this.context = context;
             UpdateData(spotify, context?.Track, context?.NextTrack);
 
@@ -272,6 +279,8 @@
                     gradient = GetGradient(currentTrackData.ReferencePalette);
                 else
                     gradient = _defaultGradient;
+
+                interpreterFps = null;
             }
             else
             {
@@ -285,17 +294,29 @@
                 {
                     try
                     {
-                        gradient = GetGradient(gradientLights.Update(context.Progress, currentTrackData));
+                        LightInterpreterResult result = gradientLights.Update(context.Progress, currentTrackData);
+                        interpreterFpsFrames.Add(result.FPS);
+                        gradient = GetGradient(result.Lights);
                     }
                     catch (Exception e)
                     {
                         logger.LogError($"Lights update failed with error: '{e}'");
                         gradient = GetGradient(currentTrackData.ReferencePalette);
                     }
+
+                    if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
+                    {
+                        double avgFps = interpreterFpsFrames.Sum() / interpreterFpsFrames.Count;
+                        double minFps = interpreterFpsFrames.Min();
+                        interpreterFps = new(Average: avgFps, Min: minFps);
+
+                        interpreterFpsFrames.Clear();
+                    }
                 }
                 else
                 {
                     gradient = _defaultGradient;
+                    interpreterFps = null;
                 }
             }
 
@@ -441,7 +462,7 @@
             return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
     }
 
-    static FourCornerGradient GetGradient(IReadOnlyDictionary<LightId, NDPColor> lights)
+    static FourCornerGradient GetGradient(IDictionary<LightId, NDPColor> lights)
     {
         static string ComputeHTMLColor(NDPColor color)
         {

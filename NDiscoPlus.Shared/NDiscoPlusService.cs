@@ -206,7 +206,8 @@ public class NDiscoPlusService
             [
                 new StrobeEffectChannel(args.Lights.Strobe),
                 new FlashEffectChannel(args.Lights.Flash),
-                new DefaultEffectChannel(args.Lights.Effect)
+                new DefaultEffectChannel(args.Lights.Effect),
+                new BackgroundEffectChannel(args.Lights.Background),
             ],
             new BackgroundChannel(args.Lights.Background)
         );

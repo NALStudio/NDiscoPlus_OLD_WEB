@@ -20,7 +20,7 @@ internal class ColorSwitchEffect : NDPEffect
 
     public override void Generate(EffectContext ctx, EffectAPI api)
     {
-        EffectChannel? channel = api.GetChannel<DefaultEffectChannel>();
+        EffectChannel? channel = api.GetChannel<BackgroundEffectChannel>();
         if (channel is null)
             return;
 
@@ -92,7 +92,8 @@ internal class ColorSwitchEffect : NDPEffect
                     )
                     {
                         X = col.X,
-                        Y = col.Y
+                        Y = col.Y,
+                        Brightness = api.Config.BaseBrightness
                     }
                 );
             }

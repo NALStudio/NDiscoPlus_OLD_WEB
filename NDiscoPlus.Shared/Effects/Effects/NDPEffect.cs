@@ -1,6 +1,5 @@
 ﻿using NDiscoPlus.Shared.Effects.API;
-using NDiscoPlus.Shared.Effects.API.Channels.Background;
-using NDiscoPlus.Shared.Effects.BaseEffects;
+using NDiscoPlus.Shared.Effects.Effects.Strobes;
 using NDiscoPlus.Shared.Models;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
