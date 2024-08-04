@@ -84,16 +84,25 @@ internal class ColorSwitchEffect : NDPEffect
 
             foreach ((LightId id, NDPColor col) in colors)
             {
+                TimeSpan start = beats[0].Start;
+                TimeSpan end = start + totalDuration;
+
+                TimeSpan duration = totalDuration;
+                TimeSpan fadeOut = TimeSpan.Zero;
+                if (end >= ctx.End)
+                    (duration, fadeOut) = (fadeOut, duration); // if this is the ending animation, invert variables (fade out instead of clipping to the background colors)
+
                 channel.Add(
                     new Effect(
                         id,
                         beats[0].Start,
-                        totalDuration
+                        duration
                     )
                     {
                         X = col.X,
                         Y = col.Y,
-                        Brightness = api.Config.BaseBrightness
+                        Brightness = api.Config.BaseBrightness,
+                        FadeOut = fadeOut
                     }
                 );
             }

@@ -109,6 +109,9 @@
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
         <MudIconButton Icon="@Icons.Material.Rounded.Settings" Size="Size.Large" />
+        <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
+                       Size="Size.Large"
+                       OnClick="ToggleFullscreen" />
         @if (DebugEnabled)
         {
             <MudIconButton Disabled="@(data.CurrentTrackData is null)"
@@ -223,6 +226,12 @@
         string urlEncoded = HttpUtility.UrlEncode(serialized);
 
         await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
+    }
+
+    async Task ToggleFullscreen()
+    {
+        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Pages/HomePage.razor.js");
+        await module.InvokeVoidAsync("toggleFullscreen");
     }
 
     #region Lights

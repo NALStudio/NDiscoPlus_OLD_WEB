@@ -18,6 +18,15 @@ internal class GroupedStrobeLightEffect : BaseStrobeLightEffect
 
     protected override IEnumerable<IList<LightId>> Group(EffectContext ctx, EffectChannel channel, int frameCount, int groupCount)
     {
+        if (groupCount > channel.Lights.Count)
+        {
+            // is divisible by 2
+            if (groupCount % 2 == 0)
+                groupCount /= 2;
+            else
+                groupCount = (groupCount / 2) + 1; // ceil divide
+        }
+
         List<NDPLight[]> groups = Grouping switch
         {
             GroupingType.Horizontal => channel.Lights.GroupX(groupCount),

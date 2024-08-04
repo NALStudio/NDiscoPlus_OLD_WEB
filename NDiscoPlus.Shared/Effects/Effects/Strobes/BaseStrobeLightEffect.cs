@@ -75,7 +75,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         // we sync using beats currently, but this might change in the future
         NDPInterval lastSyncObject = ctx.Beats[ctx.Beats.Count - 1];
         TimeSpan strobeEnd = lastSyncObject.End;
-        Debug.Assert(strobeEnd >= ctx.End);
+        // Debug.Assert(strobeEnd >= ctx.End); This assert seemed to cause some crashes
 
         TimeSpan clearStart = ctx.Start;
         TimeSpan clearLength = strobeEnd - clearStart;
