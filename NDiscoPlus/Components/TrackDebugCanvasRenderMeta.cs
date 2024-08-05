@@ -6,6 +6,7 @@ using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Music;
 using SpotifyAPI.Web;
+using System.Collections.Immutable;
 
 namespace NDiscoPlus.Components;
 
@@ -66,7 +67,15 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
     async Task RenderSections(int y, int height)
     {
-        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(new NDiscoPlusArgs(player.Track, features, analysis, new EffectConfig(), new NDiscoPlusArgsLights()));
+        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(
+            new NDiscoPlusArgs(
+                player.Track,
+                features,
+                analysis,
+                new EffectConfig(),
+                new NDiscoPlusArgsLights(ImmutableArray<NDPLight>.Empty)
+            )
+        );
 
         for (int i = 0; i < intensities.Count; i++)
         {

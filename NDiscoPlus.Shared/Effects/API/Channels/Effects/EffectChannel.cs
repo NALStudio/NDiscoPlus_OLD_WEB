@@ -8,7 +8,7 @@ namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 
 public class EffectChannel : Channel
 {
-    public EffectChannel(IList<NDPLight> lights) : base(lights)
+    public EffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 

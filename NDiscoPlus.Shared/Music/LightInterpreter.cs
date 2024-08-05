@@ -77,17 +77,30 @@ public class LightInterpreter
 
     private static void UpdateEffects(EffectConfig config, TimeSpan progress, IList<Effect> effects, ref Dictionary<LightId, NDPColor> lights)
     {
-        // exclusive
-        int endIndex = Bisect.BisectRight(effects, progress, t => t.Start);
-        // effects[endIndex].Start > progress
-        // effects[endIndex - 1].Start <= progress
+        // find initial reference index (must be done using position as the effects are insorted using this value)
+        int initialEndIndex = Bisect.BisectRight(effects, progress, t => t.Position);
+        int endIndex = initialEndIndex;
+        // effects[endIndex].Position > progress
+        // effects[endIndex - 1].Position <= progress
 
-        // inclusive
-        int startIndex = Bisect.BisectLeft(effects, progress, 0, endIndex, t => t.End);
-        // effects[startIndex].End >= progress
-        // effects[startIndex - 1].End < progress
+        // find the actual end index value
+        while (endIndex < effects.Count && effects[endIndex].Start <= progress)
+            endIndex++; // endIndex is exclusive
 
-        // Effects that are later in the list override previous effects
+
+        // find initial reference index
+        int startIndex = Bisect.BisectLeft(effects, progress, 0, initialEndIndex, t => t.Position);
+        // effects[startIndex].Position >= progress
+        // effects[startIndex - 1].Position < progress
+
+        // find the actual start index value
+        // special startIndex < effects.Count verification is needed as startIndex might have bisected to the end of the list
+        // we check it as inverse and or it as we still want to look for the earlier values' starts even though startIndex >= effects.Count
+        while (startIndex >= 0 && (startIndex >= effects.Count || effects[startIndex].End >= progress))
+            startIndex--;
+        startIndex++; // increment by one so that startIndex is inclusive
+
+        // Effects that are later in the list override previous effects (sorted using effect.Position)
         for (int i = startIndex; i < endIndex; i++)
         {
             Effect effect = effects[i];
@@ -127,9 +140,22 @@ public class LightInterpreter
             deltaTime = 0d;
         }
 
-        // TODO: Clamp color to light gamut
-        // foreach (LightId id in lights.Keys)
-        //     lights[id] = lights[id].Clamp()
+        // supply color values for all lights
+        foreach (NDPLight l in data.Lights)
+        {
+            if (lights.TryGetValue(l.Id, out NDPColor color))
+            {
+                // if lights exists, clamp color to gamut
+                lights[l.Id] = color.Clamp(l.ColorGamut);
+            }
+            else
+            {
+                // if light doesn't exist, create a black for it (must be inside its color gamut so we use the color gamut's red XY position.)
+                // we supply a default black value so that the consumer of this interpreter doesn't need to assign default colors itself.
+                lights[l.Id] = l.ColorGamut.Red.ToColor(brightness: 0d);
+            }
+        }
+
         return new LightInterpreterResult(
             lights: lights.AsReadOnly(),
             frameTime: deltaTime

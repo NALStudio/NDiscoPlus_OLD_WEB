@@ -39,7 +39,7 @@ public readonly struct BackgroundTransition
 
 public class BackgroundChannel : Channel, IEnumerable<KeyValuePair<LightId, IList<BackgroundTransition>>>
 {
-    public BackgroundChannel(IList<NDPLight> lights) : base(lights)
+    public BackgroundChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 

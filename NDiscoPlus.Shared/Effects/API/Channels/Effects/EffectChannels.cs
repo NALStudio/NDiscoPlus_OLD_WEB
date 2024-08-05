@@ -8,7 +8,7 @@ namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 /// </summary>
 public class BackgroundEffectChannel : EffectChannel
 {
-    public BackgroundEffectChannel(IList<NDPLight> lights) : base(lights)
+    public BackgroundEffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 }
@@ -18,7 +18,7 @@ public class BackgroundEffectChannel : EffectChannel
 /// </summary>
 public class DefaultEffectChannel : EffectChannel
 {
-    public DefaultEffectChannel(IList<NDPLight> lights) : base(lights)
+    public DefaultEffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 }
@@ -28,7 +28,7 @@ public class DefaultEffectChannel : EffectChannel
 /// </summary>
 public class FlashEffectChannel : EffectChannel
 {
-    public FlashEffectChannel(IList<NDPLight> lights) : base(lights)
+    public FlashEffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 }
@@ -38,7 +38,7 @@ public class FlashEffectChannel : EffectChannel
 /// </summary>
 public class StrobeEffectChannel : EffectChannel
 {
-    public StrobeEffectChannel(IList<NDPLight> lights) : base(lights)
+    public StrobeEffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 }

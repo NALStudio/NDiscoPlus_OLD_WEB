@@ -14,6 +14,9 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.Shared.Effects.Effects;
 internal class ColorSwitchEffect : NDPEffect
 {
+    const bool _kUseFadeIn = true;
+    const bool _kUseFadeOut = true;
+
     public ColorSwitchEffect(EffectIntensity intensity) : base(intensity)
     {
     }
@@ -61,6 +64,14 @@ internal class ColorSwitchEffect : NDPEffect
 
             changedLights.Clear();
 
+            bool fadeIn = _kUseFadeIn && (i == 0);
+            bool fadeOut = _kUseFadeOut && (i == (ctx.Beats.Count - 1));
+            if (fadeIn && fadeOut) // this is an edge case that might never happen but in case it happens, I'll handle it by disabling both
+            {
+                fadeIn = false;
+                fadeOut = false;
+            }
+
             for (int j = 0; j < lightsPerAnimation; j++)
             {
                 NDPLight? light = null;
@@ -88,21 +99,19 @@ internal class ColorSwitchEffect : NDPEffect
                 TimeSpan end = start + totalDuration;
 
                 TimeSpan duration = totalDuration;
-                TimeSpan fadeOut = TimeSpan.Zero;
-                if (end >= ctx.End)
-                    (duration, fadeOut) = (fadeOut, duration); // if this is the ending animation, invert variables (fade out instead of clipping to the background colors)
 
                 channel.Add(
                     new Effect(
                         id,
                         beats[0].Start,
-                        duration
+                        !(fadeIn || fadeOut) ? duration : TimeSpan.Zero
                     )
                     {
                         X = col.X,
                         Y = col.Y,
                         Brightness = api.Config.BaseBrightness,
-                        FadeOut = fadeOut
+                        FadeIn = fadeIn ? duration : TimeSpan.Zero,
+                        FadeOut = fadeOut ? duration : TimeSpan.Zero
                     }
                 );
             }

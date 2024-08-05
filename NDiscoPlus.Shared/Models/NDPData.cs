@@ -19,7 +19,8 @@ public class NDPData
     internal NDPData(
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
-        EffectConfig effectConfig, ExportedEffectsCollection effects
+        EffectConfig effectConfig, ExportedEffectsCollection effects,
+        ImmutableArray<NDPLight> lights
     )
     {
         Track = track;
@@ -28,6 +29,8 @@ public class NDPData
 
         EffectConfig = effectConfig;
         Effects = effects;
+
+        Lights = lights;
     }
 
     public SpotifyPlayerTrack Track { get; }
@@ -39,6 +42,8 @@ public class NDPData
 
     public EffectConfig EffectConfig { get; }
     public ExportedEffectsCollection Effects { get; }
+
+    public ImmutableArray<NDPLight> Lights { get; }
 
     public static string Serialize(NDPData data)
     {

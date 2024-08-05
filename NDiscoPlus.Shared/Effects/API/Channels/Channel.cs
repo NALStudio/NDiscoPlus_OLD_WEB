@@ -7,7 +7,7 @@ public abstract class Channel
 {
     public NDPLightCollection Lights { get; }
 
-    protected Channel(IList<NDPLight> lights)
+    protected Channel(IEnumerable<NDPLight> lights)
     {
         Lights = NDPLightCollection.Create(lights);
     }

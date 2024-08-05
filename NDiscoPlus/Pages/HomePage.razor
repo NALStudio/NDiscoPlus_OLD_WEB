@@ -30,6 +30,7 @@
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div style="width:100vw; height:100vh">
+    <!-- TODO: Use HDR using xyz gradient and color(xyz x.ToString(CultureInfo.InvariantCulture), y ..., z ...) -->
                                                                                 <!-- xyY colorspace isn't supported, use linear rgb instead :( -->
     <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(in srgb-linear 90deg, @(gradient.TopLeft), @(gradient.TopRight));">
         <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(in srgb-linear 90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />

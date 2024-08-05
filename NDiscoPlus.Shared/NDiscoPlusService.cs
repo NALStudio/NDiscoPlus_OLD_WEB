@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Effects.API;
+﻿using HueApi.Models;
+using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
@@ -10,6 +11,7 @@ using NDiscoPlus.Shared.Music;
 using SkiaSharp;
 using SpotifyAPI.Web;
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -63,58 +65,51 @@ public class NDiscoPlusArgs
 
 public class NDiscoPlusArgsLights
 {
-    [JsonInclude]
-    private ImmutableArray<NDPLight> strobe;
-    [JsonInclude]
-    private ImmutableArray<NDPLight> flash;
-    [JsonInclude]
-    private ImmutableArray<NDPLight> effect;
-    [JsonInclude]
-    private ImmutableArray<NDPLight> background;
+    [JsonIgnore] // JsonIGNORE, see LightsJson property for JsonInclude
+    public FrozenDictionary<LightId, NDPLight> Lights { get; }
 
-    public NDiscoPlusArgsLights()
+#pragma warning disable RCS1213, IDE0051 // Remove unused member declaration
+    [JsonInclude]
+    private ImmutableArray<NDPLight> LightsJson => Lights.Values;
+#pragma warning restore RCS1213, IDE0051 // Remove unused member declaration
+
+    [JsonIgnore]
+    public ImmutableArray<LightId> Strobe { get; }
+    [JsonIgnore]
+    public ImmutableArray<LightId> Flash { get; }
+    [JsonIgnore]
+    public ImmutableArray<LightId> Effect { get; }
+    [JsonIgnore]
+    public ImmutableArray<LightId> Background { get; }
+
+    [JsonInclude]
+    public IEnumerable<NDPLight> StrobeLights => Strobe.Select(id => Lights[id]);
+    [JsonInclude]
+    public IEnumerable<NDPLight> FlashLights => Flash.Select(id => Lights[id]);
+    [JsonInclude]
+    public IEnumerable<NDPLight> EffectLights => Effect.Select(id => Lights[id]);
+    [JsonInclude]
+    public IEnumerable<NDPLight> BackgroundLights => Background.Select(id => Lights[id]);
+
+    public NDiscoPlusArgsLights(IEnumerable<NDPLight> lights)
     {
-        strobe = ImmutableArray<NDPLight>.Empty;
-        flash = ImmutableArray<NDPLight>.Empty;
-        effect = ImmutableArray<NDPLight>.Empty;
-        background = ImmutableArray<NDPLight>.Empty;
+        Lights = lights.ToFrozenDictionary(key => key.Id);
+
+        Strobe = ImmutableArray<LightId>.Empty;
+        Flash = ImmutableArray<LightId>.Empty;
+        Effect = ImmutableArray<LightId>.Empty;
+        Background = ImmutableArray<LightId>.Empty;
     }
 
     [JsonConstructor]
-    private NDiscoPlusArgsLights(ImmutableArray<NDPLight> strobe, ImmutableArray<NDPLight> flash, ImmutableArray<NDPLight> effect, ImmutableArray<NDPLight> background)
+    private NDiscoPlusArgsLights(ImmutableArray<NDPLight> lightsJson, IEnumerable<NDPLight> strobeLights, IEnumerable<NDPLight> flashLights, IEnumerable<NDPLight> effectLights, IEnumerable<NDPLight> backgroundLights)
     {
-        this.strobe = strobe;
-        this.flash = flash;
-        this.effect = effect;
-        this.background = background;
-    }
+        Lights = lightsJson.ToFrozenDictionary(key => key.Id);
 
-    [JsonIgnore]
-    public IList<NDPLight> Strobe
-    {
-        get { return strobe; }
-        init { strobe = value.ToImmutableArray(); }
-    }
-
-    [JsonIgnore]
-    public IList<NDPLight> Flash
-    {
-        get { return flash; }
-        init { flash = value.ToImmutableArray(); }
-    }
-
-    [JsonIgnore]
-    public IList<NDPLight> Effect
-    {
-        get { return effect; }
-        init { effect = value.ToImmutableArray(); }
-    }
-
-    [JsonIgnore]
-    public IList<NDPLight> Background
-    {
-        get { return background; }
-        init { background = value.ToImmutableArray(); }
+        Strobe = strobeLights.Select(l => l.Id).ToImmutableArray();
+        Flash = flashLights.Select(l => l.Id).ToImmutableArray();
+        Effect = effectLights.Select(l => l.Id).ToImmutableArray();
+        Background = backgroundLights.Select(l => l.Id).ToImmutableArray();
     }
 
     public static NDiscoPlusArgsLights CreateSingleChannel(IEnumerable<NDPLight> lights)
@@ -125,7 +120,7 @@ public class NDiscoPlusArgsLights
 
     public static NDiscoPlusArgsLights CreateSingleChannel(ImmutableArray<NDPLight> lights)
     {
-        return new(lights, lights, lights, lights);
+        return new(lights, lights, lights, lights, lights);
     }
 }
 
@@ -204,12 +199,12 @@ public class NDiscoPlusService
         EffectAPI api = new(
             args.Effects,
             [
-                new StrobeEffectChannel(args.Lights.Strobe),
-                new FlashEffectChannel(args.Lights.Flash),
-                new DefaultEffectChannel(args.Lights.Effect),
-                new BackgroundEffectChannel(args.Lights.Background),
+                new StrobeEffectChannel(args.Lights.Strobe.Select(id => args.Lights.Lights[id])),
+                new FlashEffectChannel(args.Lights.Flash.Select(id => args.Lights.Lights[id])),
+                new DefaultEffectChannel(args.Lights.Effect.Select(id => args.Lights.Lights[id])),
+                new BackgroundEffectChannel(args.Lights.Background.Select(id => args.Lights.Lights[id])),
             ],
-            new BackgroundChannel(args.Lights.Background)
+            new BackgroundChannel(args.Lights.Background.Select(id => args.Lights.Lights[id]))
         );
 
         // TODO: Strobes
@@ -242,7 +237,9 @@ public class NDiscoPlusService
             effectPalette: effectPalette,
 
             effectConfig: api.Config,
-            effects: api.Export()
+            effects: api.Export(),
+
+            lights: args.Lights.Lights.Values
         );
     }
 
