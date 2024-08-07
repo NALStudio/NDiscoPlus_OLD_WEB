@@ -158,7 +158,7 @@
 
         int height = computed.Count * rowHeight;
 
-        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColor(background.Red / 255d, background.Green / 255d, background.Blue / 255d));
+        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColorRGB(background.Red / 255d, background.Green / 255d, background.Blue / 255d));
         await ctx.FillRectAsync(0d, y, canvasWidth, height);
 
         for (int effectY = 0; effectY < computed.Count; effectY++)
@@ -174,8 +174,8 @@
     {
         double posX = transformer.Transform(effect.Position);
 
-        (double r, double g, double b) = effect.GetColor(NDPColor.FromSRGB(1d, 1d, 1d)).ToSRGB();
-        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColor(r, g, b));
+        NDPColor effectColor = effect.GetColor(NDPColor.FromLinearRGB(1d, 1d, 1d));
+        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColorXYZ(effectColor));
         await ctx.FillRectAsync(posX, y, transformer.Transform(effect.Duration), height);
 
         if (effect.FadeIn > TimeSpan.Zero)

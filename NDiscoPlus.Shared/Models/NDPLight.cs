@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace NDiscoPlus.Shared.Models;
 public readonly struct NDPLight
 {
-    public NDPLight(LightId id, HuePosition position, ColorGamut colorGamut)
+    public NDPLight(LightId id, HuePosition position, ColorGamut? colorGamut)
     {
         Id = id;
         Position = position;
@@ -16,5 +16,5 @@ public readonly struct NDPLight
     [JsonConverter(typeof(JsonLightIdConverter))]
     public LightId Id { get; init; }
     public HuePosition Position { get; init; }
-    public ColorGamut ColorGamut { get; init; }
+    public ColorGamut? ColorGamut { get; init; }
 }

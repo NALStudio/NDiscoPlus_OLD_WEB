@@ -41,16 +41,6 @@ public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
     public readonly IList<NDPColor> Colors => colors;
 
 
-    public string[] HtmlColors => GetHtmlColors().ToArray();
-    private IEnumerable<string> GetHtmlColors()
-    {
-        foreach (NDPColor c in colors)
-        {
-            (double r, double g, double b) = c.ToSRGB();
-            yield return ColorHelpers.ToHTMLColor(r, g, b);
-        }
-    }
-
     public IEnumerator<NDPColor> GetEnumerator() => ((IEnumerable<NDPColor>)colors).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

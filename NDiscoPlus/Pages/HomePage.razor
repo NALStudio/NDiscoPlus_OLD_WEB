@@ -19,6 +19,7 @@
 @using System.Diagnostics
 @using System.Text.Json
 @using System.Web
+@using System.Globalization
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
@@ -30,10 +31,9 @@
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div style="width:100vw; height:100vh">
-    <!-- TODO: Use HDR using xyz gradient and color(xyz x.ToString(CultureInfo.InvariantCulture), y ..., z ...) -->
-                                                                                <!-- xyY colorspace isn't supported, use linear rgb instead :( -->
-    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(in srgb-linear 90deg, @(gradient.TopLeft), @(gradient.TopRight));">
-        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(in srgb-linear 90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
+                                                                                <!-- xyY colorspace isn't supported, use xyz instead :( -->
+    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(in xyz 90deg, @(gradient.TopLeft), @(gradient.TopRight));">
+        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(in xyz 90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
         <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
             @if(context is not null) {
                 <MudImage
@@ -142,7 +142,31 @@
     public bool DebugEnabled { get; init; }
     #endif
 
-    record FourCornerGradient(string TopLeft, string TopRight, string BottomLeft, string BottomRight);
+    class FourCornerGradient
+    {
+        public string TopLeft { get; }
+        public string TopRight { get; }
+        public string BottomLeft { get; }
+        public string BottomRight { get; }
+
+        private FourCornerGradient(string topLeft, string topRight, string bottomLeft, string bottomRight)
+        {
+            TopLeft = topLeft;
+            TopRight = topRight;
+            BottomLeft = bottomLeft;
+            BottomRight = bottomRight;
+        }
+
+        public static FourCornerGradient FromColors(NDPColor topLeft, NDPColor topRight, NDPColor bottomLeft, NDPColor bottomRight)
+        {
+            return new FourCornerGradient(
+                topLeft: ColorHelpers.ToHTMLColorXYZ(topLeft),
+                topRight: ColorHelpers.ToHTMLColorXYZ(topRight),
+                bottomLeft: ColorHelpers.ToHTMLColorXYZ(bottomLeft),
+                bottomRight: ColorHelpers.ToHTMLColorXYZ(bottomRight)
+            );
+        }
+    }
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
         public Shared.Models.NDPData? CurrentTrackData { get; set; } = null;
@@ -405,10 +429,10 @@
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
         NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(
-            new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), ColorGamut.sRGB),
-            new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), ColorGamut.sRGB),
-            new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), ColorGamut.sRGB),
-            new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), ColorGamut.sRGB)
+            new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: null),
+            new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: null),
+            new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: null),
+            new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: null)
         );
         EffectConfig effects = new();
         NDiscoPlusArgs args = new(track, features, analysis, effects, lights);
@@ -459,37 +483,30 @@
     #region Colors
     static FourCornerGradient GetGradient(NDPColorPalette palette)
     {
-        string[] colors = palette.HtmlColors;
+        IList<NDPColor> colors = palette.Colors;
 
         // By choosing a single color from the image as the background,
         // it seemed to just pick some random color which was barely visible in the image
         // so use default gradient if at least 2 colors can't be decided from the image.
-        if (colors.Length < 2)
+        if (colors.Count < 2)
             return _defaultGradient;
-        else if (colors.Length < 4)
-            return new FourCornerGradient(colors[0], colors[0], colors[1], colors[1]);
+        else if (colors.Count < 4)
+            return FourCornerGradient.FromColors(colors[0], colors[0], colors[1], colors[1]);
         else
-            return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
+            return FourCornerGradient.FromColors(colors[0], colors[1], colors[2], colors[3]);
     }
 
     static FourCornerGradient GetGradient(IDictionary<LightId, NDPColor> lights)
     {
-        static string ComputeHTMLColor(NDPColor color)
-        {
-            (double r, double g, double b) = color.ToSRGB();
-            return ColorHelpers.ToHTMLColor(r, g, b);
-        }
-
         // use null so that if not all screen lights are included in the light list, we crash.
-        string[] colors = new string[4];
+        NDPColor[] colors = new NDPColor[4];
         foreach ((LightId light, NDPColor color) in lights.Where(l => l.Key is ScreenLightId))
         {
             ScreenLightId id = (ScreenLightId)light;
-            colors[id.Index] = ComputeHTMLColor(color);
+            colors[id.Index] = color;
         }
 
-        Debug.Assert(colors.All(c => c is not null));
-        return new FourCornerGradient(colors[0], colors[1], colors[2], colors[3]);
+        return FourCornerGradient.FromColors(colors[0], colors[1], colors[2], colors[3]);
     }
     #endregion
 }

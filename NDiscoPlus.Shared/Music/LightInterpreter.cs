@@ -145,14 +145,21 @@ public class LightInterpreter
         {
             if (lights.TryGetValue(l.Id, out NDPColor color))
             {
-                // if lights exists, clamp color to gamut
-                lights[l.Id] = color.Clamp(l.ColorGamut);
+                // if lights exists, clamp color to gamut (if gamut is available)
+                if (l.ColorGamut is not null)
+                    lights[l.Id] = color.Clamp(l.ColorGamut);
             }
             else
             {
                 // if light doesn't exist, create a black for it (must be inside its color gamut so we use the color gamut's red XY position.)
                 // we supply a default black value so that the consumer of this interpreter doesn't need to assign default colors itself.
-                lights[l.Id] = l.ColorGamut.Red.ToColor(brightness: 0d);
+                NDPColor defaultBlack;
+                if (l.ColorGamut is not null)
+                    defaultBlack = l.ColorGamut.Red.ToColor(brightness: 0d);
+                else
+                    defaultBlack = new NDPColor();
+
+                lights[l.Id] = defaultBlack;
             }
         }
 
