@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Models.Color;
+﻿using MemoryPack;
+using NDiscoPlus.Shared.Models.Color;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -10,7 +11,8 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
-public class ColorGamut
+[MemoryPackable]
+public partial class ColorGamut
 {
     public ColorGamutPoint Red { get; }
     public ColorGamutPoint Green { get; }
@@ -118,7 +120,8 @@ public class ColorGamut
     }
 }
 
-public readonly record struct ColorGamutPoint(double X, double Y)
+[MemoryPackable]
+public readonly partial record struct ColorGamutPoint(double X, double Y)
 {
     public NDPColor ToColor(double brightness = 1d)
         => new(x: X, y: Y, brightness: brightness);

@@ -3,6 +3,7 @@ using Excubo.Blazor.Canvas.Contexts;
 using MudBlazor;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Spotify.Models;
 using SpotifyAPI.Web;
 using System.Diagnostics;
 

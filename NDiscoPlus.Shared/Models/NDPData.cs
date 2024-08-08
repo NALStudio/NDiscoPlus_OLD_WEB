@@ -1,21 +1,20 @@
-﻿using NDiscoPlus.Shared.Effects.API;
+﻿using MemoryPack;
+using Microsoft.AspNetCore.WebUtilities;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
-using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
-using NDiscoPlus.Shared.Music;
-using SkiaSharp;
-using System.Collections;
+using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.MemoryPack.Formatters;
+using NDiscoPlus.Spotify.Models;
+using System.Buffers;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
 
-public class NDPData
+[MemoryPackable]
+public partial class NDPData
 {
-    [JsonConstructor]
+    [MemoryPackConstructor]
     internal NDPData(
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
@@ -35,9 +34,9 @@ public class NDPData
 
     public SpotifyPlayerTrack Track { get; }
 
-    [JsonConverter(typeof(JsonNDPColorPaletteConverter))]
+    [NDPColorPaletteFormatter]
     public NDPColorPalette ReferencePalette { get; }
-    [JsonConverter(typeof(JsonNDPColorPaletteConverter))]
+    [NDPColorPaletteFormatter]
     public NDPColorPalette EffectPalette { get; }
 
     public EffectConfig EffectConfig { get; }
@@ -47,14 +46,14 @@ public class NDPData
 
     public static string Serialize(NDPData data)
     {
-        string output = JsonSerializer.Serialize(data);
-        Debug.Assert(!string.IsNullOrEmpty(output));
-        return output;
+        byte[] bytes = MemoryPackSerializer.Serialize(data);
+        return ByteHelper.CastToJsonSafeString(bytes);
     }
 
     public static NDPData Deserialize(string data)
     {
-        NDPData? d = JsonSerializer.Deserialize<NDPData>(data);
+        byte[] bytes = ByteHelper.CastFromJsonSafeString(data);
+        NDPData? d = MemoryPackSerializer.Deserialize<NDPData>(bytes);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
 }
@@ -64,33 +63,16 @@ public class NDPData
 /// Effects should be rendered as two nested for-loops.
 /// </summary>
 #pragma warning disable IDE0051, RCS1213 // Remove unused private members, Remove unused member declaration
-public class ExportedEffectsCollection
+[MemoryPackable]
+public partial class ExportedEffectsCollection
 {
-    [JsonIgnore]
-    public IList<IList<Effect>> Effects { get; }
+    public ImmutableList<ImmutableList<Effect>> Effects { get; }
+    public FrozenDictionary<LightId, IList<BackgroundTransition>> BackgroundTransitions { get; }
 
-    [JsonIgnore]
-    public IDictionary<LightId, IList<BackgroundTransition>> BackgroundTransitions { get; }
-
-    [JsonInclude]
-    private IEnumerable<IEnumerable<Effect>> JsonEffects => Effects;
-
-    [JsonInclude]
-    private IEnumerable<BackgroundTransition> JsonBackgroundTransitions => BackgroundTransitions.Values.SelectMany(x => x);
-
-    internal ExportedEffectsCollection(IEnumerable<IEnumerable<Effect>> effects, IEnumerable<KeyValuePair<LightId, IList<BackgroundTransition>>> backgroundTransitions)
+    internal ExportedEffectsCollection(ImmutableList<ImmutableList<Effect>> effects, FrozenDictionary<LightId, IList<BackgroundTransition>> backgroundTransitions)
     {
-        Effects = effects.Select(e => (IList<Effect>)e.ToImmutableArray()).ToImmutableArray();
-        BackgroundTransitions = backgroundTransitions.Select(x => new KeyValuePair<LightId, IList<BackgroundTransition>>(x.Key, x.Value.ToImmutableArray())).ToFrozenDictionary();
-    }
-
-    [JsonConstructor]
-    private ExportedEffectsCollection(IEnumerable<IEnumerable<Effect>> jsonEffects, IEnumerable<BackgroundTransition> jsonBackgroundTransitions)
-    {
-        Effects = jsonEffects.Select(effects => (IList<Effect>)effects.ToImmutableArray()).ToImmutableArray();
-
-        IGrouping<LightId, BackgroundTransition>[] groups = jsonBackgroundTransitions.GroupBy(x => x.LightId).ToArray();
-        BackgroundTransitions = groups.ToFrozenDictionary(key => key.Key, value => (IList<BackgroundTransition>)value.ToImmutableArray());
+        Effects = effects;
+        BackgroundTransitions = backgroundTransitions;
     }
 }
 #pragma warning restore IDE0051, RCS1213

@@ -1,5 +1,5 @@
-﻿using NDiscoPlus.Shared.Effects.Effects;
-using NDiscoPlus.Shared.Helpers;
+﻿using NDiscoPlus.Shared;
+using NDiscoPlus.Shared.Effects.Effects;
 using NDiscoPlus.Shared.Models;
 using SpotifyAPI.Web;
 using System.Collections.Immutable;

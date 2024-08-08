@@ -1,13 +1,10 @@
-﻿using SpotifyAPI.Web;
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using MemoryPack;
+using SpotifyAPI.Web;
 
-namespace NDiscoPlus.Shared.Models;
+namespace NDiscoPlus.Spotify.Models;
 
-public readonly record struct SpotifyPlayerImage(string Url, int Width, int Height);
-
-public class SpotifyPlayerTrack
+[MemoryPackable]
+public partial class SpotifyPlayerTrack
 {
     public SpotifyPlayerTrack(string id, string name, TimeSpan length, string imageUrl, string smallImageUrl, string[] artists)
     {
@@ -55,9 +52,8 @@ public class SpotifyPlayerTrack
     /// </summary>
     public static string Serialize(SpotifyPlayerTrack track)
     {
-        string output = JsonSerializer.Serialize(track);
-        Debug.Assert(!string.IsNullOrEmpty(output));
-        return output;
+        byte[] bytes = MemoryPackSerializer.Serialize(track);
+        return Convert.ToBase64String(bytes);
     }
 
     /// <summary>
@@ -66,7 +62,8 @@ public class SpotifyPlayerTrack
     /// </summary>
     public static SpotifyPlayerTrack Deserialize(string track)
     {
-        SpotifyPlayerTrack? t = JsonSerializer.Deserialize<SpotifyPlayerTrack>(track);
+        byte[] bytes = Convert.FromBase64String(track);
+        SpotifyPlayerTrack? t = MemoryPackSerializer.Deserialize<SpotifyPlayerTrack>(bytes);
         return t ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
 }

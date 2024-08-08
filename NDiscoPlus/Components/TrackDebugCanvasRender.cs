@@ -1,5 +1,5 @@
 ﻿using Excubo.Blazor.Canvas.Contexts;
-using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Spotify.Models;
 using SpotifyAPI.Web;
 
 namespace NDiscoPlus.Components;

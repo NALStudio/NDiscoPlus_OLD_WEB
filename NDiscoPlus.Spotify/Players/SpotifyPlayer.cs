@@ -1,7 +1,7 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using NDiscoPlus.Spotify.Models;
 using System.Runtime.CompilerServices;
 
-namespace NDiscoPlus.Shared.Players;
+namespace NDiscoPlus.Spotify.Players;
 
 public abstract class SpotifyPlayer
 {

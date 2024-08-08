@@ -1,5 +1,9 @@
-﻿namespace NDiscoPlus.Shared.Models;
-public class HueLightId : LightId
+﻿using MemoryPack;
+
+namespace NDiscoPlus.Shared.Models;
+
+[MemoryPackable]
+public partial class HueLightId : LightId
 {
     public byte ChannelId { get; }
 

@@ -13,7 +13,8 @@
 @using NDiscoPlus.Shared.Models.Color
 @using NDiscoPlus.Shared.Music
 @using NDiscoPlus.Shared.Models
-@using NDiscoPlus.Shared.Players
+@using NDiscoPlus.Spotify.Models
+@using NDiscoPlus.Spotify.Players
 @using SkiaSharp
 @using SpotifyAPI.Web
 @using System.Diagnostics
@@ -246,9 +247,6 @@
 
         string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
         await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
-
-        string serialized = NDPData.Serialize(data);
-        string urlEncoded = HttpUtility.UrlEncode(serialized);
 
         await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
     }

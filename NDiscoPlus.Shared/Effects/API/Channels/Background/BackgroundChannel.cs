@@ -1,27 +1,24 @@
-﻿using HueApi.Models;
-using NDiscoPlus.Shared.Effects.API.Channels.Effects;
+﻿using MemoryPack;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System.Collections;
-using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Background;
 
-public readonly struct BackgroundTransition
+[MemoryPackable]
+public readonly partial struct BackgroundTransition
 {
-    [JsonConverter(typeof(JsonLightIdConverter))]
     public LightId LightId { get; }
 
     public TimeSpan Start { get; }
     public TimeSpan Duration { get; }
 
-    [JsonIgnore]
+    [MemoryPackIgnore]
     public TimeSpan End => Start + Duration;
 
     public NDPColor Color { get; }
 
-    [JsonConstructor]
     public BackgroundTransition(LightId lightId, TimeSpan start, TimeSpan duration, NDPColor color)
     {
         LightId = lightId;
@@ -43,15 +40,15 @@ public class BackgroundChannel : Channel, IEnumerable<KeyValuePair<LightId, ILis
     {
     }
 
-#pragma warning disable IDE0051 // Remove unused private members
-    [JsonConstructor]
-    private BackgroundChannel(NDPLightCollection lights, Dictionary<LightId, List<BackgroundTransition>> transitions) : base(lights.Values.ToArray())
-    {
-        this.transitions = transitions;
-    }
-#pragma warning restore IDE0051 // Remove unused private members
+    // #pragma warning disable IDE0051 // Remove unused private members
+    //     [JsonConstructor]
+    //     private BackgroundChannel(NDPLightCollection lights, Dictionary<LightId, List<BackgroundTransition>> transitions) : base(lights.Values.ToArray())
+    //     {
+    //         this.transitions = transitions;
+    //     }
+    // #pragma warning restore IDE0051 // Remove unused private members
 
-    [JsonInclude]
+    // [JsonInclude]
     private readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
 
     public void Add(BackgroundTransition transition)

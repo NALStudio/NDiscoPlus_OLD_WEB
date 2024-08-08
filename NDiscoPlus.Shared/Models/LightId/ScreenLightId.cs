@@ -1,5 +1,9 @@
-﻿namespace NDiscoPlus.Shared.Models;
-public class ScreenLightId : LightId
+﻿using MemoryPack;
+
+namespace NDiscoPlus.Shared.Models;
+
+[MemoryPackable]
+public partial class ScreenLightId : LightId
 {
     public int Index { get; }
 

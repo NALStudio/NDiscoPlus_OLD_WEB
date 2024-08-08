@@ -1,4 +1,5 @@
 ﻿using HueApi.ColorConverters;
+using MemoryPack;
 using NDiscoPlus.Shared.Helpers;
 using SkiaSharp;
 using System;
@@ -11,13 +12,18 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models.Color;
+[MemoryPackable(SerializeLayout.Explicit)]
 public readonly partial struct NDPColor : IEquatable<NDPColor>
 {
+    [MemoryPackOrder(0)]
     public double X { get; }
+
+    [MemoryPackOrder(1)]
     public double Y { get; }
+
+    [MemoryPackOrder(2)]
     public double Brightness { get; }
 
-    [JsonConstructor]
     public NDPColor(double x, double y, double brightness)
     {
         X = x;

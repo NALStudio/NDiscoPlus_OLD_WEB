@@ -5,6 +5,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Music;
+using NDiscoPlus.Spotify.Models;
 using SpotifyAPI.Web;
 using System.Collections.Immutable;
 

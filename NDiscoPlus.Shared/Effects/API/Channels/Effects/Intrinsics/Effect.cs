@@ -1,16 +1,12 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using MemoryPack;
+using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
-public readonly struct Effect
+
+[MemoryPackable]
+public readonly partial struct Effect
 {
-    [JsonConverter(typeof(JsonLightIdConverter))]
     public LightId LightId { get; }
     public TimeSpan Position { get; }
     public TimeSpan Duration { get; }
@@ -22,9 +18,9 @@ public readonly struct Effect
     public TimeSpan FadeIn { get; init; } = TimeSpan.Zero;
     public TimeSpan FadeOut { get; init; } = TimeSpan.Zero;
 
-    [JsonIgnore]
+    [MemoryPackIgnore]
     public TimeSpan Start => Position - FadeIn;
-    [JsonIgnore]
+    [MemoryPackIgnore]
     public TimeSpan End => Position + Duration + FadeOut;
 
     public Effect(LightId light, TimeSpan position, TimeSpan duration)
@@ -58,7 +54,7 @@ public readonly struct Effect
     }
 
 #pragma warning disable IDE0051 // Remove unused private members
-    [JsonConstructor]
+    [MemoryPackConstructor]
     private Effect(LightId lightId, TimeSpan position, TimeSpan duration, double? x, double? y, double? brightness, TimeSpan fadeIn, TimeSpan fadeOut)
     {
         LightId = lightId;

@@ -1,13 +1,17 @@
 ﻿using HueApi.Models;
+using MemoryPack;
 using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.MemoryPack.Formatters;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
+using NDiscoPlus.Spotify.Models;
+using NDiscoPlus.Spotify.Serializable;
 using SkiaSharp;
 using SpotifyAPI.Web;
 using System;
@@ -23,7 +27,8 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
 
-public class NDiscoPlusArgs
+[MemoryPackable]
+public partial class NDiscoPlusArgs
 {
     public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
     {
@@ -35,7 +40,10 @@ public class NDiscoPlusArgs
     }
 
     public SpotifyPlayerTrack Track { get; }
+
+    [TrackAudioFeaturesFormatter]
     public TrackAudioFeatures Features { get; }
+    [TrackAudioAnalysisFormatter]
     public TrackAudioAnalysis Analysis { get; }
 
     public EffectConfig Effects { get; }
@@ -47,9 +55,8 @@ public class NDiscoPlusArgs
     /// </summary>
     public static string Serialize(NDiscoPlusArgs args)
     {
-        string output = JsonSerializer.Serialize(args);
-        Debug.Assert(!string.IsNullOrEmpty(output));
-        return output;
+        byte[] bytes = MemoryPackSerializer.Serialize(args);
+        return ByteHelper.CastToJsonSafeString(bytes);
     }
 
     /// <summary>
@@ -58,38 +65,22 @@ public class NDiscoPlusArgs
     /// </summary>
     public static NDiscoPlusArgs Deserialize(string args)
     {
-        NDiscoPlusArgs? t = JsonSerializer.Deserialize<NDiscoPlusArgs>(args);
-        return t ?? throw new InvalidOperationException("Cannot deserialize value.");
+        byte[] bytes = ByteHelper.CastFromJsonSafeString(args);
+        NDiscoPlusArgs? d = MemoryPackSerializer.Deserialize<NDiscoPlusArgs>(bytes);
+        return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
 }
 
-public class NDiscoPlusArgsLights
+[MemoryPackable]
+public partial class NDiscoPlusArgsLights
 {
-    [JsonIgnore] // JsonIGNORE, see LightsJson property for JsonInclude
+    [NDPLightFrozenDictionaryValueFormatter]
     public FrozenDictionary<LightId, NDPLight> Lights { get; }
 
-#pragma warning disable RCS1213, IDE0051 // Remove unused member declaration
-    [JsonInclude]
-    private ImmutableArray<NDPLight> LightsJson => Lights.Values;
-#pragma warning restore RCS1213, IDE0051 // Remove unused member declaration
-
-    [JsonIgnore]
     public ImmutableArray<LightId> Strobe { get; }
-    [JsonIgnore]
     public ImmutableArray<LightId> Flash { get; }
-    [JsonIgnore]
     public ImmutableArray<LightId> Effect { get; }
-    [JsonIgnore]
     public ImmutableArray<LightId> Background { get; }
-
-    [JsonInclude]
-    public IEnumerable<NDPLight> StrobeLights => Strobe.Select(id => Lights[id]);
-    [JsonInclude]
-    public IEnumerable<NDPLight> FlashLights => Flash.Select(id => Lights[id]);
-    [JsonInclude]
-    public IEnumerable<NDPLight> EffectLights => Effect.Select(id => Lights[id]);
-    [JsonInclude]
-    public IEnumerable<NDPLight> BackgroundLights => Background.Select(id => Lights[id]);
 
     public NDiscoPlusArgsLights(IEnumerable<NDPLight> lights)
     {
@@ -101,15 +92,15 @@ public class NDiscoPlusArgsLights
         Background = ImmutableArray<LightId>.Empty;
     }
 
-    [JsonConstructor]
-    private NDiscoPlusArgsLights(ImmutableArray<NDPLight> lightsJson, IEnumerable<NDPLight> strobeLights, IEnumerable<NDPLight> flashLights, IEnumerable<NDPLight> effectLights, IEnumerable<NDPLight> backgroundLights)
+    [MemoryPackConstructor]
+    private NDiscoPlusArgsLights(FrozenDictionary<LightId, NDPLight> lights, ImmutableArray<LightId> strobe, ImmutableArray<LightId> flash, ImmutableArray<LightId> effect, ImmutableArray<LightId> background)
     {
-        Lights = lightsJson.ToFrozenDictionary(key => key.Id);
+        Lights = lights;
 
-        Strobe = strobeLights.Select(l => l.Id).ToImmutableArray();
-        Flash = flashLights.Select(l => l.Id).ToImmutableArray();
-        Effect = effectLights.Select(l => l.Id).ToImmutableArray();
-        Background = backgroundLights.Select(l => l.Id).ToImmutableArray();
+        Strobe = strobe;
+        Flash = flash;
+        Effect = effect;
+        Background = background;
     }
 
     public static NDiscoPlusArgsLights CreateSingleChannel(IEnumerable<NDPLight> lights)
@@ -120,7 +111,9 @@ public class NDiscoPlusArgsLights
 
     public static NDiscoPlusArgsLights CreateSingleChannel(ImmutableArray<NDPLight> lights)
     {
-        return new(lights, lights, lights, lights, lights);
+        FrozenDictionary<LightId, NDPLight> lightsDict = lights.ToFrozenDictionary(key => key.Id);
+        ImmutableArray<LightId> lightIds = lightsDict.Keys;
+        return new(lightsDict, lightIds, lightIds, lightIds, lightIds);
     }
 }
 

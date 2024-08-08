@@ -66,8 +66,8 @@ internal class EffectAPI
         FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions = Background.ToFrozenDictionary(key => key.Key, value => value.Value.ToImmutableArray());
 
         return new ExportedEffectsCollection(
-            effects: Channels.Select(c => c.Effects),
-            backgroundTransitions: Background.Select(x => new KeyValuePair<LightId, IList<BackgroundTransition>>(x.Key, x.Value))
+            effects: Channels.Select(c => c.Effects.ToImmutableList()).ToImmutableList(),
+            backgroundTransitions: Background.ToFrozenDictionary()
         );
     }
 }

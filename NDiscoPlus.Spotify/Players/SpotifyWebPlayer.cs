@@ -1,10 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
-using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Spotify.Models;
 using SpotifyAPI.Web;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-namespace NDiscoPlus.Shared.Players;
+namespace NDiscoPlus.Spotify.Players;
 
 record PlayingContext
 {
