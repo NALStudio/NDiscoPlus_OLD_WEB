@@ -141,7 +141,7 @@ public class LightInterpreter
         }
 
         // supply color values for all lights
-        foreach (NDPLight l in data.Lights)
+        foreach (NDPLight l in data.Lights.Values)
         {
             if (lights.TryGetValue(l.Id, out NDPColor color))
             {

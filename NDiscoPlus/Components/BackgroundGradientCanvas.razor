@@ -1,0 +1,100 @@
+﻿@using System.Collections.Immutable
+@using HueApi.Models
+@using NDiscoPlus.Models
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@inject IJSRuntime JSRuntime;
+
+<canvas id="canvas" width="500" height="250" />
+
+<script id="vertex" type="x-shader/x-vertex">
+    #version 300 es
+
+    in vec4 vertexPosition;
+
+    void main() {
+        gl_Position = vertexPosition;
+    }
+</script>
+
+<script id="fragment" type="x-shader/x-fragment">
+    #version 300 es
+    precision highp float;
+
+    uniform vec2 canvasSize;
+    out vec4 fragColor;
+
+    void main() {
+        vec2 coord = gl_FragCoord.xy / canvasSize.xy;
+        fragColor = vec4(coord.x, coord.y, 1. - coord.x, 1.);
+    }
+</script>
+
+<script>
+    const canvas = document.getElementById("canvas");
+    const vertexCode = document.getElementById("vertex").textContent;
+    const fragmentCode = document.getElementById("fragment").textContent;
+
+    function render(colors) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        _render();
+    }
+
+    // Heavy inspiration: https://adammurray.blog/webgl/tutorials/
+    function _render() {
+        const gl = canvas.getContext("webgl2");
+        if (!gl) throw "WebGL2 not supported";
+
+        function _createShader(shaderType, sourceCode) {
+            const shader = gl.createShader(shaderType);
+            gl.shaderSource(shader, sourceCode.trim());
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                throw gl.getShaderInfoLog(shader);
+            }
+            return shader;
+        }
+
+        const program = gl.createProgram();
+        gl.attachShader(program, _createShader(gl.VERTEX_SHADER, vertexCode));
+        gl.attachShader(program, _createShader(gl.FRAGMENT_SHADER, fragmentCode));
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw gl.getProgramInfoLog(program);
+        }
+        gl.useProgram(program);
+
+        const vertices = [
+            [-1, -1],
+            [1, -1],
+            [-1, 1],
+            [1, 1],
+        ];
+        const vertexData = new Float32Array(vertices.flat());
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
+
+        const vertexPosition = gl.getAttribLocation(program, "vertexPosition");
+
+        gl.enableVertexAttribArray(vertexPosition);
+        gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
+
+        const canvasSizeUniform = gl.getUniformLocation(program, "canvasSize");
+        gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertices.length);
+    }
+</script>
+
+@code {
+    [Parameter]
+    public IList<BackgroundGradientColor> Colors { get; set; } = new List<BackgroundGradientColor>();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JSRuntime.InvokeVoidAsync("render", Colors.Select(c => c.Serialize()));
+    }
+}

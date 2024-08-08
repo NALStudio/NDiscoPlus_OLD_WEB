@@ -56,7 +56,7 @@ public partial class NDiscoPlusArgs
     public static string Serialize(NDiscoPlusArgs args)
     {
         byte[] bytes = MemoryPackSerializer.Serialize(args);
-        return ByteHelper.CastToJsonSafeString(bytes);
+        return ByteHelper.UnsafeCastToString(bytes);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public partial class NDiscoPlusArgs
     /// </summary>
     public static NDiscoPlusArgs Deserialize(string args)
     {
-        byte[] bytes = ByteHelper.CastFromJsonSafeString(args);
+        Span<byte> bytes = ByteHelper.UnsafeCastFromString(args);
         NDiscoPlusArgs? d = MemoryPackSerializer.Deserialize<NDiscoPlusArgs>(bytes);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
@@ -232,7 +232,7 @@ public class NDiscoPlusService
             effectConfig: api.Config,
             effects: api.Export(),
 
-            lights: args.Lights.Lights.Values
+            lights: args.Lights.Lights
         );
     }
 

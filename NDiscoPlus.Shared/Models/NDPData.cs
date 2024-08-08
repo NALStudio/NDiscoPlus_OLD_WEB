@@ -19,7 +19,7 @@ public partial class NDPData
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
         EffectConfig effectConfig, ExportedEffectsCollection effects,
-        ImmutableArray<NDPLight> lights
+        FrozenDictionary<LightId, NDPLight> lights
     )
     {
         Track = track;
@@ -42,17 +42,18 @@ public partial class NDPData
     public EffectConfig EffectConfig { get; }
     public ExportedEffectsCollection Effects { get; }
 
-    public ImmutableArray<NDPLight> Lights { get; }
+    [NDPLightFrozenDictionaryValueFormatter]
+    public FrozenDictionary<LightId, NDPLight> Lights { get; }
 
     public static string Serialize(NDPData data)
     {
         byte[] bytes = MemoryPackSerializer.Serialize(data);
-        return ByteHelper.CastToJsonSafeString(bytes);
+        return ByteHelper.UnsafeCastToString(bytes);
     }
 
     public static NDPData Deserialize(string data)
     {
-        byte[] bytes = ByteHelper.CastFromJsonSafeString(data);
+        byte[] bytes = ByteHelper.UnsafeCastFromString(data);
         NDPData? d = MemoryPackSerializer.Deserialize<NDPData>(bytes);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }

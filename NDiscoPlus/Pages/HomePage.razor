@@ -4,6 +4,7 @@
 @using BlazorWorker.Core
 
 @using BlazorWorker.WorkerBackgroundService
+@using HueApi.Models
 @using MudBlazor.Utilities
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
@@ -15,12 +16,15 @@
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Spotify.Models
 @using NDiscoPlus.Spotify.Players
+@using NDiscoPlus.Components;
 @using SkiaSharp
 @using SpotifyAPI.Web
 @using System.Diagnostics
 @using System.Text.Json
 @using System.Web
 @using System.Globalization
+@using System.Collections.Frozen
+@using System.Collections.Immutable
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
@@ -31,59 +35,56 @@
 
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
-<div style="width:100vw; height:100vh">
-                                                                                <!-- xyY colorspace isn't supported, use xyz instead :( -->
-    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(in xyz 90deg, @(gradient.TopLeft), @(gradient.TopRight));">
-        <div style="position:absolute;top:0;left:0;right:0;bottom:0;background: linear-gradient(in xyz 90deg, @(gradient.BottomLeft), @(gradient.BottomRight)); mask-image:linear-gradient(to bottom, transparent, black);" />
-        <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
-            @if(context is not null) {
+<div style="width:100vw; height:100vh; overflow: hidden;">
+    <BackgroundGradientCanvas Colors="@gradient" />
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
+        @if(context is not null) {
+            <MudImage
+                Src="@context.Track.ImageUrl"
+                Width="256"
+                Height="256"/>
+        }
+        else
+        {
+            <div style="background:#1DB954;padding:64px">
                 <MudImage
-                    Src="@context.Track.ImageUrl"
-                    Width="256"
-                    Height="256"/>
-            }
-            else
+                    Src="./img/spotify_icon_white.svg"
+                    Width="128"
+                    Height="128"/>
+            </div>
+        }
+        <div style="min-width:256px;">
+            <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
+            @if(context is not null)
             {
-                <div style="background:#1DB954;padding:64px">
-                    <MudImage
-                        Src="./img/spotify_icon_white.svg"
-                        Width="128"
-                        Height="128"/>
-                </div>
+                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
             }
-            <div style="min-width:256px;">
-                <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
-                @if(context is not null)
-                {
-                    <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
-                }
-            </div>
-            <div style="width:80%; max-width:512px; padding-bottom:64px">
-                @if(context is not null)
-                {
-                    <MudProgressLinear
-                        Value="@(context.Progress.TotalSeconds)"
-                        Min="0"
-                        Max="@(context.Track.Length.TotalSeconds)"
-                        Rounded="true"
-                        />
-                    <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
-                        <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
-                        <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
-                    </MudStack>
-                }
-            </div>
-            <MudButton
-                StartIcon="@Icons.Material.Rounded.Lightbulb"
-                Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-                Size=Size.Large
-                Color=MudBlazor.Color.Primary
-                Disabled=@(spotify is null || playStarting)
-                OnClick=TogglePlay>
-                @(isPlaying ? "Stop" : "Play")
-            </MudButton>
-        </MudStack>
-    </div>
+        </div>
+        <div style="width:80%; max-width:512px; padding-bottom:64px">
+            @if(context is not null)
+            {
+                <MudProgressLinear
+                    Value="@(context.Progress.TotalSeconds)"
+                    Min="0"
+                    Max="@(context.Track.Length.TotalSeconds)"
+                    Rounded="true"
+                    />
+                <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
+                    <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
+                </MudStack>
+            }
+        </div>
+        <MudButton
+            StartIcon="@Icons.Material.Rounded.Lightbulb"
+            Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+            Size=Size.Large
+            Color=MudBlazor.Color.Primary
+            Disabled=@(spotify is null || playStarting)
+            OnClick=TogglePlay>
+            @(isPlaying ? "Stop" : "Play")
+        </MudButton>
+    </MudStack>
 </div>
 @if (context is not null && context.NextTrack is not null)
 {
@@ -143,31 +144,6 @@
     public bool DebugEnabled { get; init; }
     #endif
 
-    class FourCornerGradient
-    {
-        public string TopLeft { get; }
-        public string TopRight { get; }
-        public string BottomLeft { get; }
-        public string BottomRight { get; }
-
-        private FourCornerGradient(string topLeft, string topRight, string bottomLeft, string bottomRight)
-        {
-            TopLeft = topLeft;
-            TopRight = topRight;
-            BottomLeft = bottomLeft;
-            BottomRight = bottomRight;
-        }
-
-        public static FourCornerGradient FromColors(NDPColor topLeft, NDPColor topRight, NDPColor bottomLeft, NDPColor bottomRight)
-        {
-            return new FourCornerGradient(
-                topLeft: ColorHelpers.ToHTMLColorXYZ(topLeft),
-                topRight: ColorHelpers.ToHTMLColorXYZ(topRight),
-                bottomLeft: ColorHelpers.ToHTMLColorXYZ(bottomLeft),
-                bottomRight: ColorHelpers.ToHTMLColorXYZ(bottomRight)
-            );
-        }
-    }
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
         public Shared.Models.NDPData? CurrentTrackData { get; set; } = null;
@@ -180,8 +156,8 @@
 
     const string TimespanFormat = @"mm\:ss";
 
-    FourCornerGradient gradient = _defaultGradient;
-    static readonly FourCornerGradient _defaultGradient = GetGradient(NDiscoPlusService.DefaultPalettes[0]);
+    readonly List<BackgroundGradientColor> gradient = _defaultGradient.ToList();
+    static readonly ImmutableArray<BackgroundGradientColor> _defaultGradient = GetDefaultGradient();
     LightInterpreter gradientLights = new();
 
     readonly NDPDataContainer data = new();
@@ -308,9 +284,9 @@
                 }
 
                 if (currentTrackData is not null)
-                    gradient = GetGradient(currentTrackData.ReferencePalette);
+                    UpdateGradient(in gradient, currentTrackData.ReferencePalette);
                 else
-                    gradient = _defaultGradient;
+                    UseDefaultGradient(in gradient);
 
                 interpreterFps = null;
             }
@@ -328,12 +304,12 @@
                     {
                         LightInterpreterResult result = gradientLights.Update(context.Progress, currentTrackData);
                         interpreterFpsFrames.Add(result.FPS);
-                        gradient = GetGradient(result.Lights);
+                        UpdateGradient(in gradient, currentTrackData, result.Lights);
                     }
                     catch (Exception e)
                     {
                         logger.LogError($"Lights update failed with error: '{e}'");
-                        gradient = GetGradient(currentTrackData.ReferencePalette);
+                        UpdateGradient(in gradient, currentTrackData.ReferencePalette);
                     }
 
                     if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
@@ -347,7 +323,7 @@
                 }
                 else
                 {
-                    gradient = _defaultGradient;
+                    UseDefaultGradient(in gradient);
                     interpreterFps = null;
                 }
             }
@@ -479,32 +455,58 @@
     #endregion
 
     #region Colors
-    static FourCornerGradient GetGradient(NDPColorPalette palette)
+    static ImmutableArray<BackgroundGradientColor> GetDefaultGradient()
     {
+        NDPColorPalette palette = NDiscoPlusService.DefaultPalettes[0];
+
+        List<BackgroundGradientColor> gradient = new(capacity: palette.Count);
+        UpdateGradient(in gradient, palette);
+
+        return gradient.ToImmutableArray();
+    }
+
+    static void UseDefaultGradient(in List<BackgroundGradientColor> gradient)
+    {
+        gradient.Clear();
+        gradient.AddRange(_defaultGradient);
+    }
+
+    static void UpdateGradient(in List<BackgroundGradientColor> gradient, NDPColorPalette palette)
+    {
+        static void Set(in List<BackgroundGradientColor> gradient, NDPColor topLeft, NDPColor topRight, NDPColor bottomLeft, NDPColor bottomRight)
+        {
+            gradient.Clear();
+
+            gradient.Add(new(-1, 1, topLeft));
+            gradient.Add(new(1, 1, topRight));
+            gradient.Add(new(-1, -1, bottomLeft));
+            gradient.Add(new(1, -1, bottomRight));
+        }
+
         IList<NDPColor> colors = palette.Colors;
 
         // By choosing a single color from the image as the background,
         // it seemed to just pick some random color which was barely visible in the image
         // so use default gradient if at least 2 colors can't be decided from the image.
         if (colors.Count < 2)
-            return _defaultGradient;
+            UseDefaultGradient(in gradient);
         else if (colors.Count < 4)
-            return FourCornerGradient.FromColors(colors[0], colors[0], colors[1], colors[1]);
+            Set(in gradient, colors[0], colors[0], colors[1], colors[1]);
         else
-            return FourCornerGradient.FromColors(colors[0], colors[1], colors[2], colors[3]);
+            Set(in gradient, colors[0], colors[1], colors[2], colors[3]);
     }
 
-    static FourCornerGradient GetGradient(IDictionary<LightId, NDPColor> lights)
+    static void UpdateGradient(in List<BackgroundGradientColor> gradient, NDPData data, IDictionary<LightId, NDPColor> lights)
     {
-        // use null so that if not all screen lights are included in the light list, we crash.
-        NDPColor[] colors = new NDPColor[4];
-        foreach ((LightId light, NDPColor color) in lights.Where(l => l.Key is ScreenLightId))
-        {
-            ScreenLightId id = (ScreenLightId)light;
-            colors[id.Index] = color;
-        }
+        gradient.Clear();
 
-        return FourCornerGradient.FromColors(colors[0], colors[1], colors[2], colors[3]);
+        foreach ((LightId lightId, NDPColor color) in lights)
+        {
+            if (lightId is not ScreenLightId)
+                continue;
+            NDPLight light = data.Lights[lightId];
+            gradient.Add(new BackgroundGradientColor(light.Position.X, light.Position.Y, color));
+        }
     }
     #endregion
 }
