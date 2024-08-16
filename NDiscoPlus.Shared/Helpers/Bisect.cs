@@ -8,7 +8,7 @@ namespace NDiscoPlus.Shared.Helpers;
 
 // Port of bisect.py to C#
 // https://github.com/python/cpython/blob/69c68de43aef03dd52fabd21f99cb3b0f9329201/Lib/bisect.py
-internal static class Bisect
+public static class Bisect
 {
     /// <summary>
     /// <para>Insert item x in list a, and keep it sorted assuming a is sorted.</para>

@@ -1,13 +1,5 @@
 ﻿using MemoryPack;
 using NDiscoPlus.Shared.Models.Color;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Models;
 
@@ -29,6 +21,12 @@ public partial class ColorGamut
         new ColorGamutPoint(0.6400d, 0.3300d),
         new ColorGamutPoint(0.3000d, 0.6000d),
         new ColorGamutPoint(0.1500d, 0.0600d)
+    );
+
+    public static readonly ColorGamut DisplayP3 = new(
+        new ColorGamutPoint(0.680d, 0.320d),
+        new ColorGamutPoint(0.265d, 0.690d),
+        new ColorGamutPoint(0.150d, 0.060d)
     );
 
     /// <summary>

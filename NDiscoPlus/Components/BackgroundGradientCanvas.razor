@@ -5,7 +5,7 @@
 @using NDiscoPlus.Shared.Models.Color
 @inject IJSRuntime JSRuntime;
 
-<canvas id="canvas" width="500" height="250" />
+<canvas id="canvas" style="position:fixed;top:0;bottom:0;left:0;right:0;" />
 
 <script id="vertex" type="x-shader/x-vertex">
     #version 300 es
@@ -19,14 +19,115 @@
 
 <script id="fragment" type="x-shader/x-fragment">
     #version 300 es
+    #define MAX_LIGHT_COUNT 6
+    #define DITHERED true
+
     precision highp float;
 
+
+    const float DITHER_NOISE_GRANULARITY = 1.0 / 255.0;
+
     uniform vec2 canvasSize;
+    uniform float ditherSeed;
+
+    uniform int lightCount;
+    uniform vec3 lightCol[MAX_LIGHT_COUNT];
+
     out vec4 fragColor;
 
+
+    float SRGBCompanding(float c)
+    {
+        if (c <= 0.0031308) {
+            return c * 12.92;
+        }
+        else {
+            return (1.055 * pow(c, 1. / 2.4)) - 0.055;
+        }
+    }
+
+    // xyY => XYZ
+    vec3 _xyY2XYZ(vec3 xyY) {
+        float x = xyY.x;
+        float y = xyY.y;
+        float z = 1. - x - y;
+
+        float Y = xyY.z;
+        float X = (Y / y) * x;
+        float Z = (Y / y) * z;
+
+        return vec3(X, Y, Z);
+    }
+
+    // xyY => Display P3
+    vec3 xyY2DP3(vec3 xyY) {
+        vec3 xyz = _xyY2XYZ(xyY);
+
+        float r = (2.4934778 * xyz.x) + (-0.9315558 * xyz.y) + (-0.4026582 * xyz.z);
+        float g = (-0.8296208 * xyz.x) + (1.7628536 * xyz.y) + (0.0236005 * xyz.z);
+        float b = (0.0358424 * xyz.x) + (-0.0761612 * xyz.y) + (0.9569265 * xyz.z);
+
+        r = SRGBCompanding(r);
+        g = SRGBCompanding(g);
+        b = SRGBCompanding(b);
+
+        return vec3(r, g, b);
+    }
+
+    vec3 FourPointGradient(vec2 pos, vec3 topleft, vec3 topright, vec3 bottomleft, vec3 bottomright) {
+        vec3 top = mix(topleft, topright, pos.x);
+        vec3 bottom = mix(bottomleft, bottomright, pos.x);
+
+        return mix(bottom, top, pos.y); // pos.y == 0: bottom, pos.y == 1: top
+    }
+
+    vec3 SixPointGradient(vec2 pos, vec3 topleft, vec3 topmid, vec3 topright, vec3 bottomleft, vec3 bottommid, vec3 bottomright) {
+        vec3 top;
+        vec3 bottom;
+        if (pos.x <= 0.5) {
+            float scaledX = 2. * pos.x;
+            top = mix(topleft, topmid, scaledX);
+            bottom = mix(bottomleft, bottommid, scaledX);
+        }
+        else {
+            float scaledX = 2. * (pos.x - 0.5);
+            top = mix(topmid, topright, scaledX);
+            bottom = mix(bottommid, bottomright, scaledX);
+        }
+
+        return mix(bottom, top, pos.y); // pos.y increases upwards
+    }
+
+    float _ditherRandom(highp vec2 coords) {
+       return fract(sin(dot(coords.xy, vec2(12.9898,78.233))) * 43758.5453);
+    }
+
+
+    // https://shader-tutorial.dev/advanced/color-banding-dithering/
+    void Dither(in vec2 coord, inout vec3 rgb) {
+        float fragmentColor = mix(0.05, 0.35, 1.0 - coord.y);
+        rgb += mix(-DITHER_NOISE_GRANULARITY, DITHER_NOISE_GRANULARITY, _ditherRandom(coord));
+    }
+
     void main() {
-        vec2 coord = gl_FragCoord.xy / canvasSize.xy;
-        fragColor = vec4(coord.x, coord.y, 1. - coord.x, 1.);
+        vec2 coord = gl_FragCoord.xy / canvasSize;
+
+        vec3 color;
+        if (lightCount == 4) {
+            color = FourPointGradient(coord, lightCol[0], lightCol[1], lightCol[2], lightCol[3]);
+        }
+        else if (lightCount == 6) {
+            color = SixPointGradient(coord, lightCol[0], lightCol[1], lightCol[2], lightCol[3], lightCol[4], lightCol[5]);
+        }
+        else {
+            color = vec3(0., 0., 0.);
+        }
+
+        vec3 dp3Color = xyY2DP3(color);
+        if (DITHERED) {
+            Dither(coord, dp3Color);
+        }
+        fragColor = vec4(dp3Color, 1.);
     }
 </script>
 
@@ -35,17 +136,25 @@
     const vertexCode = document.getElementById("vertex").textContent;
     const fragmentCode = document.getElementById("fragment").textContent;
 
-    function render(colors) {
+    const MAX_LIGHT_COUNT = 6;
+
+    function renderGradientCanvas(colors) {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        _render();
+        // //                                  normalize values from [-1, 1] to [0, 1]
+        // lightPos = colors.map(c => c[0].map(cc => (cc + 1) / 2));
+
+        _renderGradientCanvas(colors);
     }
 
     // Heavy inspiration: https://adammurray.blog/webgl/tutorials/
-    function _render() {
+    function _renderGradientCanvas(lightColors) {
         const gl = canvas.getContext("webgl2");
         if (!gl) throw "WebGL2 not supported";
+
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.drawingBufferColorSpace = "display-p3";
 
         function _createShader(shaderType, sourceCode) {
             const shader = gl.createShader(shaderType);
@@ -84,6 +193,15 @@
 
         const canvasSizeUniform = gl.getUniformLocation(program, "canvasSize");
         gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
+        const ditherSeedUniform = gl.getUniformLocation(program, "ditherSeed");
+        gl.uniform1f(ditherSeedUniform, Math.random());
+
+        const lightCountUniform = gl.getUniformLocation(program, "lightCount");
+        gl.uniform1i(lightCountUniform, lightColors.length);
+        // const lightPosUniform = gl.getUniformLocation(program, "lightPos");
+        // gl.uniform2fv(lightPosUniform, lightPositions.flat());
+        const lightColUniform = gl.getUniformLocation(program, "lightCol");
+        gl.uniform3fv(lightColUniform, lightColors.flat());
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertices.length);
     }
@@ -91,10 +209,12 @@
 
 @code {
     [Parameter]
-    public IList<BackgroundGradientColor> Colors { get; set; } = new List<BackgroundGradientColor>();
+    public IList<NDPColor> Colors { get; set; } = new List<NDPColor>();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await JSRuntime.InvokeVoidAsync("render", Colors.Select(c => c.Serialize()));
+        if (Colors.Count != 4 && Colors.Count != 6)
+            throw new InvalidOperationException("Colors count must either be 4 or 6");
+        await JSRuntime.InvokeVoidAsync("renderGradientCanvas", Colors.Select(c => new double[] { c.X, c.Y, c.Brightness }));
     }
 }

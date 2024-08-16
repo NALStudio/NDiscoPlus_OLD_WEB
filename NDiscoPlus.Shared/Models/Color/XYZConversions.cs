@@ -1,11 +1,4 @@
-﻿
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace NDiscoPlus.Shared.Models.Color;
+﻿namespace NDiscoPlus.Shared.Models.Color;
 public readonly partial struct NDPColor
 {
     // https://developers.meethue.com/develop/application-design-guidance/color-conversion-formulas-rgb-to-xy-and-back/#Color-rgb-to-xy

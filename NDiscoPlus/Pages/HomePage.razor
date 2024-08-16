@@ -147,17 +147,19 @@
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
         public Shared.Models.NDPData? CurrentTrackData { get; set; } = null;
+        public int? CurrentTrackBackgroundLightCount { get; set; } = null;
         public string? NextTrackId { get; set; } = null;
         public Shared.Models.NDPData? NextTrackData { get; set; } = null;
+        public int? NextTrackBackgroundLightCount { get; set; } = null;
     }
 
-    readonly record struct FetchTask(string TrackId, Task<NDPData> Task);
+    readonly record struct FetchTask(string TrackId, int BackgroundLightCount, Task<NDPData> Task);
     readonly record struct InterpreterFPS(double Average, double Min);
 
     const string TimespanFormat = @"mm\:ss";
 
-    readonly List<BackgroundGradientColor> gradient = _defaultGradient.ToList();
-    static readonly ImmutableArray<BackgroundGradientColor> _defaultGradient = GetDefaultGradient();
+    readonly List<NDPColor> gradient = _defaultGradient.ToList();
+    static readonly ImmutableArray<NDPColor> _defaultGradient = NDiscoPlusService.DefaultPalettes[0].ToImmutableArray();
     LightInterpreter gradientLights = new();
 
     readonly NDPDataContainer data = new();
@@ -230,7 +232,7 @@
     async Task ToggleFullscreen()
     {
         IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Pages/HomePage.razor.js");
-        await module.InvokeVoidAsync("toggleFullscreen");
+        await module.InvokeVoidAsync("toggleNDiscoPlusFullscreen");
     }
 
     #region Lights
@@ -272,8 +274,10 @@
         SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
         await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps))
         {
+            int gradientColorCount = await GetGradientColorCount();
+
             this.context = context;
-            UpdateData(spotify, context?.Track, context?.NextTrack);
+            UpdateData(spotify, context?.Track, context?.NextTrack, gradientColorCount);
 
             if (!isPlaying || context is null)
             {
@@ -284,9 +288,9 @@
                 }
 
                 if (currentTrackData is not null)
-                    UpdateGradient(in gradient, currentTrackData.ReferencePalette);
+                    UpdateGradient(in gradient, gradientColorCount, currentTrackData.ReferencePalette);
                 else
-                    UseDefaultGradient(in gradient);
+                    UseDefaultGradient(in gradient, gradientColorCount);
 
                 interpreterFps = null;
             }
@@ -304,12 +308,12 @@
                     {
                         LightInterpreterResult result = gradientLights.Update(context.Progress, currentTrackData);
                         interpreterFpsFrames.Add(result.FPS);
-                        UpdateGradient(in gradient, currentTrackData, result.Lights);
+                        UpdateGradient(in gradient, gradientColorCount, currentTrackData, result.Lights);
                     }
                     catch (Exception e)
                     {
                         logger.LogError($"Lights update failed with error: '{e}'");
-                        UpdateGradient(in gradient, currentTrackData.ReferencePalette);
+                        UpdateGradient(in gradient, gradientColorCount, currentTrackData.ReferencePalette);
                     }
 
                     if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
@@ -323,7 +327,7 @@
                 }
                 else
                 {
-                    UseDefaultGradient(in gradient);
+                    UseDefaultGradient(in gradient, gradientColorCount);
                     interpreterFps = null;
                 }
             }
@@ -332,7 +336,7 @@
         }
     }
 
-    void UpdateData(SpotifyClient spotify, SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack)
+    void UpdateData(SpotifyClient spotify, SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack, int targetBackgroundLightCount)
     {
         string? currentTrackId = currentTrack?.Id;
         string? nextTrackId = nextTrack?.Id;
@@ -342,25 +346,28 @@
 
         lock (data)
         {
-            if (data.CurrentTrackId != currentTrackId)
+            if (data.CurrentTrackId != currentTrackId || data.CurrentTrackBackgroundLightCount != targetBackgroundLightCount)
             {
                 if (data.NextTrackId == currentTrackId)
                 {
                     data.CurrentTrackId = data.NextTrackId;
+                    data.CurrentTrackBackgroundLightCount = data.NextTrackBackgroundLightCount;
                     data.CurrentTrackData = data.NextTrackData;
                 }
                 else
                 {
                     data.CurrentTrackId = currentTrackId;
+                    data.CurrentTrackBackgroundLightCount = targetBackgroundLightCount;
                     data.CurrentTrackData = null;
                     if (currentTrack is not null)
                         toFetchTracks.Add(currentTrack);
                 }
             }
 
-            if (data.NextTrackId != nextTrackId)
+            if (data.NextTrackId != nextTrackId || data.NextTrackBackgroundLightCount != targetBackgroundLightCount)
             {
                 data.NextTrackId = nextTrackId;
+                data.NextTrackBackgroundLightCount = targetBackgroundLightCount;
                 data.NextTrackData = null;
                 if (nextTrack is not null)
                     toFetchTracks.Add(nextTrack);
@@ -372,7 +379,7 @@
             string fetchId = fetch.Id;
             // fetchTasks is empty => !false => true => Add()
             if (!fetchTasks.Any(f => f.TrackId == fetchId)) // sometimes the fetch for the same song would happen twice, we want to avoid it due to performance (and because the effects might be different)
-                fetchTasks.Add(new FetchTask(fetchId, ComputeData(spotify, fetch)));
+                fetchTasks.Add(new FetchTask(fetchId, targetBackgroundLightCount, ComputeData(spotify, fetch, targetBackgroundLightCount)));
         }
 
         var finishedTasks = fetchTasks.Where(t => t.Task.IsCompleted).ToArray();
@@ -385,9 +392,9 @@
 
             lock (data)
             {
-                if (data.CurrentTrackId == d?.Track.Id)
+                if (data.CurrentTrackId == task.TrackId && data.CurrentTrackBackgroundLightCount == task.BackgroundLightCount)
                     data.CurrentTrackData = d;
-                if (data.NextTrackId == d?.Track.Id)
+                if (data.NextTrackId == task.TrackId && data.NextTrackBackgroundLightCount == task.BackgroundLightCount)
                     data.NextTrackData = d;
             }
 
@@ -395,19 +402,38 @@
         }
     }
 
-    async Task<NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track)
+    async Task<NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track, int backgroundLightCount)
     {
         logger.LogInformation("Computing new data for track: '{}' ({})...", track.Name, track.Id);
 
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(
-            new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: null),
-            new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: null),
-            new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: null),
-            new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: null)
-        );
+        NDiscoPlusArgsLights lights;
+        if (backgroundLightCount == 4)
+        {
+            lights = NDiscoPlusArgsLights.CreateSingleChannel(
+                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: ColorGamut.DisplayP3)
+            );
+        }
+        else if (backgroundLightCount == 6)
+        {
+            lights = NDiscoPlusArgsLights.CreateSingleChannel(
+                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(0, 1, 1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(4), new HueApi.Models.HuePosition(0, -1, -1), colorGamut: ColorGamut.DisplayP3),
+                new NDPLight(new ScreenLightId(5), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: ColorGamut.DisplayP3)
+            );
+        }
+        else
+        {
+            throw new ArgumentException("Background light count must either be 4 or 6.");
+        }
         EffectConfig effects = new();
         NDiscoPlusArgs args = new(track, features, analysis, effects, lights);
 
@@ -455,32 +481,40 @@
     #endregion
 
     #region Colors
-    static ImmutableArray<BackgroundGradientColor> GetDefaultGradient()
-    {
-        NDPColorPalette palette = NDiscoPlusService.DefaultPalettes[0];
-
-        List<BackgroundGradientColor> gradient = new(capacity: palette.Count);
-        UpdateGradient(in gradient, palette);
-
-        return gradient.ToImmutableArray();
+    async Task<int> GetGradientColorCount() {
+        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Pages/HomePage.razor.js");
+        double aspect = await module.InvokeAsync<double>("getWindowAspectRatio");
+        if (aspect > 1.75d)
+            return 6;
+        else
+            return 4;
     }
 
-    static void UseDefaultGradient(in List<BackgroundGradientColor> gradient)
+    static void UseDefaultGradient(in List<NDPColor> gradient, int colorCount)
     {
         gradient.Clear();
-        gradient.AddRange(_defaultGradient);
+        gradient.AddRange(_defaultGradient.Take(colorCount));
     }
 
-    static void UpdateGradient(in List<BackgroundGradientColor> gradient, NDPColorPalette palette)
+    static void UpdateGradient(in List<NDPColor> gradient, int colorCount, NDPColorPalette palette)
     {
-        static void Set(in List<BackgroundGradientColor> gradient, NDPColor topLeft, NDPColor topRight, NDPColor bottomLeft, NDPColor bottomRight)
+        static void Set(in List<NDPColor> gradient, NDPColor topLeft, NDPColor topRight, NDPColor bottomLeft, NDPColor bottomRight)
         {
             gradient.Clear();
 
-            gradient.Add(new(-1, 1, topLeft));
-            gradient.Add(new(1, 1, topRight));
-            gradient.Add(new(-1, -1, bottomLeft));
-            gradient.Add(new(1, -1, bottomRight));
+            gradient.Add(topLeft);
+            gradient.Add(topRight);
+            gradient.Add(bottomLeft);
+            gradient.Add(bottomRight);
+        }
+
+        static void Set6(in List<NDPColor> gradient, IList<NDPColor> colors)
+        {
+            if (colors.Count < 6)
+                throw new ArgumentException("At least 6 colors must be provided");
+
+            gradient.Clear();
+            gradient.AddRange(colors.Take(6));
         }
 
         IList<NDPColor> colors = palette.Colors;
@@ -489,24 +523,45 @@
         // it seemed to just pick some random color which was barely visible in the image
         // so use default gradient if at least 2 colors can't be decided from the image.
         if (colors.Count < 2)
-            UseDefaultGradient(in gradient);
+            UseDefaultGradient(in gradient, colorCount);
         else if (colors.Count < 4)
             Set(in gradient, colors[0], colors[0], colors[1], colors[1]);
-        else
+        else if (colors.Count < 6 || colorCount < 6)
             Set(in gradient, colors[0], colors[1], colors[2], colors[3]);
+        else
+            Set6(in gradient, colors);
     }
 
-    static void UpdateGradient(in List<BackgroundGradientColor> gradient, NDPData data, IDictionary<LightId, NDPColor> lights)
+    static void UpdateGradient(in List<NDPColor> gradient, int colorCount, NDPData data, IDictionary<LightId, NDPColor> lights)
     {
         gradient.Clear();
+        gradient.AddRange(Enumerable.Repeat(default(NDPColor), 4));
+
+        #if DEBUG
+        int setIndexesBitmap = 0;
+        #endif
 
         foreach ((LightId lightId, NDPColor color) in lights)
         {
-            if (lightId is not ScreenLightId)
+            if (lightId is not ScreenLightId sli)
                 continue;
-            NDPLight light = data.Lights[lightId];
-            gradient.Add(new BackgroundGradientColor(light.Position.X, light.Position.Y, color));
+
+            if (sli.Index >= 4 && gradient.Count < 6)
+            {
+                Debug.Assert(gradient.Count == 4);
+                gradient.Add(default);
+                gradient.Add(default);
+            }
+
+            gradient[sli.Index] = color;
+            #if DEBUG
+            setIndexesBitmap |= 0b1 << sli.Index;
+            #endif
         }
+
+        #if DEBUG
+        Debug.Assert(setIndexesBitmap == 0b1111 || setIndexesBitmap == 0b111111);
+        #endif
     }
     #endregion
 }
