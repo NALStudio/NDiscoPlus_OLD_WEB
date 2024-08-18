@@ -12,19 +12,8 @@ public class EffectChannel : Channel
     {
     }
 
-    [JsonIgnore]
     public IList<Effect> Effects => effects.AsReadOnly();
-
-    [JsonInclude]
     private readonly List<Effect> effects = new();
-
-#pragma warning disable IDE0051 // Remove unused private members
-    [JsonConstructor]
-    private EffectChannel(NDPLightCollection lights, List<Effect> effects) : base(lights.Values.ToArray())
-    {
-        this.effects = effects;
-    }
-#pragma warning restore IDE0051 // Remove unused private members
 
     public void Add(Effect effect)
         => Bisect.InsortRight(effects, effect, e => e.Position);

@@ -5,6 +5,7 @@ using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -16,6 +17,8 @@ internal class ColorSwitchEffect : NDPEffect
 {
     const bool _kUseFadeIn = true;
     const bool _kUseFadeOut = true;
+
+    const bool _kInitializeUsingBackgroundApproximation = false;
 
     public ColorSwitchEffect(EffectIntensity intensity) : base(intensity)
     {
@@ -46,8 +49,22 @@ internal class ColorSwitchEffect : NDPEffect
             lightsPerAnimation = (int)(1 / beatsPerAnimationDouble);
         }
 
-        NDPColor[] paletteColors = ctx.Palette.ToArray();
-        Dictionary<LightId, NDPColor> colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => ctx.Random.Choice(paletteColors));
+        Dictionary<LightId, NDPColor?> colors;
+        FrozenDictionary<LightId, NDPColor?> approximateBackgroundColors;
+
+#pragma warning disable CS0162 // Unreachable code detected
+        if (_kInitializeUsingBackgroundApproximation)
+        {
+            colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
+            approximateBackgroundColors = channel.Lights.Values.ToFrozenDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Start)?.Color);
+        }
+        else
+        {
+            NDPColor[] paletteColors = ctx.Palette.ToArray();
+            colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)ctx.Random.Choice(paletteColors));
+            approximateBackgroundColors = FrozenDictionary<LightId, NDPColor?>.Empty;
+        }
+#pragma warning restore CS0162
 
         HashSet<LightId> changedLights = new();
         for (int i = 0; i < ctx.Beats.Count; i += beatsPerAnimation)
@@ -87,14 +104,17 @@ internal class ColorSwitchEffect : NDPEffect
                 {
                     color = ctx.Random.Choice(ctx.Palette.Colors);
                 }
-                while (!color.HasValue || color.Value == colors[lightId]);
+                while (!color.HasValue || color.Value == (colors[lightId] ?? approximateBackgroundColors[lightId]));
 
                 changedLights.Add(lightId);
                 colors[lightId] = color.Value;
             }
 
-            foreach ((LightId id, NDPColor col) in colors)
+            foreach ((LightId id, NDPColor? color) in colors)
             {
+                if (color is not NDPColor col)
+                    continue;
+
                 TimeSpan start = beats[0].Start;
                 TimeSpan end = start + totalDuration;
 
@@ -103,7 +123,7 @@ internal class ColorSwitchEffect : NDPEffect
                 channel.Add(
                     new Effect(
                         id,
-                        beats[0].Start,
+                        !fadeIn ? start : end,
                         !(fadeIn || fadeOut) ? duration : TimeSpan.Zero
                     )
                     {

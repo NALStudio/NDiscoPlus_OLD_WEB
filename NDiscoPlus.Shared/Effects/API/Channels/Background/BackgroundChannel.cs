@@ -3,6 +3,8 @@ using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System.Collections;
+using System.Collections.Frozen;
+using System.Collections.Immutable;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Background;
 
@@ -34,21 +36,12 @@ public readonly partial struct BackgroundTransition
     }
 }
 
-public class BackgroundChannel : Channel, IEnumerable<KeyValuePair<LightId, IList<BackgroundTransition>>>
+public class BackgroundChannel : Channel
 {
     public BackgroundChannel(IEnumerable<NDPLight> lights) : base(lights)
     {
     }
 
-    // #pragma warning disable IDE0051 // Remove unused private members
-    //     [JsonConstructor]
-    //     private BackgroundChannel(NDPLightCollection lights, Dictionary<LightId, List<BackgroundTransition>> transitions) : base(lights.Values.ToArray())
-    //     {
-    //         this.transitions = transitions;
-    //     }
-    // #pragma warning restore IDE0051 // Remove unused private members
-
-    // [JsonInclude]
     private readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
 
     public void Add(BackgroundTransition transition)
@@ -62,11 +55,27 @@ public class BackgroundChannel : Channel, IEnumerable<KeyValuePair<LightId, ILis
         Bisect.InsortRight(trans, transition, t => t.Start);
     }
 
-    public IEnumerator<KeyValuePair<LightId, IList<BackgroundTransition>>> GetEnumerator()
+    /// <summary>
+    /// <para>Get the currently running transition for the given light.</para>
+    /// <para>If not transitions are running, returns the next transition scheduled.</para>
+    /// <para>If there are no transitions whatsoever or the light doesn't exist, returns null.</para>
+    /// </summary>
+    public BackgroundTransition? GetAt(LightId light, TimeSpan position)
     {
-        foreach (KeyValuePair<LightId, List<BackgroundTransition>> trans in transitions)
-            yield return new(trans.Key, trans.Value.AsReadOnly());
+        if (!transitions.TryGetValue(light, out List<BackgroundTransition>? trans))
+            return null;
+
+        // trans[..index].Start <= position
+        // trans[index..].Start > position
+        int index = Bisect.BisectRight(trans, position, t => t.Start);
+        if (index > 0 && trans[index - 1].End > position)
+            return trans[index - 1];
+        else if (trans.Count > 0)
+            return trans[index];
+        else
+            return null;
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    internal FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> Freeze()
+        => transitions.ToFrozenDictionary(key => key.Key, value => value.Value.ToImmutableArray());
 }

@@ -16,9 +16,9 @@ internal class GroupedStrobeLightEffect : BaseStrobeLightEffect
 
     public GroupingType Grouping { get; }
 
-    protected override IEnumerable<IList<LightId>> Group(EffectContext ctx, EffectChannel channel, int frameCount, int groupCount)
+    protected override IEnumerable<LightGroup> Group(EffectContext ctx, NDPLightCollection lights, int frameCount, int groupCount)
     {
-        if (groupCount > channel.Lights.Count)
+        if (groupCount > lights.Count)
         {
             // is divisible by 2
             if (groupCount % 2 == 0)
@@ -29,15 +29,13 @@ internal class GroupedStrobeLightEffect : BaseStrobeLightEffect
 
         List<NDPLight[]> groups = Grouping switch
         {
-            GroupingType.Horizontal => channel.Lights.GroupX(groupCount),
-            GroupingType.Vertical => channel.Lights.GroupZ(groupCount),
-            GroupingType.RandomPattern => ctx.Random.Group(channel.Lights.Values, groupCount).ToList(),
+            GroupingType.Horizontal => lights.GroupX(groupCount),
+            GroupingType.Vertical => lights.GroupZ(groupCount),
+            GroupingType.RandomPattern => ctx.Random.Group(lights.Values, groupCount).ToList(),
             _ => throw new NotImplementedException()
         };
         Debug.Assert(groups.Count == groupCount);
 
-        ImmutableArray<LightId>[] idGroups = groups.Select(g => g.Select(l => l.Id).ToImmutableArray()).ToArray();
-        for (int i = 0; i < frameCount; i++)
-            yield return idGroups[i % groupCount];
+        return groups.Select(static group => LightGroup.FromLights(group));
     }
 }

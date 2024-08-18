@@ -11,33 +11,29 @@ internal class RandomStrobeLightEffect : BaseStrobeLightEffect
     {
     }
 
-    protected override IEnumerable<IList<LightId>> Group(EffectContext ctx, EffectChannel channel, int frameCount, int groupCount)
+    protected override IEnumerable<LightGroup> Group(EffectContext ctx, NDPLightCollection lights, int frameCount, int groupCount)
     {
-        int lightsPerFrame = Math.Max(channel.Lights.Count / groupCount, 1);
+        int lightsPerFrame = Math.Max(lights.Count / groupCount, 1);
 
-        List<HashSet<LightId>> output = new(capacity: frameCount);
-
+        HashSet<LightId>? lastFrame = null;
         for (int i = 0; i < frameCount; i++)
         {
             HashSet<LightId> currentFrame = new(capacity: lightsPerFrame);
-            HashSet<LightId>? lastFrame = output.Count > 0 ? output[^1] : null;
 
             for (int j = 0; j < lightsPerFrame; j++)
             {
                 LightId light;
                 do
                 {
-                    light = ctx.Random.Choice(channel.Lights.Values).Id;
+                    light = ctx.Random.Choice(lights.Values).Id;
                 } while (currentFrame.Contains(light) || (lastFrame?.Contains(light) == true));
 
                 bool wasAdded = currentFrame.Add(light);
                 Debug.Assert(wasAdded);
             }
 
-            output.Add(currentFrame);
+            lastFrame = currentFrame;
+            yield return LightGroup.FromIds(currentFrame);
         }
-
-        foreach (HashSet<LightId> o in output)
-            yield return o.ToImmutableArray();
     }
 }

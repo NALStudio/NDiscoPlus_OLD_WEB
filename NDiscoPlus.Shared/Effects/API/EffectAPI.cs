@@ -60,14 +60,4 @@ internal class EffectAPI
     }
     public bool TryGetChannel(Type type, [MaybeNullWhen(false)] out EffectChannel channel)
         => channels.TryGetValue(type, out channel);
-
-    public ExportedEffectsCollection Export()
-    {
-        FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions = Background.ToFrozenDictionary(key => key.Key, value => value.Value.ToImmutableArray());
-
-        return new ExportedEffectsCollection(
-            effects: Channels.Select(c => c.Effects.ToImmutableList()).ToImmutableList(),
-            backgroundTransitions: Background.ToFrozenDictionary()
-        );
-    }
 }

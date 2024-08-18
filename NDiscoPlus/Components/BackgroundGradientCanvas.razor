@@ -25,10 +25,11 @@
     precision highp float;
 
 
-    const float DITHER_NOISE_GRANULARITY = 1.0 / 255.0;
+    const float DITHER_NOISE_GRANULARITY = 0.5 / 255.0;
 
     uniform vec2 canvasSize;
     uniform float ditherSeed;
+    uniform int useHDR;
 
     uniform int lightCount;
     uniform vec3 lightCol[MAX_LIGHT_COUNT];
@@ -66,6 +67,21 @@
         float r = (2.4934778 * xyz.x) + (-0.9315558 * xyz.y) + (-0.4026582 * xyz.z);
         float g = (-0.8296208 * xyz.x) + (1.7628536 * xyz.y) + (0.0236005 * xyz.z);
         float b = (0.0358424 * xyz.x) + (-0.0761612 * xyz.y) + (0.9569265 * xyz.z);
+
+        r = SRGBCompanding(r);
+        g = SRGBCompanding(g);
+        b = SRGBCompanding(b);
+
+        return vec3(r, g, b);
+    }
+
+    // xyY => sRGB
+    vec3 xyY2sRGB(vec3 xyY) {
+        vec3 xyz = _xyY2XYZ(xyY);
+
+        float r = (3.2406255 * xyz.x) + (-1.537208 * xyz.y) + (-0.4986286 * xyz.z);
+        float g = (-0.9689307 * xyz.x) + (1.8757561 * xyz.y) + (0.0415175 * xyz.z);
+        float b = (0.0557101 * xyz.x) + (-0.2040211 * xyz.y) + (1.0569959 * xyz.z);
 
         r = SRGBCompanding(r);
         g = SRGBCompanding(g);
@@ -123,11 +139,18 @@
             color = vec3(0., 0., 0.);
         }
 
-        vec3 dp3Color = xyY2DP3(color);
-        if (DITHERED) {
-            Dither(coord, dp3Color);
+        vec3 rgbColor;
+        if (useHDR > 0) {
+             rgbColor = xyY2DP3(color);
         }
-        fragColor = vec4(dp3Color, 1.);
+        else {
+            rgbColor = xyY2sRGB(color);
+        }
+
+        if (DITHERED) {
+            Dither(coord, rgbColor);
+        }
+        fragColor = vec4(rgbColor, 1.);
     }
 </script>
 
@@ -138,23 +161,26 @@
 
     const MAX_LIGHT_COUNT = 6;
 
-    function renderGradientCanvas(colors) {
+    function renderGradientCanvas(useHDR, colors) {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         // //                                  normalize values from [-1, 1] to [0, 1]
         // lightPos = colors.map(c => c[0].map(cc => (cc + 1) / 2));
 
-        _renderGradientCanvas(colors);
+        _renderGradientCanvas(useHDR, colors);
     }
 
     // Heavy inspiration: https://adammurray.blog/webgl/tutorials/
-    function _renderGradientCanvas(lightColors) {
+    function _renderGradientCanvas(useHDR, lightColors) {
         const gl = canvas.getContext("webgl2");
         if (!gl) throw "WebGL2 not supported";
 
         gl.viewport(0, 0, canvas.width, canvas.height);
-        gl.drawingBufferColorSpace = "display-p3";
+        if (useHDR) {
+            gl.drawingBufferColorSpace = "display-p3";
+            gl.drawingBufferFormat = gl.RGB32F;
+        }
 
         function _createShader(shaderType, sourceCode) {
             const shader = gl.createShader(shaderType);
@@ -195,6 +221,8 @@
         gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
         const ditherSeedUniform = gl.getUniformLocation(program, "ditherSeed");
         gl.uniform1f(ditherSeedUniform, Math.random());
+        const useHDRUniform = gl.getUniformLocation(program, "useHDR");
+        gl.uniform1i(useHDRUniform, useHDR ? 1 : 0);
 
         const lightCountUniform = gl.getUniformLocation(program, "lightCount");
         gl.uniform1i(lightCountUniform, lightColors.length);
@@ -211,10 +239,13 @@
     [Parameter]
     public IList<NDPColor> Colors { get; set; } = new List<NDPColor>();
 
+    [Parameter]
+    public bool UseHDR { get; set; } = false;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Colors.Count != 4 && Colors.Count != 6)
             throw new InvalidOperationException("Colors count must either be 4 or 6");
-        await JSRuntime.InvokeVoidAsync("renderGradientCanvas", Colors.Select(c => new double[] { c.X, c.Y, c.Brightness }));
+        await JSRuntime.InvokeVoidAsync("renderGradientCanvas", UseHDR, Colors.Select(c => new double[] { c.X, c.Y, c.Brightness }));
     }
 }

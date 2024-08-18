@@ -1,5 +1,4 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
-using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -25,6 +24,9 @@ public readonly record struct LightInterpreterResult
 
 public class LightInterpreter
 {
+    private const int MAX_SIMULTANEOUS_ANIMATIONS = 64;
+    private const int SIMULTANEOUS_ANIMATIONS_HALF_WINDOWSIZE = MAX_SIMULTANEOUS_ANIMATIONS / 2;
+
     private readonly Random random = new();
     private Stopwatch? deltaTimeSW;
 
@@ -75,73 +77,26 @@ public class LightInterpreter
         }
     }
 
-    private static void UpdateEffects(EffectConfig config, TimeSpan progress, IList<Effect> effects, ref Dictionary<LightId, NDPColor> lights)
+    private static void UpdateEffects(ref Dictionary<LightId, NDPColor> lights, NDPData data, TimeSpan progress)
     {
-        // find initial reference index (must be done using position as the effects are insorted using this value)
-        int initialEndIndex = Bisect.BisectRight(effects, progress, t => t.Position);
-        int endIndex = initialEndIndex;
-        // effects[endIndex].Position > progress
-        // effects[endIndex - 1].Position <= progress
-
-        // find the actual end index value
-        while (endIndex < effects.Count && effects[endIndex].Start <= progress)
-            endIndex++; // endIndex is exclusive
-
-
-        // find initial reference index
-        int startIndex = Bisect.BisectLeft(effects, progress, 0, initialEndIndex, t => t.Position);
-        // effects[startIndex].Position >= progress
-        // effects[startIndex - 1].Position < progress
-
-        // find the actual start index value
-        // special startIndex < effects.Count verification is needed as startIndex might have bisected to the end of the list
-        // we check it as inverse and or it as we still want to look for the earlier values' starts even though startIndex >= effects.Count
-        while (startIndex >= 0 && (startIndex >= effects.Count || effects[startIndex].End >= progress))
-            startIndex--;
-        startIndex++; // increment by one so that startIndex is inclusive
-
-        // Effects that are later in the list override previous effects (sorted using effect.Position)
-        for (int i = startIndex; i < endIndex; i++)
+        foreach (Effect e in data.Effects.GetEffects(progress))
         {
-            Effect effect = effects[i];
-
-            if (!lights.TryGetValue(effect.LightId, out NDPColor oldColor))
+            if (!lights.TryGetValue(e.LightId, out NDPColor oldColor))
             {
                 // if no previous color found, use effect color
                 // if effect doesn't have color, use strobe color
-                oldColor = effect.GetColor(config.StrobeColor)
-                                 .CopyWith(brightness: 0d);
+                oldColor = e.GetColor(data.EffectConfig.StrobeColor)
+                .CopyWith(brightness: 0d);
             }
 
-            lights[effect.LightId] = effect.Interpolate(progress, oldColor);
+            lights[e.LightId] = e.Interpolate(progress, oldColor);
         }
     }
 
-    public LightInterpreterResult Update(TimeSpan progress, NDPData data)
+    private static void AddMissingLights(ref Dictionary<LightId, NDPColor> lights, IEnumerable<NDPLight> allLights)
     {
-        Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
-
-        // iterate in reverse so that later channels override the previous channels (strobes override flashes, flashes override default effects, ...)
-        for (int i = (data.Effects.Effects.Count - 1); i >= 0; i--)
-        {
-            IList<Effect> channel = data.Effects.Effects[i];
-            UpdateEffects(data.EffectConfig, progress, channel, ref lights);
-        }
-
-        double deltaTime;
-        if (deltaTimeSW is not null)
-        {
-            deltaTime = deltaTimeSW.Elapsed.TotalSeconds;
-            deltaTimeSW.Restart();
-        }
-        else
-        {
-            deltaTimeSW = Stopwatch.StartNew();
-            deltaTime = 0d;
-        }
-
         // supply color values for all lights
-        foreach (NDPLight l in data.Lights.Values)
+        foreach (NDPLight l in allLights)
         {
             if (lights.TryGetValue(l.Id, out NDPColor color))
             {
@@ -162,6 +117,31 @@ public class LightInterpreter
                 lights[l.Id] = defaultBlack;
             }
         }
+    }
+
+    double TickDeltaTime()
+    {
+        if (deltaTimeSW is not null)
+        {
+            double deltaTime = deltaTimeSW.Elapsed.TotalSeconds;
+            deltaTimeSW.Restart();
+            return deltaTime;
+        }
+        else
+        {
+            deltaTimeSW = Stopwatch.StartNew();
+            return 0d;
+        }
+    }
+
+    public LightInterpreterResult Update(TimeSpan progress, NDPData data)
+    {
+        Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
+
+        UpdateEffects(ref lights, data, progress);
+        AddMissingLights(ref lights, data.Lights.Values);
+
+        double deltaTime = TickDeltaTime();
 
         return new LightInterpreterResult(
             lights: lights.AsReadOnly(),

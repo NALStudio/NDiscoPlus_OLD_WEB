@@ -33,7 +33,8 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     {
         return lights.Values.GroupCloseBy(
             count,
-            (a, b) => Math.Abs(a.Position.X - b.Position.X)
+            (a, b) => Math.Abs(a.Position.X - b.Position.X),
+            tolerance: 0.1d
         ).ToList();
     }
 
@@ -44,7 +45,8 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     {
         return lights.Values.GroupCloseBy(
             count,
-            (a, b) => Math.Abs(a.Position.Y - b.Position.Y)
+            (a, b) => Math.Abs(a.Position.Y - b.Position.Y),
+            tolerance: 0.1d
         ).ToList();
     }
 
@@ -55,7 +57,8 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     {
         return lights.Values.GroupCloseBy(
             count,
-            (a, b) => Math.Abs(a.Position.Z - b.Position.Z)
+            (a, b) => Math.Abs(a.Position.Z - b.Position.Z),
+            tolerance: 0.1d
         ).ToList();
     }
 

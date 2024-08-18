@@ -25,6 +25,7 @@
 @using System.Globalization
 @using System.Collections.Frozen
 @using System.Collections.Immutable
+@using System.Collections.Concurrent
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
@@ -86,28 +87,6 @@
         </MudButton>
     </MudStack>
 </div>
-@if (context is not null && context.NextTrack is not null)
-{
-    <MudPaper Elevation="8" Class="next_track_fadein" Style="position:fixed; top:24px; right:24px; background:#000000AA; padding:16px; border-radius:16px;">
-        <MudStack Row="true" AlignItems="AlignItems.Center">
-            <MudImage
-            Src="@(context?.NextTrack?.SmallImageUrl ?? "./img/spotify_icon_green.svg")"
-            Width="48"
-            Height="48"
-            />
-            <MudStack Spacing="0">
-                <MudText
-                Style="font-size:small; color:#FFFFFFAA">
-                    Next Track
-                </MudText>
-                <MudText
-                Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
-                    @(context?.NextTrack?.Name ?? "null")
-                </MudText>
-            </MudStack>
-        </MudStack>
-    </MudPaper>
-}
 @if (!isPlaying)
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
@@ -124,17 +103,56 @@
         }
     </MudStack>
 }
+<MudStack AlignItems="AlignItems.End" Style="position: fixed; top:24px; right: 24px;">
+@foreach (Notification notification in GetNotificationsSnapshot())
+{
+    <MudPaper Elevation="8" Class="@(string.Join(' ', notification.GetFadeCssClasses()))" Style="background:#000000AA; padding:16px; border-radius:16px;">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            @if (notification.Icon is not null)
+            {
+                <MudIcon Icon=@(notification.Icon)
+                         Size="Size.Large"
+                         Color=@(notification.IconColor) />
+            }
+            @if (notification.ImageUrl is not null)
+            {
+                <MudImage Src=@(notification.ImageUrl)
+                          Width="48"
+                          Height="48" />
+            }
+            <MudStack Spacing="0">
+                @if (notification.Title is not null)
+                {
+                    <MudText Style="font-size:small; color:#FFFFFFAA">
+                        @(notification.Title)
+                    </MudText>
+                }
+                <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
+                    @(notification.Content)
+                </MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+}
+</MudStack>
 
 <style>
-    .next_track_fadein {
-        animation: fadein 2s;
+.notif_fadein {
+    animation: fadein 2s;
+}
+
+@@keyframes fadein {
+    from {
+        opacity: 0;
     }
 
-    @@keyframes fadein {
-        from { opacity: 0; }
-        to   { opacity: 1; }
+    to {
+        opacity: 1;
     }
+}
 </style>
+
+<script src="./Pages/HomePage.razor.js"></script>
 
 @code {
     #if DEBUG
@@ -142,7 +160,9 @@
     #else
     [SupplyParameterFromQuery(Name = "debug")]
     public bool DebugEnabled { get; init; }
-    #endif
+#endif
+
+    const bool UseHDR = false;
 
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
@@ -152,6 +172,43 @@
         public Shared.Models.NDPData? NextTrackData { get; set; } = null;
         public int? NextTrackBackgroundLightCount { get; set; } = null;
     }
+
+    [Flags]
+    public enum NotificationFade { None = 0, FadeIn = 1 << 0 } // FadeOut = 1 << 1 }   // FadeOut didn't work as it runs the animation when the notification is shown
+    class Notification
+    {
+
+        public string? Icon { get; init; }
+        public MudBlazor.Color IconColor { get; init; } = MudBlazor.Color.Default;
+
+        public string? ImageUrl { get; init; }
+        public string? Title { get; }
+        public string Content { get; }
+        public NotificationFade Fade { get; init; } = NotificationFade.None;
+
+        public Notification(string content)
+        {
+            Content = content;
+        }
+
+        public Notification(string title, string content)
+        {
+            Title = title;
+            Content = content;
+        }
+
+        internal IEnumerable<string> GetFadeCssClasses()
+        {
+            if (Fade.HasFlag(NotificationFade.FadeIn))
+                yield return "notif_fadein";
+            // if (Fade.HasFlag(NotificationFade.FadeOut))
+            //     yield return "notif_fadeout";
+        }
+    }
+
+    readonly List<Notification> _notifications = new() { };
+
+    Notification? nextTrackNotification;
 
     readonly record struct FetchTask(string TrackId, int BackgroundLightCount, Task<NDPData> Task);
     readonly record struct InterpreterFPS(double Average, double Min);
@@ -229,10 +286,72 @@
         await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
     }
 
+    [JSInvokable] // Called by: toggleNDiscoPlusFullscreen()
+    public void WakeLockStateChanged(bool enabled)
+    {
+        Notification notif;
+        if (enabled)
+        {
+            notif = new("Wake lock enabled")
+            {
+                Icon = Icons.Material.Rounded.Brightness5,
+                IconColor = MudBlazor.Color.Warning // I couldn't find any way to use white so let's use yellow instead
+            };
+        }
+        else
+        {
+            notif = new("Wake lock disabled")
+            {
+                Icon = Icons.Material.Rounded.Brightness4,
+                IconColor = MudBlazor.Color.Primary // I couldn't find any way to use white so let's use purple instead
+            };
+        }
+
+        PushNotification(TimeSpan.FromSeconds(5), notif);
+    }
+
     async Task ToggleFullscreen()
     {
-        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Pages/HomePage.razor.js");
-        await module.InvokeVoidAsync("toggleNDiscoPlusFullscreen");
+        await JSRuntime.InvokeVoidAsync("toggleNDiscoPlusFullscreen", DotNetObjectReference.Create(this));
+    }
+
+    ImmutableArray<Notification> GetNotificationsSnapshot()
+    {
+        ImmutableArray<Notification> notifications;
+        lock (_notifications)
+        {
+            notifications = _notifications.ToImmutableArray();
+        }
+        return notifications;
+    }
+
+    void PushNotification(Notification notification)
+    {
+        lock(_notifications)
+        {
+            _notifications.Add(notification);
+        }
+    }
+
+    bool PullNotification(Notification notification)
+    {
+        bool removed;
+        lock(_notifications)
+        {
+            removed = _notifications.Remove(notification);
+        }
+        return removed;
+    }
+    void PushNotification(TimeSpan duration, Notification notification)
+    {
+        async Task _Push()
+        {
+            PushNotification(notification);
+            await Task.Delay(duration);
+            PullNotification(notification);
+        }
+
+        Task.Run(() => _Push());
     }
 
     #region Lights
@@ -277,6 +396,7 @@
             int gradientColorCount = await GetGradientColorCount();
 
             this.context = context;
+            UpdateNextTrackNotification(context?.NextTrack);
             UpdateData(spotify, context?.Track, context?.NextTrack, gradientColorCount);
 
             if (!isPlaying || context is null)
@@ -336,6 +456,30 @@
         }
     }
 
+    void UpdateNextTrackNotification(SpotifyPlayerTrack? nextTrack)
+    {
+        if (nextTrack is not null)
+        {
+            if (nextTrackNotification is null)
+            {
+                nextTrackNotification = new("Next Track", nextTrack.Name)
+                    {
+                        ImageUrl = nextTrack.SmallImageUrl,
+                        Fade = NotificationFade.FadeIn
+                    };
+                PushNotification(nextTrackNotification);
+            }
+        }
+        else
+        {
+            if (nextTrackNotification is not null)
+            {
+                _ = PullNotification(nextTrackNotification);
+                nextTrackNotification = null;
+            }
+        }
+    }
+
     void UpdateData(SpotifyClient spotify, SpotifyPlayerTrack? currentTrack, SpotifyPlayerTrack? nextTrack, int targetBackgroundLightCount)
     {
         string? currentTrackId = currentTrack?.Id;
@@ -378,7 +522,7 @@
         {
             string fetchId = fetch.Id;
             // fetchTasks is empty => !false => true => Add()
-            if (!fetchTasks.Any(f => f.TrackId == fetchId)) // sometimes the fetch for the same song would happen twice, we want to avoid it due to performance (and because the effects might be different)
+            if (!fetchTasks.Any(f => f.TrackId == fetchId && f.BackgroundLightCount == targetBackgroundLightCount)) // sometimes the fetch for the same song would happen twice, we want to avoid it due to performance (and because the effects might be different)
                 fetchTasks.Add(new FetchTask(fetchId, targetBackgroundLightCount, ComputeData(spotify, fetch, targetBackgroundLightCount)));
         }
 
@@ -409,25 +553,27 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
+        ColorGamut colorGamut = UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
+
         NDiscoPlusArgsLights lights;
         if (backgroundLightCount == 4)
         {
             lights = NDiscoPlusArgsLights.CreateSingleChannel(
-                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: ColorGamut.DisplayP3)
+                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: colorGamut)
             );
         }
         else if (backgroundLightCount == 6)
         {
             lights = NDiscoPlusArgsLights.CreateSingleChannel(
-                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(0, 1, 1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(4), new HueApi.Models.HuePosition(0, -1, -1), colorGamut: ColorGamut.DisplayP3),
-                new NDPLight(new ScreenLightId(5), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: ColorGamut.DisplayP3)
+                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(0, 1, 1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(4), new HueApi.Models.HuePosition(0, -1, -1), colorGamut: colorGamut),
+                new NDPLight(new ScreenLightId(5), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: colorGamut)
             );
         }
         else
@@ -482,8 +628,7 @@
 
     #region Colors
     async Task<int> GetGradientColorCount() {
-        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Pages/HomePage.razor.js");
-        double aspect = await module.InvokeAsync<double>("getWindowAspectRatio");
+        double aspect = await JSRuntime.InvokeAsync<double>("getWindowAspectRatio");
         if (aspect > 1.75d)
             return 6;
         else

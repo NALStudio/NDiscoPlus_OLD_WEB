@@ -9,6 +9,7 @@
 @using SkiaSharp
 @using SpotifyAPI.Web
 @using System.Text.Json
+@using System.Diagnostics
 
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
@@ -48,18 +49,17 @@
 
         public PositionTransformer(NDPData data)
         {
-            effectMaxEnd = data.Effects.Effects.SelectMany(e => e).Max(e => e.End);
+            ChunkedEffectsCollection effects = data.Effects;
+            effectMaxEnd = effects.GetEffectsOfChunk(effects.ChunkCount - 1).Max(e => e.End);
         }
 
         public double Transform(TimeSpan time)
             => Transform(time.TotalSeconds);
 
-        public double Transform(double time)
+        public double Transform(double timeSeconds)
         {
-            double length = effectMaxEnd.TotalSeconds;
-
-            double progress = time / length;
-
+            double lengthSeconds = effectMaxEnd.TotalSeconds;
+            double progress = timeSeconds / lengthSeconds;
             return progress * canvasWidth;
         }
     }
@@ -93,13 +93,31 @@
         }
     }
 
+    private static IEnumerable<Effect> EnumerateChunks(ChunkedEffectsCollection effects)
+    {
+        HashSet<Effect> alreadyIterated = new();
+
+        for(int i = 0; i < effects.ChunkCount; i++)
+        {
+            foreach (Effect e in effects.GetEffectsOfChunk(i))
+            {
+                if (alreadyIterated.Contains(e))
+                    continue;
+
+                bool added = alreadyIterated.Add(e);
+                Debug.Assert(added);
+                yield return e;
+            }
+        }
+    }
+
     private static async Task<int> RenderAsync(Context2D ctx, NDPData data, TrackAudioAnalysis? analysis)
     {
         Random random = new();
         PositionTransformer transformer = new(data);
 
         int y = 0;
-        IGrouping<LightId, Effect>[] grouped = data.Effects.Effects.SelectMany(e => e).GroupBy(e => e.LightId).ToArray();
+        IGrouping<LightId, Effect>[] grouped = EnumerateChunks(data.Effects).GroupBy(e => e.LightId).ToArray();
         for (int i = 0; i < grouped.Length; i++)
         {
             double colorHue = (i / (double)grouped.Length);

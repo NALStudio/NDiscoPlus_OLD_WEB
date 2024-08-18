@@ -230,7 +230,7 @@ public class NDiscoPlusService
             effectPalette: effectPalette,
 
             effectConfig: api.Config,
-            effects: api.Export(),
+            effects: ChunkedEffectsCollection.Construct(api),
 
             lights: args.Lights.Lights
         );
