@@ -45,6 +45,7 @@
             {
                 0 => new TrackDebugCanvasRenderMeta(ctx, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
                 1 => new TrackDebugCanvasRenderSegments(ctx, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                2 => new TrackDebugCanvasRenderTimbre(ctx, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
                 _ => throw new InvalidOperationException($"No renderer for stat index: {StatIndex}")
             };
 
