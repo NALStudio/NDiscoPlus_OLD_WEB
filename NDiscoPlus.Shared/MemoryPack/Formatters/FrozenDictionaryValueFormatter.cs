@@ -15,11 +15,10 @@ namespace NDiscoPlus.Shared.MemoryPack.Formatters;
 // C# doesn't allow you to pass Func through an attribute so we make custom attributes for each type
 internal class NDPLightFrozenDictionaryValueFormatterAttribute : MemoryPackCustomFormatterAttribute<FrozenDictionary<LightId, NDPLight>>
 {
-    private static readonly FrozenDictionaryValueFormatter<LightId, NDPLight> instance = new(key => key.Id);
+    private static readonly FrozenDictionaryValueFormatter<LightId, NDPLight> instance = new(static key => key.Id);
 
     public override IMemoryPackFormatter<FrozenDictionary<LightId, NDPLight>> GetFormatter() => instance;
 }
-
 
 internal class FrozenDictionaryValueFormatter<TKey, TValue> : MemoryPackFormatter<FrozenDictionary<TKey, TValue?>> where TKey : notnull
 {

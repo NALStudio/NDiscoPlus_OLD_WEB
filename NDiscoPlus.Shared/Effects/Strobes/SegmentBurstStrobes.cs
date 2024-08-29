@@ -17,8 +17,9 @@ internal class SegmentBurstStrobes : NDPStrobe
 {
     const int MinSegmentCount = 4;
 
-    public override void Generate(StrobeContext ctx, EffectAPI api)
+    public override void Generate(Context ctx, EffectAPI api)
     {
-        List<Segment> penis = ctx.
+        // TODO: Implement
+        // throw new NotImplementedException();
     }
 }

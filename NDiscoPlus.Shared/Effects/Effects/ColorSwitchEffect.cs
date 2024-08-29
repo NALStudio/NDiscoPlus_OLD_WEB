@@ -30,7 +30,7 @@ internal class ColorSwitchEffect : NDPEffect
         if (channel is null)
             return;
 
-        double beatsPerAnimationDouble = (double)(2 * ctx.TimeSignature) / channel.Lights.Count;
+        double beatsPerAnimationDouble = (double)(2 * ctx.Section.Tempo.TimeSignature) / channel.Lights.Count;
 
         int beatsPerAnimation;
         int lightsPerAnimation;
@@ -56,7 +56,7 @@ internal class ColorSwitchEffect : NDPEffect
         if (_kInitializeUsingBackgroundApproximation)
         {
             colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
-            approximateBackgroundColors = channel.Lights.Values.ToFrozenDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Start)?.Color);
+            approximateBackgroundColors = channel.Lights.Values.ToFrozenDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
         }
         else
         {
@@ -67,13 +67,13 @@ internal class ColorSwitchEffect : NDPEffect
 #pragma warning restore CS0162
 
         HashSet<LightId> changedLights = new();
-        for (int i = 0; i < ctx.Beats.Count; i += beatsPerAnimation)
+        for (int i = 0; i < ctx.Section.Timings.Beats.Length; i += beatsPerAnimation)
         {
             int endIndex = i + beatsPerAnimation;
-            if (endIndex > ctx.Beats.Count)
-                endIndex = ctx.Beats.Count;
+            if (endIndex > ctx.Section.Timings.Beats.Length)
+                endIndex = ctx.Section.Timings.Beats.Length;
 
-            NDPInterval[] beats = ctx.Beats.ToArray()[i..endIndex];
+            NDPInterval[] beats = ctx.Section.Timings.Beats.ToArray()[i..endIndex];
 
             TimeSpan totalDuration = TimeSpan.Zero;
             foreach (NDPInterval beat in beats)
@@ -82,7 +82,7 @@ internal class ColorSwitchEffect : NDPEffect
             changedLights.Clear();
 
             bool fadeIn = _kUseFadeIn && (i == 0);
-            bool fadeOut = _kUseFadeOut && (i == (ctx.Beats.Count - 1));
+            bool fadeOut = _kUseFadeOut && (i == (ctx.Section.Timings.Beats.Length - 1));
             if (fadeIn && fadeOut) // this is an edge case that might never happen but in case it happens, I'll handle it by disabling both
             {
                 fadeIn = false;

@@ -1,5 +1,7 @@
 ﻿using HueApi.Models;
 using MemoryPack;
+using NDiscoPlus.Shared.Analyzer;
+using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
@@ -186,6 +188,10 @@ public class NDiscoPlusService
 
     public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
     {
+        // Analyze audio
+        AudioAnalysis analysis = AudioAnalyzer.Analyze(args.Features, args.Analysis);
+
+        // Initialize effect generation
         MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
 
         NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
@@ -201,30 +207,28 @@ public class NDiscoPlusService
             new BackgroundChannel(args.Lights.Background.Select(id => args.Lights.Lights[id]))
         );
 
+        Models.Context context = new(
+            random: random,
+            palette: palette,
+            analysis: analysis
+        );
+
         // Strobes
         foreach (NDPStrobe strobe in NDPStrobe.All)
-        {
-            strobe.Generate()
-        }
+            strobe.Generate(context, api);
 
         // TODO: Flahes
 
         // Effects
-        foreach (EffectRecord eff in effectGen.Generate(args))
+        foreach (EffectRecord eff in effectGen.Generate(analysis))
         {
-            EffectContext ctx = EffectContext.Create(
-                random: random,
-                palette: effectPalette,
-                analysis: args.Analysis,
-                section: eff.Section
-            );
+            EffectContext effectContext = EffectContext.Extend(context, eff.Section);
 
-            eff.Effect?.Generate(ctx, api);
+            eff.Effect?.Generate(effectContext, api);
         }
 
         // Background
-        BackgroundContext bCtx = new(random, effectPalette, args.Analysis);
-        new ColorCycleBackgroundEffect().Generate(bCtx, api);
+        new ColorCycleBackgroundEffect().Generate(context, api);
 
         float endOfFadeIn = args.Analysis.Track.EndOfFadeIn;
         float startOfFadeOut = args.Analysis.Track.StartOfFadeOut;

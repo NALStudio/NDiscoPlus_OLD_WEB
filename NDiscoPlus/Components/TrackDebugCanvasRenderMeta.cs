@@ -1,6 +1,7 @@
 ﻿using Excubo.Blazor.Canvas;
 using Excubo.Blazor.Canvas.Contexts;
 using NDiscoPlus.Shared;
+using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -11,6 +12,7 @@ using System.Collections.Immutable;
 
 namespace NDiscoPlus.Components;
 
+// TODO: Only render audio analyzed sections and draw lines on the bottom bar for spotify sections
 public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 {
     public TrackDebugCanvasRenderMeta(Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis) : base(canvas, canvasWidth, canvasHeight, context, features, analysis)
@@ -47,9 +49,9 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
     async Task RenderTrack(int y, int height)
     {
-        EffectIntensity intensity = MusicEffectGenerator.IntensityFromFeatures(features);
+        EffectIntensity intensity = MusicEffectGenerator.DebugIntensityFromFeatures(features);
 
-        await RenderIntensity(intensity, 0d, y, canvasWidth, height);
+        await RenderIntensity(intensity, originalInterval: null, modifiedInterval: NDPInterval.FromSeconds(0f, analysis.Track.Duration), canvasWidth, height);
         // keep using RenderIntensity's text color
 
         string[] data = ["Track Features:", $"{features.Loudness} dB", $"{features.Tempo} BPM"];
@@ -68,27 +70,23 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
     async Task RenderSections(int y, int height)
     {
-        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.ComputeIntensities(
-            new NDiscoPlusArgs(
-                player.Track,
-                features,
-                analysis,
-                new EffectConfig(),
-                new NDiscoPlusArgsLights(ImmutableArray<NDPLight>.Empty)
-            )
-        );
+        IReadOnlyList<ComputedIntensity> intensities = MusicEffectGenerator.DebugComputeIntensities(features, analysis);
 
         for (int i = 0; i < intensities.Count; i++)
         {
-            (EffectIntensity intensity, Section section) = intensities[i];
+            Section spotifySection = analysis.Sections[i];
+            (EffectIntensity intensity, AudioAnalysisSection section) = intensities[i];
 
-            double x = Transform(section.Start);
-            double width = Transform(section.Duration);
+            double x = Transform(section.Interval.Start);
+            double width = Transform(section.Interval.Duration);
 
-            await RenderIntensity(intensity, x, y, width, height, centerTextVertically: false);
+            await RenderIntensity(intensity,
+                originalInterval: NDPInterval.FromSeconds(spotifySection.Start, spotifySection.Duration),
+                modifiedInterval: section.Interval,
+                width, height, centerTextVertically: false);
             // keep using RenderIntensity's text color
 
-            string[] data = [$"Section {i}:", $"{section.Loudness} dB", $"{section.Tempo} BPM", $"{section.Duration:.000} seconds"];
+            string[] data = [$"Section {i}:", $"{section.Loudness} dB", $"{section.Tempo} BPM", $"{section.Interval.Duration:.000} seconds"];
 
             double textY = 0d;
             foreach (string d in data)
@@ -103,8 +101,14 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
         }
     }
 
-    async Task RenderIntensity(EffectIntensity intensity, double x, double y, double width, double height, bool centerTextVertically = true)
+    async Task RenderIntensity(EffectIntensity intensity, NDPInterval? originalInterval, NDPInterval modifiedInterval, double y, double height, bool centerTextVertically = true)
     {
+        double x = Transform(modifiedInterval.Start);
+        double width = Transform(modifiedInterval.Duration);
+
+        double topLineX = originalInterval.HasValue ? Transform(originalInterval.Value.Start) : x;
+        double topLineWidth = originalInterval.HasValue ? Transform(originalInterval.Value.Duration) : width;
+
         EffectIntensity[] allIntensities = Enum.GetValues<EffectIntensity>();
         EffectIntensity minIntensity = allIntensities.Min();
         EffectIntensity maxIntensity = allIntensities.Max();
@@ -119,6 +123,19 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
 
         await canvas.FillRectAsync(x, y, width, height);
         await canvas.StrokeRectAsync(x, y, width, height);
+
+        if (x != topLineX || width != topLineWidth)
+        {
+            double originalLineWidth = await canvas.LineWidthAsync();
+            await canvas.LineWidthAsync(5);
+
+            await canvas.BeginPathAsync();
+            await canvas.MoveToAsync(topLineX, y);
+            await canvas.LineToAsync(topLineX + topLineWidth, y);
+            await canvas.StrokeAsync();
+
+            await canvas.LineWidthAsync(originalLineWidth);
+        }
 
         await canvas.FillStyleAsync(hsl35);
 

@@ -18,8 +18,7 @@ public static class Bisect
         => InsortRight(a, x, low: 0, high: a.Count);
 
     /// <summary>
-    /// <para>Insert item x in list a, and keep it sorted assuming a is sorted.</para>
-    /// <para>If x is already in a, insert it to the right of the rightmost x.</para>
+    /// <inheritdoc cref="InsortRight{T}(IList{T}, T)"/>
     /// </summary>
     /// <param name="low">Bound the slice to be searched.</param>
     /// <param name="high">Bound the slice to be searched.</param>
@@ -29,8 +28,15 @@ public static class Bisect
         a.Insert(index, x);
     }
 
+    /// <summary>
+    /// <inheritdoc cref="InsortRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static void InsortRight<TCollection, TKey>(IList<TCollection> a, TCollection x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => InsortRight(a, x, low: 0, high: a.Count, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="InsortRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static void InsortRight<TCollection, TKey>(IList<TCollection> a, TCollection x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     {
         int index = BisectRight(a, keySelector(x), low: low, high: high, keySelector);
@@ -40,7 +46,7 @@ public static class Bisect
     /// <summary>
     /// <para>Return the index where to insert item x in list a, assuming a is sorted.</para>
     /// <para>
-    /// The return value i is such that all e in a[..i] have e <= x, and all e in
+    /// The return value i is such that all e in a[..i] have e &lt;= x, and all e in
     /// a[i..] have e > x. So if x already appears in the list, a.Insert(i, x) will
     /// insert just after the rightmost x already there.
     /// </para>
@@ -48,14 +54,7 @@ public static class Bisect
     public static int BisectRight<T>(IList<T> a, T x) where T : IComparable<T>
         => BisectRight(a, x, low: 0, high: a.Count);
 
-    /// <summary>
-    /// <para>Return the index where to insert item x in list a, assuming a is sorted.</para>
-    /// <para>
-    /// The return value i is such that all e in a[..i] have e <= x, and all e in
-    /// a[i..] have e > x. So if x already appears in the list, a.insert(i, x) will
-    /// insert just after the rightmost x already there.
-    /// </para>
-    /// </summary>
+    /// <inheritdoc/>
     /// <param name="low">Bound the slice to be searched.</param>
     /// <param name="high">Bound the slice to be searched.</param>
     public static int BisectRight<T>(IList<T> a, T x, int low, int high) where T : IComparable<T>
@@ -74,12 +73,27 @@ public static class Bisect
         return low;
     }
 
+    /// <summary>
+    /// <inheritdoc cref="BisectRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectRight<TCollection, TKey>(IList<TCollection> a, TKey x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => BisectRight(a, x, low: 0, high: a.Count, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectRight<TCollection, TKey>(IList<TCollection> a, TCollection x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => BisectRight(a, keySelector(x), keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectRight<TCollection, TKey>(IList<TCollection> a, TCollection x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => BisectRight(a, keySelector(x), low: low, high: high, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectRight{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectRight<TCollection, TKey>(IList<TCollection> a, TKey x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(low, 0, nameof(low));
@@ -104,8 +118,7 @@ public static class Bisect
         => InsortLeft(a, x, low: 0, high: a.Count);
 
     /// <summary>
-    /// <para>Insert item x in list a, and keep it sorted assuming a is sorted.</para>
-    /// <para>If x is already in a, insert it to the left of the leftmost x.</para>
+    /// <inheritdoc cref="InsortLeft{T}(IList{T}, T)"/>
     /// </summary>
     /// <param name="low">Bound the slice to be searched.</param>
     /// <param name="high">Bound the slice to be searched.</param>
@@ -115,8 +128,15 @@ public static class Bisect
         a.Insert(index, x);
     }
 
+    /// <summary>
+    /// <inheritdoc cref="InsortLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static void InsortLeft<TCollection, TKey>(IList<TCollection> a, TCollection x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => InsortLeft(a, x, low: 0, high: a.Count, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="InsortLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static void InsortLeft<TCollection, TKey>(IList<TCollection> a, TCollection x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     {
         int index = BisectLeft(a, keySelector(x), low: low, high: high, keySelector);
@@ -126,7 +146,7 @@ public static class Bisect
     /// <summary>
     /// <para>Return the index where to insert item x in list a, assuming a is sorted.</para>
     /// <para>
-    /// The return value i is such that all e in a[..i] have e < x, and all e in
+    /// The return value i is such that all e in a[..i] have e &lt; x, and all e in
     /// a[i..] have e >= x.So if x already appears in the list, a.Insert(i, x) will
     /// insert just before the leftmost x already there.
     /// </para>
@@ -135,12 +155,7 @@ public static class Bisect
         => BisectLeft(a, x, low: 0, high: a.Count);
 
     /// <summary>
-    /// <para>Return the index where to insert item x in list a, assuming a is sorted.</para>
-    /// <para>
-    /// The return value i is such that all e in a[..i] have e < x, and all e in
-    /// a[i..] have e >= x.So if x already appears in the list, a.Insert(i, x) will
-    /// insert just before the leftmost x already there.
-    /// </para>
+    /// <inheritdoc cref="BisectLeft{T}(IList{T}, T)"/>
     /// </summary>
     /// <param name="low">Bound the slice to be searched.</param>
     /// <param name="high">Bound the slice to be searched.</param>
@@ -160,12 +175,27 @@ public static class Bisect
         return low;
     }
 
+    /// <summary>
+    /// <inheritdoc cref="BisectLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectLeft<TCollection, TKey>(IList<TCollection> a, TKey x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
         => BisectLeft(a, x, low: 0, high: a.Count, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectLeft<TCollection, TKey>(IList<TCollection> a, TCollection x, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     => BisectLeft(a, keySelector(x), keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectLeft<TCollection, TKey>(IList<TCollection> a, TCollection x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     => BisectLeft(a, keySelector(x), low: low, high: high, keySelector);
+
+    /// <summary>
+    /// <inheritdoc cref="BisectLeft{T}(IList{T}, T)"/>
+    /// </summary>
     public static int BisectLeft<TCollection, TKey>(IList<TCollection> a, TKey x, int low, int high, Func<TCollection, TKey> keySelector) where TKey : IComparable<TKey>
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(low, 0, nameof(low));

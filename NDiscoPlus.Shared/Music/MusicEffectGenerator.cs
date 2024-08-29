@@ -1,4 +1,6 @@
 ﻿using NDiscoPlus.Shared;
+using NDiscoPlus.Shared.Analyzer;
+using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Effects.Effects;
 using NDiscoPlus.Shared.Models;
 using SpotifyAPI.Web;
@@ -11,10 +13,10 @@ internal record EffectRecord
 {
     public NDPEffect? Effect { get; }
 
-    public Section Section { get; }
+    public AudioAnalysisSection Section { get; }
     // public NDPInterval Interval { get; }
 
-    public EffectRecord(NDPEffect? effect, Section section)
+    public EffectRecord(NDPEffect? effect, AudioAnalysisSection section)
     {
         Effect = effect;
         Section = section;
@@ -22,17 +24,17 @@ internal record EffectRecord
     }
 }
 
-public readonly record struct ComputedIntensity(EffectIntensity Intensity, Section Section);
+public readonly record struct ComputedIntensity(EffectIntensity Intensity, AudioAnalysisSection Section);
 
 public class MusicEffectGenerator
 {
-    private record struct IntensityComparison(double Tempo, double Loudness)
+    private record struct IntensityComparison(double Loudness)
     {
-        public static implicit operator IntensityComparison(Section section)
-            => new(Tempo: section.Tempo, Loudness: section.Loudness);
+        public static implicit operator IntensityComparison(AudioAnalysisSection section)
+            => new(Loudness: section.Loudness);
 
-        public static implicit operator IntensityComparison(TrackAudioFeatures features)
-            => new(Tempo: features.Tempo, Loudness: features.Loudness);
+        public static implicit operator IntensityComparison(AudioAnalysisFeatures features)
+            => new(Loudness: features.Loudness);
     }
 
     internal IDictionary<EffectIntensity, NDPEffect?> Effects { get; }
@@ -66,9 +68,15 @@ public class MusicEffectGenerator
         return new MusicEffectGenerator(effects);
     }
 
-    internal IEnumerable<EffectRecord> Generate(NDiscoPlusArgs args)
+    private static bool SectionIsEmpty(AudioAnalysisSection s)
     {
-        foreach ((EffectIntensity intensity, Section section) in ComputeIntensities(args))
+        AudioAnalysisTimings t = s.Timings;
+        return t.Bars.IsEmpty && t.Beats.IsEmpty && t.Tatums.IsEmpty;
+    }
+
+    internal IEnumerable<EffectRecord> Generate(AudioAnalysis analysis)
+    {
+        foreach ((EffectIntensity intensity, AudioAnalysisSection section) in ComputeIntensities(analysis))
         {
             NDPEffect? effect = null;
             if (Effects.TryGetValue(intensity, out NDPEffect? vDefault))
@@ -88,24 +96,23 @@ public class MusicEffectGenerator
         }
     }
 
-    public static List<ComputedIntensity> ComputeIntensities(NDiscoPlusArgs args)
+    public static List<ComputedIntensity> DebugComputeIntensities(TrackAudioFeatures features, TrackAudioAnalysis analysis)
+        => ComputeIntensities(AudioAnalyzer.Analyze(features, analysis));
+    internal static List<ComputedIntensity> ComputeIntensities(AudioAnalysis analysis)
     {
-        TrackAudioFeatures features = args.Features;
-        TrackAudioAnalysis analysis = args.Analysis;
-
         int? previousIntensity = null;
         bool doubleJumped = false;
 
-        Section? loudestSection = analysis.Sections.MaxBy(s => s.Loudness);
+        AudioAnalysisSection? loudestSection = analysis.Sections.MaxBy(s => s.Loudness);
 
         List<ComputedIntensity> values = new();
 
-        for (int i = 0; i < analysis.Sections.Count; i++)
+        for (int i = 0; i < analysis.Sections.Length; i++)
         {
-            Section section = analysis.Sections[i];
-            bool isLastSection = i >= (args.Analysis.Sections.Count - 1);
+            AudioAnalysisSection section = analysis.Sections[i];
+            bool isLastSection = i >= (analysis.Sections.Length - 1);
 
-            Section? previousSection = i > 0 ? analysis.Sections[i - 1] : null;
+            AudioAnalysisSection? previousSection = i > 0 ? analysis.Sections[i - 1] : null;
 
             int intensity;
             if (previousIntensity is int pIntensity)
@@ -122,7 +129,7 @@ public class MusicEffectGenerator
                 if (doubleJumped && !isLastSection)
                     intensity--;
 
-                if (section == loudestSection && intensity < (int)maxIntensity)
+                if (ReferenceEquals(section, loudestSection) && intensity < maxIntensity)
                 {
                     intensity++;
                     doubleJumped = true;
@@ -147,12 +154,12 @@ public class MusicEffectGenerator
             {
                 Debug.Assert(previousSection is null);
 
-                intensity = (int)IntensityFromFeatures(features);
+                intensity = (int)IntensityFromFeatures(analysis.Features);
 
                 // if section is less intensive than features, decrement intensity if possible
                 // we do this to be extra conservative with the first section's intensity
                 // as it determines the rest of the song's intensity and usually is one of the calmer parts of the song.
-                if (CompareIntensities(section, features) < 0)
+                if (CompareIntensities(section, analysis.Features) < 0)
                     intensity--;
                 if (section.Loudness < -15)
                     intensity--;
@@ -196,7 +203,9 @@ public class MusicEffectGenerator
         return a.Loudness.CompareTo(b.Loudness);
     }
 
-    public static EffectIntensity IntensityFromFeatures(TrackAudioFeatures features)
+    public static EffectIntensity DebugIntensityFromFeatures(TrackAudioFeatures features)
+        => IntensityFromFeatures(AudioAnalysisFeatures.FromSpotify(features));
+    internal static EffectIntensity IntensityFromFeatures(AudioAnalysisFeatures features)
     {
         // range: 0 - 4 where 4 is very rare
         int intensityRef = (int)(features.Energy * 4f);

@@ -97,23 +97,23 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
 
     private static (int GroupCount, ImmutableArray<NDPInterval> SyncIntervals) GenerateSyncIntervals(EffectContext ctx)
     {
-        int effectsPerSync = _SyncIntervalEffectsPerSync(ctx.TimeSignature, ctx.Tatums);
-        IList<NDPInterval> syncIntervals = ctx.Tatums;
+        int effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Tatums);
+        IList<NDPInterval> syncIntervals = ctx.Section.Timings.Tatums;
 
         if (effectsPerSync == 0)
         {
-            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.TimeSignature, ctx.Beats);
-            syncIntervals = ctx.Beats;
+            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Beats);
+            syncIntervals = ctx.Section.Timings.Beats;
         }
         if (effectsPerSync == 0)
         {
-            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.TimeSignature, ctx.Bars);
-            syncIntervals = ctx.Bars;
+            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Bars);
+            syncIntervals = ctx.Section.Timings.Bars;
         }
         if (effectsPerSync == 0)
-            throw new InvalidOperationException($"Sync not possible. Time signature: {ctx.TimeSignature}/4");
+            throw new InvalidOperationException($"Sync not possible. Time signature: {ctx.Section.Tempo.TimeSignature}/4");
 
-        int groupCount = _SyncIntervalGroupCount(ctx.TimeSignature, effectsPerSync);
+        int groupCount = _SyncIntervalGroupCount(ctx.Section.Tempo.TimeSignature, effectsPerSync);
 
         int totalEffectsCount = syncIntervals.Count * effectsPerSync;
         NDPInterval[] effects = new NDPInterval[totalEffectsCount];
@@ -184,11 +184,11 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
     private static void ClearChannelsForStrobes(EffectContext ctx, EffectAPI api)
     {
         // we sync using beats currently, but this might change in the future
-        NDPInterval lastSyncObject = ctx.Beats[ctx.Beats.Count - 1];
+        NDPInterval lastSyncObject = ctx.Section.Timings.Beats[^1];
         TimeSpan strobeEnd = lastSyncObject.End;
         // Debug.Assert(strobeEnd >= ctx.End); This assert seemed to cause some crashes
 
-        TimeSpan clearStart = ctx.Start;
+        TimeSpan clearStart = ctx.Section.Interval.Start;
         TimeSpan clearLength = strobeEnd - clearStart;
 
         NDPColor strobeResetColor = api.Config.StrobeColor.CopyWith(brightness: 0d);

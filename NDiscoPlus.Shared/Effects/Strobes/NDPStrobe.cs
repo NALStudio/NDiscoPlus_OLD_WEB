@@ -10,5 +10,5 @@ internal abstract class NDPStrobe
         new SegmentBurstStrobes()
     ];
 
-    public abstract void Generate(StrobeContext ctx, EffectAPI api);
+    public abstract void Generate(Context ctx, EffectAPI api);
 }

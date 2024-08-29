@@ -34,13 +34,13 @@ internal sealed class BrightLightEffect : NDPEffect
         if (channel is null)
             return;
 
-        int animationCount = ctx.TimeSignature;
+        int animationCount = ctx.Section.Tempo.TimeSignature;
         int maxSimultaneousAnimations = Math.Max((int)(animationCount * (2d / 3d)), 1);
         // Math.Max since if ctx.TimeSignature == 1, maxSimultaneousAnimations = 0
 
-        double syncDuration = slow ? ctx.SecondsPerBar : ctx.SecondsPerBeat;
+        double syncDuration = slow ? ctx.Section.Tempo.SecondsPerBar : ctx.Section.Tempo.SecondsPerBeat;
 
-        IList<NDPInterval> syncIntervals = slow ? ctx.Bars : ctx.Beats;
+        IList<NDPInterval> syncIntervals = slow ? ctx.Section.Timings.Bars : ctx.Section.Timings.Beats;
 
         double animationDuration = syncDuration * maxSimultaneousAnimations;
         int lightsPerAnimation = Math.Max(channel.Lights.Count / animationCount, 1);

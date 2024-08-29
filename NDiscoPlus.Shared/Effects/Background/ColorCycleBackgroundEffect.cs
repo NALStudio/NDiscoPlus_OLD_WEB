@@ -23,7 +23,7 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 
     public const double AnimationSeconds = 10d;
 
-    public override void Generate(BackgroundContext ctx, EffectAPI api)
+    public override void Generate(Context ctx, EffectAPI api)
     {
         BackgroundChannel channel = api.Background;
 
@@ -43,7 +43,7 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
             foreach (NDPLight l in channel.Lights.Values.Where(l => animations.All(a => l.Id != a.LightId)))
             {
                 TimeSpan animationEnd = time + animationDuration + GetRandomAnimationCooldown(ctx.Random);
-                if (animationEnd > ctx.Duration)
+                if (animationEnd > ctx.Analysis.Track.Duration)
                 {
                     running = false;
                     continue; // continue creating animations for the rest of the lights.
@@ -61,7 +61,7 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
     private static TimeSpan GetRandomAnimationCooldown(Random random)
         => TimeSpan.FromSeconds(random.NextDouble().Remap(0d, 1d, 2d, 10d));
 
-    static NDPColor PickNewRandomColor(BackgroundContext ctx)
+    static NDPColor PickNewRandomColor(Context ctx)
     {
         // Custom function so that we can switch to a more fancy randomizer in the future if needed.
         return ctx.Palette[ctx.Random.Next(ctx.Palette.Count)];
