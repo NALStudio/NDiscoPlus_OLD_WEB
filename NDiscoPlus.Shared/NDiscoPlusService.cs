@@ -5,6 +5,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.BaseEffects;
+using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.MemoryPack.Formatters;
 using NDiscoPlus.Shared.Models;
@@ -200,7 +201,11 @@ public class NDiscoPlusService
             new BackgroundChannel(args.Lights.Background.Select(id => args.Lights.Lights[id]))
         );
 
-        // TODO: Strobes
+        // Strobes
+        foreach (NDPStrobe strobe in NDPStrobe.All)
+        {
+            strobe.Generate()
+        }
 
         // TODO: Flahes
 

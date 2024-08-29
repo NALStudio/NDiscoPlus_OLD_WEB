@@ -8,7 +8,7 @@ namespace NDiscoPlus.Shared.Effects.Effects;
 
 internal abstract class NDPEffect
 {
-    public static readonly ImmutableList<NDPEffect> All = [
+    public static readonly ImmutableArray<NDPEffect> All = [
         BrightLightEffect.Default(EffectIntensity.High),
         BrightLightEffect.Slow(EffectIntensity.VeryLow),
         BrightLightEffect.White(EffectIntensity.VeryHigh),

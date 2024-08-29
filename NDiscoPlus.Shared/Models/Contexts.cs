@@ -98,9 +98,9 @@ internal class BaseContext
     }
 }
 
-internal sealed class BackgroundContext : BaseContext
+internal abstract class WholeTrackContext : BaseContext
 {
-    public BackgroundContext(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis)
+    protected WholeTrackContext(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis)
         : base(
             random: random,
             palette: palette,
@@ -116,6 +116,22 @@ internal sealed class BackgroundContext : BaseContext
             tatums: analysis.Tatums
         )
     { }
+}
+
+
+
+internal sealed class BackgroundContext : WholeTrackContext
+{
+    public BackgroundContext(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis) : base(random, palette, analysis)
+    {
+    }
+}
+
+internal sealed class StrobeContext : WholeTrackContext
+{
+    public StrobeContext(Random random, NDPColorPalette palette, TrackAudioAnalysis analysis) : base(random, palette, analysis)
+    {
+    }
 }
 
 internal sealed class EffectContext : BaseContext
