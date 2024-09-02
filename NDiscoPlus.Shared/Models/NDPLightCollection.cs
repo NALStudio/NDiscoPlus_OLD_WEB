@@ -31,11 +31,7 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     /// </summary>
     public List<NDPLight[]> GroupX(int count)
     {
-        return lights.Values.GroupCloseBy(
-            count,
-            (a, b) => Math.Abs(a.Position.X - b.Position.X),
-            tolerance: 0.1d
-        ).ToList();
+        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.X).ToList();
     }
 
     /// <summary>
@@ -43,11 +39,7 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     /// </summary>
     public List<NDPLight[]> GroupY(int count)
     {
-        return lights.Values.GroupCloseBy(
-            count,
-            (a, b) => Math.Abs(a.Position.Y - b.Position.Y),
-            tolerance: 0.1d
-        ).ToList();
+        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.Y).ToList();
     }
 
     /// <summary>
@@ -55,11 +47,7 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     /// </summary>
     public List<NDPLight[]> GroupZ(int count)
     {
-        return lights.Values.GroupCloseBy(
-            count,
-            (a, b) => Math.Abs(a.Position.Z - b.Position.Z),
-            tolerance: 0.1d
-        ).ToList();
+        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.Z).ToList();
     }
 
 

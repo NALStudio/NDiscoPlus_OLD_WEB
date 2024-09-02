@@ -10,6 +10,12 @@ namespace NDiscoPlus.Shared.Analyzer.Analysis;
 
 internal class AudioAnalysisSegments
 {
+    public AudioAnalysisSegments(ImmutableArray<NDPInterval> segments, ImmutableArray<ImmutableArray<NDPInterval>> bursts)
+    {
+        Segments = segments;
+        Bursts = bursts;
+    }
+
     public ImmutableArray<NDPInterval> Segments { get; }
 
     public ImmutableArray<ImmutableArray<NDPInterval>> Bursts { get; }

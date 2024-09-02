@@ -168,16 +168,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         {
             NDPInterval interval = syncIntervals[i];
             foreach (LightId light in groups[i % groups.Length])
-            {
-                channel.Add(
-                    Effect.CreateStrobe(
-                        config,
-                        light,
-                        interval.Start,
-                        interval.Duration
-                    )
-                );
-            }
+                channel.Add(Effect.CreateStrobe(config, light, interval));
         }
     }
 
@@ -189,11 +180,13 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         // Debug.Assert(strobeEnd >= ctx.End); This assert seemed to cause some crashes
 
         TimeSpan clearStart = ctx.Section.Interval.Start;
-        TimeSpan clearLength = strobeEnd - clearStart;
+        TimeSpan clearEnd = strobeEnd;
+        TimeSpan clearLength = clearEnd - clearStart;
 
         NDPColor strobeResetColor = api.Config.StrobeColor.CopyWith(brightness: 0d);
         foreach (EffectChannel channel in api.Channels)
         {
+            channel.Clear(clearStart, clearEnd);
             foreach (NDPLight light in channel.Lights)
                 channel.Add(new Effect(light.Id, clearStart, clearLength, strobeResetColor));
         }

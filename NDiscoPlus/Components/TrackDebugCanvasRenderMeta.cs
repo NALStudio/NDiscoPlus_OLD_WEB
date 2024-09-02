@@ -51,7 +51,7 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
     {
         EffectIntensity intensity = MusicEffectGenerator.DebugIntensityFromFeatures(features);
 
-        await RenderIntensity(intensity, originalInterval: null, modifiedInterval: NDPInterval.FromSeconds(0f, analysis.Track.Duration), canvasWidth, height);
+        await RenderIntensity(intensity, originalInterval: null, modifiedInterval: NDPInterval.FromSeconds(0f, analysis.Track.Duration), y, height);
         // keep using RenderIntensity's text color
 
         string[] data = ["Track Features:", $"{features.Loudness} dB", $"{features.Tempo} BPM"];
@@ -83,10 +83,10 @@ public class TrackDebugCanvasRenderMeta : TrackDebugCanvasRender
             await RenderIntensity(intensity,
                 originalInterval: NDPInterval.FromSeconds(spotifySection.Start, spotifySection.Duration),
                 modifiedInterval: section.Interval,
-                width, height, centerTextVertically: false);
+                y, height, centerTextVertically: false);
             // keep using RenderIntensity's text color
 
-            string[] data = [$"Section {i}:", $"{section.Loudness} dB", $"{section.Tempo} BPM", $"{section.Interval.Duration:.000} seconds"];
+            string[] data = [$"Section {i}:", $"{section.Loudness} dB", $"{section.Tempo.TempoValue} BPM", $"{section.Interval.Duration.TotalSeconds:.000} seconds"];
 
             double textY = 0d;
             foreach (string d in data)

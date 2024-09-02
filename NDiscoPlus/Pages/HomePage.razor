@@ -683,7 +683,7 @@
         gradient.AddRange(Enumerable.Repeat(default(NDPColor), 4));
 
         #if DEBUG
-        int setIndexesBitmap = 0;
+    int setIndexesBitmap = 0;
         #endif
 
         foreach ((LightId lightId, NDPColor color) in lights)
@@ -700,13 +700,13 @@
 
             gradient[sli.Index] = color;
             #if DEBUG
-            setIndexesBitmap |= 0b1 << sli.Index;
+        setIndexesBitmap |= 0b1 << sli.Index;
             #endif
         }
 
-        #if DEBUG
-        Debug.Assert(setIndexesBitmap == 0b1111 || setIndexesBitmap == 0b111111);
-        #endif
+#if DEBUG
+    Debug.Assert(setIndexesBitmap == 0b1111 || setIndexesBitmap == 0b111111);
+#endif
     }
     #endregion
 }

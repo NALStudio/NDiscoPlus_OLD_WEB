@@ -42,6 +42,9 @@ public readonly partial struct Effect
         Brightness = brightness;
     }
 
+    public static Effect CreateStrobe(EffectConfig config, LightId light, NDPInterval interval)
+        => CreateStrobe(config, light, interval.Start, interval.Duration);
+
     public static Effect CreateStrobe(EffectConfig config, LightId light, TimeSpan position, TimeSpan duration)
     {
         NDPColor color = config.StrobeColor;

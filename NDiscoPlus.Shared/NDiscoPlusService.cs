@@ -209,7 +209,7 @@ public class NDiscoPlusService
 
         Models.Context context = new(
             random: random,
-            palette: palette,
+            palette: effectPalette,
             analysis: analysis
         );
 
