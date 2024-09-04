@@ -41,7 +41,7 @@
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
             <MudImage
-                Src="@context.Track.ImageUrl"
+                Src="@context.Track.LargestImage.Url"
                 Width="256"
                 Height="256"/>
         }
@@ -464,7 +464,7 @@
             {
                 nextTrackNotification = new("Next Track", nextTrack.Name)
                     {
-                        ImageUrl = nextTrack.SmallImageUrl,
+                        ImageUrl = nextTrack.SmallestImage.Url,
                         Fade = NotificationFade.FadeIn
                     };
                 PushNotification(nextTrackNotification);

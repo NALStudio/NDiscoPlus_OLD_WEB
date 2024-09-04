@@ -11,6 +11,9 @@ public static class DoubleHelpers
     public static double Remap(this double value, double from1, double to1, double from2, double to2)
         => (value - from1) / (to1 - from1) * (to2 - from2) + from2;
 
+    public static double Remap(this double value, (double From, double To) from, (double From, double To) to)
+        => Remap(value, from.From, from.To, to.From, to.To);
+
     public static double Remap01(this double value, double from1, double to1)
         => (value - from1) / (to1 - from1);
 

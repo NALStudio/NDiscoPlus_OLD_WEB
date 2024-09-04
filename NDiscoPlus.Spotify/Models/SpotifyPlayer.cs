@@ -1,41 +1,54 @@
 ﻿using MemoryPack;
 using SpotifyAPI.Web;
+using System.Collections.Immutable;
 
 namespace NDiscoPlus.Spotify.Models;
 
 [MemoryPackable]
+public readonly partial record struct TrackImage(int Size, string Url);
+
+[MemoryPackable]
 public partial class SpotifyPlayerTrack
 {
-    public SpotifyPlayerTrack(string id, string name, TimeSpan length, string imageUrl, string smallImageUrl, string[] artists)
+    public SpotifyPlayerTrack(string id, string name, TimeSpan length, IEnumerable<TrackImage> images, ImmutableArray<string> artists)
     {
         Id = id;
         Name = name;
         Length = length;
-        ImageUrl = imageUrl;
-        SmallImageUrl = smallImageUrl;
+        Images = images.OrderByDescending(img => img.Size).ToImmutableArray();
         Artists = artists;
     }
 
     public string Id { get; init; }
     public string Name { get; init; }
     public TimeSpan Length { get; init; }
-    public string ImageUrl { get; init; }
-    public string SmallImageUrl { get; init; }
-    public string[] Artists { get; init; }
+
+    /// <summary>
+    /// Track album cover images from largest to smallest.
+    /// </summary>
+    public ImmutableArray<TrackImage> Images { get; init; }
+
+    [MemoryPackIgnore]
+    public TrackImage LargestImage => Images[0];
+    [MemoryPackIgnore]
+    public TrackImage SmallestImage => Images[^1];
+
+    public ImmutableArray<string> Artists { get; init; }
 
     public static SpotifyPlayerTrack FromSpotifyTrack(FullTrack track)
     {
-        Image[] images = track.Album.Images.Where(i => i.Width == i.Height).ToArray();
+        ImmutableArray<TrackImage> images = track.Album.Images.Where(i => i.Width == i.Height)
+                                           .Select(i => new TrackImage(i.Width, i.Url))
+                                           .ToImmutableArray();
         if (images.Length < 1)
-            throw new ArgumentException("No valid album images in track.");
+            throw new ArgumentException("No valid album cover images in track.");
 
         return new SpotifyPlayerTrack(
-            track.Id,
-            track.Name,
-            TimeSpan.FromMilliseconds(track.DurationMs),
-            track.Album.Images[0].Url,
-            track.Album.Images[^1].Url,
-            track.Artists.Select(a => a.Name).ToArray()
+            id: track.Id,
+            name: track.Name,
+            length: TimeSpan.FromMilliseconds(track.DurationMs),
+            images: images,
+            artists: track.Artists.Select(a => a.Name).ToImmutableArray()
         );
     }
 

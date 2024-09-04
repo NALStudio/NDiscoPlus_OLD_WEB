@@ -168,7 +168,8 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
 
         string[] lines = [
             $"{currentSegment.LoudnessStart} dB for: {currentSegment.Duration} sec",
-            $"{currentSegment.LoudnessMax} dB (max) at: {currentSegment.LoudnessMaxTime} sec"
+            $"{currentSegment.LoudnessMax} dB (max) at: {currentSegment.LoudnessMaxTime} sec",
+            $"{currentSegment.Confidence * 100:.00} % confidence"
         ];
 
         double textY = 0d;

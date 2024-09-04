@@ -265,7 +265,12 @@ public class NDiscoPlusService
     public async Task<NDPColorPalette> FetchImagePalette(SpotifyPlayerTrack track)
     {
         http ??= new HttpClient();
-        var result = await http.GetAsync(track.ImageUrl);
+
+        TrackImage largestImage = track.Images[0];
+        // Try find an image closest to 50 % of the largest image available (to reduce the power required for palette computation)
+        TrackImage halfSizeImage = track.Images.MinBy(img => Math.Abs(largestImage.Size - img.Size));
+
+        var result = await http.GetAsync(halfSizeImage.Url);
         if (!result.IsSuccessStatusCode)
             return GetRandomDefaultPalette();
 
