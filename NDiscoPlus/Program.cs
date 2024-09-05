@@ -19,6 +19,7 @@ internal static class Program
 
         builder.Services.AddBlazoredLocalStorage();
         builder.Services.AddBlazoredSessionStorage();
+
         builder.Services.AddMudServices();
 
         // TODO: Wait for Blazor WASM Threads

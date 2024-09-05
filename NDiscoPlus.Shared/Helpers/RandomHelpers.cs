@@ -78,4 +78,19 @@ public static class RandomHelpers
             output.RemoveAt(yieldIndex);
         }
     }
+
+    public static string GetHex(this Random random, int length)
+    {
+        (int bytesLength, int remaining) = Math.DivRem(length, 2);
+
+        if (remaining != 0)
+            throw new ArgumentException("Length must be a multiple of 2.");
+
+        Span<byte> bytes = stackalloc byte[bytesLength];
+        random.NextBytes(bytes);
+
+        string hex = Convert.ToHexString(bytes);
+        Debug.Assert(hex.Length == length);
+        return hex;
+    }
 }

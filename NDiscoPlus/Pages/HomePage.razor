@@ -4,9 +4,9 @@
 @using BlazorWorker.Core
 
 @using BlazorWorker.WorkerBackgroundService
-@using HueApi.Models
 @using MudBlazor.Utilities
 @using NDiscoPlus.Constants
+@using NDiscoPlus.LightHandlers.Screen
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared
 @using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
@@ -161,8 +161,6 @@
     [SupplyParameterFromQuery(Name = "debug")]
     public bool DebugEnabled { get; init; }
 #endif
-
-    const bool UseHDR = false;
 
     record NDPDataContainer {
         public string? CurrentTrackId { get; set; } = null;
@@ -553,33 +551,7 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        ColorGamut colorGamut = UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
-
-        NDiscoPlusArgsLights lights;
-        if (backgroundLightCount == 4)
-        {
-            lights = NDiscoPlusArgsLights.CreateSingleChannel(
-                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: colorGamut)
-            );
-        }
-        else if (backgroundLightCount == 6)
-        {
-            lights = NDiscoPlusArgsLights.CreateSingleChannel(
-                new NDPLight(new ScreenLightId(0), new HueApi.Models.HuePosition(-1, 1, 1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(1), new HueApi.Models.HuePosition(0, 1, 1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(2), new HueApi.Models.HuePosition(1, 1, 1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(3), new HueApi.Models.HuePosition(-1, -1, -1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(4), new HueApi.Models.HuePosition(0, -1, -1), colorGamut: colorGamut),
-                new NDPLight(new ScreenLightId(5), new HueApi.Models.HuePosition(1, -1, -1), colorGamut: colorGamut)
-            );
-        }
-        else
-        {
-            throw new ArgumentException("Background light count must either be 4 or 6.");
-        }
+        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(await (new ScreenLightHandler(new ScreenLightHandlerConfig("<temp test>"))).GetLights());
         EffectConfig effects = new();
         NDiscoPlusArgs args = new(track, features, analysis, effects, lights);
 

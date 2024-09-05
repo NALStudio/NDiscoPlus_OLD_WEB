@@ -3,6 +3,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
@@ -17,6 +18,15 @@ public readonly record struct LightInterpreterResult
     }
 
     public IDictionary<LightId, NDPColor> Lights { get; }
+
+    public IEnumerable<(T LightId, NDPColor Color)> GetLightsOfType<T>() where T : LightId
+    {
+        foreach ((LightId lightId, NDPColor color) in Lights)
+        {
+            if (lightId is T li)
+                yield return (li, color);
+        }
+    }
 
     public double FrameTime { get; }
     public double FPS => 1d / FrameTime;
@@ -33,7 +43,7 @@ public class LightInterpreter
     private static IEnumerable<(LightId Light, NDPColor Color)> UpdateBackground(TimeSpan progress, NDPData data)
     {
         int index = -1;
-        foreach ((LightId lightId, IList<BackgroundTransition> transitions) in data.Effects.BackgroundTransitions)
+        foreach ((LightId lightId, ImmutableArray<BackgroundTransition> transitions) in data.Effects.BackgroundTransitions)
         {
             index++;
 

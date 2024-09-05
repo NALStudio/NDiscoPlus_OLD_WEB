@@ -1,5 +1,4 @@
-﻿using HueApi.ColorConverters;
-using NDiscoPlus.Shared.Effects.API;
+﻿using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;

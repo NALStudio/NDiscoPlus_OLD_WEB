@@ -1,5 +1,4 @@
-﻿using HueApi.Models;
-using MemoryPack;
+﻿using MemoryPack;
 using NDiscoPlus.Shared.Analyzer;
 using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Effects.API;
@@ -59,7 +58,7 @@ public partial class NDiscoPlusArgs
     public static string Serialize(NDiscoPlusArgs args)
     {
         byte[] bytes = MemoryPackSerializer.Serialize(args);
-        return ByteHelper.UnsafeCastToString(bytes);
+        return ByteHelper.UnsafeCastToStringUtf8(bytes);
     }
 
     /// <summary>
@@ -68,7 +67,7 @@ public partial class NDiscoPlusArgs
     /// </summary>
     public static NDiscoPlusArgs Deserialize(string args)
     {
-        Span<byte> bytes = ByteHelper.UnsafeCastFromString(args);
+        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(args);
         NDiscoPlusArgs? d = MemoryPackSerializer.Deserialize<NDiscoPlusArgs>(bytes);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
@@ -267,8 +266,9 @@ public class NDiscoPlusService
         http ??= new HttpClient();
 
         TrackImage largestImage = track.Images[0];
+        int targetHalfSize = largestImage.Size / 2;
         // Try find an image closest to 50 % of the largest image available (to reduce the power required for palette computation)
-        TrackImage halfSizeImage = track.Images.MinBy(img => Math.Abs(largestImage.Size - img.Size));
+        TrackImage halfSizeImage = track.Images.MinBy(img => Math.Abs(targetHalfSize - img.Size));
 
         var result = await http.GetAsync(halfSizeImage.Url);
         if (!result.IsSuccessStatusCode)

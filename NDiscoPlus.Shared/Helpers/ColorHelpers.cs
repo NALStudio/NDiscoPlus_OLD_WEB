@@ -4,17 +4,15 @@ using System.Globalization;
 namespace NDiscoPlus.Shared.Helpers;
 public static class ColorHelpers
 {
-    private static readonly double rgbCnvMult = Math.BitDecrement(256d);
-
     /// <summary>
     /// Arguments are clamped to the range 0-1.
     /// </summary>
     public static string ToHTMLColorRGB(double r, double g, double b, double alpha = 1d)
     {
-        byte red = (byte)(r.Clamp01() * rgbCnvMult);
-        byte green = (byte)(g.Clamp01() * rgbCnvMult);
-        byte blue = (byte)(b.Clamp01() * rgbCnvMult);
-        byte alpha_ = (byte)(alpha.Clamp01() * rgbCnvMult);
+        byte red = BitResolution.AsUInt8(r);
+        byte green = BitResolution.AsUInt8(g);
+        byte blue = BitResolution.AsUInt8(b);
+        byte alpha_ = BitResolution.AsUInt8(alpha);
 
         return $"#{red:x2}{green:x2}{blue:x2}{alpha_:x2}";
     }

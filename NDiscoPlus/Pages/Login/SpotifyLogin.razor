@@ -76,7 +76,7 @@ else {
     async Task SendLoginRequest()
     {
         (string verifier, string challenge) = PKCEUtil.GenerateCodes();
-        await sessionStorage.SetItemAsync<string>(SessionStoragePaths.SpotifyLoginVerifier, verifier);
+        await sessionStorage.SetItemAsStringAsync(SessionStoragePaths.SpotifyLoginVerifier, verifier);
 
         var loginRequest = new LoginRequest(
             new Uri(NDPConstants.SpotifyRedirectUri),

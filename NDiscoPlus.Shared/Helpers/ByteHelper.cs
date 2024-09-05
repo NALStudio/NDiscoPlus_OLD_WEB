@@ -7,17 +7,17 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.Shared.Helpers;
 internal static class ByteHelper
 {
-    public static string UnsafeCastToString(ReadOnlySpan<byte> bytes)
+    public static string UnsafeCastToStringUtf8(ReadOnlySpan<byte> bytes)
     {
         Span<char> chars = stackalloc char[bytes.Length];
 
         for (int i = 0; i < chars.Length; i++)
-            chars[i] = (char)bytes[i];
+            chars[i] = (char)bytes[i]; // Cannot do straight span cast as C# is utf-16 and BlazorWorker is utf-8
 
         return new string(chars);
     }
 
-    public static byte[] UnsafeCastFromString(string str)
+    public static byte[] UnsafeCastFromStringUtf8(string str)
     {
         ReadOnlySpan<char> src = str.AsSpan();
 

@@ -176,7 +176,7 @@
 
         int height = computed.Count * rowHeight;
 
-        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColorRGB(background.Red / 255d, background.Green / 255d, background.Blue / 255d));
+        await ctx.FillStyleAsync($"#{background.Red:x2}{background.Green:x2}{background.Blue:x2}");
         await ctx.FillRectAsync(0d, y, canvasWidth, height);
 
         for (int effectY = 0; effectY < computed.Count; effectY++)

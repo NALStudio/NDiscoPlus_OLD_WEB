@@ -52,12 +52,12 @@ public partial class NDPData
     public static string Serialize(NDPData data)
     {
         byte[] bytes = MemoryPackSerializer.Serialize(data);
-        return ByteHelper.UnsafeCastToString(bytes);
+        return ByteHelper.UnsafeCastToStringUtf8(bytes);
     }
 
     public static NDPData Deserialize(string data)
     {
-        byte[] bytes = ByteHelper.UnsafeCastFromString(data);
+        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(data);
         NDPData? d = MemoryPackSerializer.Deserialize<NDPData>(bytes);
         return d ?? throw new InvalidOperationException("Cannot deserialize value.");
     }
