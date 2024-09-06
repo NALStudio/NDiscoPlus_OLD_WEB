@@ -1,5 +1,4 @@
-﻿
-using Blazored.LocalStorage;
+﻿using Blazored.LocalStorage;
 using MemoryPack;
 using NDiscoPlus.Shared.Models;
 
@@ -11,24 +10,29 @@ internal enum ScreenLightCount
     Six = 6
 }
 
-internal partial class ScreenLightHandlerConfig : LightHandlerConfig
+internal class ScreenLightHandlerConfig : LightHandlerConfig
 {
-    public ScreenLightHandlerConfig(string localStoragePath) : base(localStoragePath)
-    {
-    }
+    public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
 
-    public ScreenLightCount LightCount { get; init; } = ScreenLightCount.Four;
+    public override LightHandler CreateLightHandler()
+        => new ScreenLightHandler(this);
 }
 
-internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
+internal class ScreenLightHandler : LightHandler
 {
     public const bool UseHDR = false;
 
-    public ScreenLightHandler(ScreenLightHandlerConfig config) : base(config)
+    public ScreenLightHandler(LightHandlerConfig? config) : base(config)
     {
     }
 
     public override string DisplayName => "Screen";
+
+    public override int MinCount => 1;
+    public override int MaxCount => 1;
+
+    public override LightHandlerConfig CreateConfig()
+        => new ScreenLightHandlerConfig();
 
     private static NDPLight[] GetLights4(ColorGamut colorGamut)
     {
@@ -56,11 +60,13 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     public override ValueTask<NDPLight[]> GetLights()
     {
+        var config = Config<ScreenLightHandlerConfig>();
+
         ColorGamut colorGamut = UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
 
-        if (Config.LightCount == ScreenLightCount.Four)
+        if (config.LightCount == ScreenLightCount.Four)
             return new ValueTask<NDPLight[]>(GetLights4(colorGamut));
-        else if (Config.LightCount == ScreenLightCount.Six)
+        else if (config.LightCount == ScreenLightCount.Six)
             return new ValueTask<NDPLight[]>(GetLights6(colorGamut));
         else
             throw new InvalidLightHandlerConfigException("Invalid light count.");

@@ -1,75 +1,37 @@
 ﻿using MemoryPack;
 using NDiscoPlus.LightHandlers.Screen;
 using NDiscoPlus.Shared.Models;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.LightHandlers;
 
-public struct ValidationErrorCollector
+internal abstract class LightHandler
 {
-    private List<string>? errors;
+    private readonly LightHandlerConfig config;
+    protected T Config<T>() where T : LightHandlerConfig => (T)config;
 
-    public ValidationErrorCollector()
+    protected LightHandler(LightHandlerConfig? config)
     {
-        errors = new();
-    }
-
-    public readonly void Add(string msg)
-    {
-        if (errors is null)
-            throw new InvalidOperationException("Cannot add new errors after Collect() is called.");
-
-        errors.Add(msg);
-    }
-
-    public IList<string> Collect()
-    {
-        if (errors is null)
-            throw new InvalidOperationException("Cannot call Collect() twice.");
-
-        ReadOnlyCollection<string> err = errors.AsReadOnly();
-        errors = null;
-        return err;
-    }
-}
-
-internal class InvalidLightHandlerConfigException : Exception
-{
-    public InvalidLightHandlerConfigException() : base()
-    {
-    }
-
-    public InvalidLightHandlerConfigException(string? message) : base(message)
-    {
-    }
-
-    public InvalidLightHandlerConfigException(string? message, Exception? innerException) : base(message, innerException)
-    {
-    }
-}
-
-[JsonDerivedType(typeof(ScreenLightHandler), typeDiscriminator: "screen")]
-internal abstract class LightHandlerConfig
-{
-    public string LocalStoragePath { get; }
-
-    protected LightHandlerConfig(string localStoragePath)
-    {
-        LocalStoragePath = localStoragePath;
-    }
-}
-
-internal abstract class LightHandler<T> where T : LightHandlerConfig
-{
-    protected T Config { get; }
-
-    protected LightHandler(T config)
-    {
-        Config = config;
+        this.config = config ?? CreateConfig();
     }
 
     public abstract string DisplayName { get; }
+
+    /// <summary>
+    /// Inclusive. (example: MinCount 1, LightHandler cannot be removed if it is the only handler remaining)
+    /// </summary>
+    public virtual int MinCount => 0;
+    /// <summary>
+    /// Inclusive. (example: MinCount 1, LightHandler cannot be added if a handler already exists)
+    /// </summary>
+    public virtual int MaxCount => 3;
+
+    /// <summary>
+    /// This method is called by the constructor to create a default config instance for the object if none was passed to the constructor.
+    /// </summary>
+    public abstract LightHandlerConfig CreateConfig();
 
     public abstract ValueTask<bool> ValidateConfig(ValidationErrorCollector errors);
 

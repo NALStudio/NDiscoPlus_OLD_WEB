@@ -32,7 +32,8 @@ internal static class LocalStoragePaths
 {
     public const string SpotifyRefreshToken = "spotify-refresh-token";
 
-    public static readonly StoragePrefix LightHandlerConfigPrefix = "light-handler-config";
+    public const string LightConfigurationCurrent = "light-profile-current";
+    public static readonly StoragePrefix LightConfigurationProfilePrefix = "light-profile";
 
     public static async Task<IEnumerable<string>> GetKeysWithPrefix(this ILocalStorageService ls, StoragePrefix prefix)
     {

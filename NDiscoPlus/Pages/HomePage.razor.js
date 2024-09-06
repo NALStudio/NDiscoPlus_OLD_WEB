@@ -45,3 +45,7 @@ async function toggleNDiscoPlusFullscreen(wakeLockCallback) {
 function getWindowAspectRatio() {
     return window.innerWidth / window.innerHeight;
 }
+
+function onMouseMoveDotNetWrapper() {
+    DotNet.invokeMethodAsync(assemblyName, "OnMouseMove")
+}

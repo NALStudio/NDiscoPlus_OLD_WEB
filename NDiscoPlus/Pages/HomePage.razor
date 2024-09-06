@@ -36,7 +36,7 @@
 
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
-<div style="width:100vw; height:100vh; overflow: hidden;">
+<div @onmousemove="OnMouseMove" style="cursor:@(HideUI ? "none" : "auto"); width:100vw; height:100vh; overflow: hidden;">
     <BackgroundGradientCanvas Colors="@gradient" />
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
@@ -76,21 +76,26 @@
                 </MudStack>
             }
         </div>
-        <MudButton
-            StartIcon="@Icons.Material.Rounded.Lightbulb"
-            Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-            Size=Size.Large
-            Color=MudBlazor.Color.Primary
-            Disabled=@(spotify is null || playStarting)
-            OnClick=TogglePlay>
-            @(isPlaying ? "Stop" : "Play")
-        </MudButton>
+        @if (!HideUI)
+        {
+            <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
+                       Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+                       Size=Size.Large
+                       Color=MudBlazor.Color.Primary
+                       Disabled=@(spotify is null || playStarting)
+                       OnClick=TogglePlay>
+                @(isPlaying ? "Stop" : "Play")
+            </MudButton>
+        }
     </MudStack>
 </div>
-@if (!isPlaying)
+@if (!HideUI)
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
-        <MudIconButton Icon="@Icons.Material.Rounded.Settings" Size="Size.Large" />
+        <MudIconButton Icon="@Icons.Material.Rounded.Settings"
+                       Size="Size.Large"
+                       OnClick="OpenSettings"
+                       Disabled="isPlaying" />
         <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
                        Size="Size.Large"
                        OnClick="ToggleFullscreen" />
@@ -266,24 +271,6 @@
         new Task(async () => await StartPlayer(), TaskCreationOptions.LongRunning).Start();
     }
 
-    async Task OpenEffectVisualizer(NDPData data)
-    {
-        ArgumentNullException.ThrowIfNull(data, nameof(data));
-
-        await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", NDPData.Serialize(data));
-
-        TrackAudioAnalysis? analysis;
-        if (spotify is not null)
-            analysis = await spotify.Tracks.GetAudioAnalysis(data.Track.Id);
-        else
-            analysis = null;
-
-        string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
-        await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
-
-        await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
-    }
-
     [JSInvokable] // Called by: toggleNDiscoPlusFullscreen()
     public void WakeLockStateChanged(bool enabled)
     {
@@ -308,11 +295,92 @@
         PushNotification(TimeSpan.FromSeconds(5), notif);
     }
 
+    #region Hide Mouse & UI Buttons
+    object hideCursorLock = new();
+    bool _hideCursor = false;
+
+    uint hideCursorTimerSeconds = 0; // use uint so that we never overflow (overflow time is more than 136 years)
+    const uint hideCursorAfterSeconds = 3;
+    Timer? hideCursorTimer = null;
+
+    bool HideUI
+    {
+        get
+        {
+            bool value;
+            lock(hideCursorLock)
+            {
+                value = _hideCursor;
+            }
+            return value;
+        }
+        set
+        {
+            lock(hideCursorLock)
+            {
+                _hideCursor = value;
+            }
+        }
+    }
+
+    void HideCursorTick(object? state) {
+        ulong incremented = Interlocked.Increment(ref hideCursorTimerSeconds);
+        if (incremented >= hideCursorAfterSeconds) // hide cursor timer when enough seconds have elapsed. Timer accuracy is ~1 second.
+            HideUI = true;
+    }
+
+    void OnMouseMove() => ResetCursorHide();
+    void ResetCursorHide()
+    {
+        Interlocked.Exchange(ref hideCursorTimerSeconds, 0);
+        HideUI = false;
+    }
+    #endregion
+
+    #region Button Handlers
+    async Task OpenEffectVisualizer(NDPData data)
+    {
+        ArgumentNullException.ThrowIfNull(data, nameof(data));
+
+        await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", NDPData.Serialize(data));
+
+        TrackAudioAnalysis? analysis;
+        if (spotify is not null)
+            analysis = await spotify.Tracks.GetAudioAnalysis(data.Track.Id);
+        else
+            analysis = null;
+
+        string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
+        await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
+
+        await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
+    }
+
+    void OpenSettings()
+    {
+        // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
+        navigationManager.NavigateTo("./settings", forceLoad: true);
+    }
+
     async Task ToggleFullscreen()
     {
         await JSRuntime.InvokeVoidAsync("toggleNDiscoPlusFullscreen", DotNetObjectReference.Create(this));
     }
 
+    async Task TogglePlay()
+    {
+        playStarting = true;
+
+        if (isPlaying)
+            await InternalStopPlaying();
+        else
+            await InternalStartPlaying();
+
+        playStarting = false;
+    }
+    #endregion
+
+    #region Notifications
     ImmutableArray<Notification> GetNotificationsSnapshot()
     {
         ImmutableArray<Notification> notifications;
@@ -351,32 +419,25 @@
 
         Task.Run(() => _Push());
     }
+    #endregion
 
     #region Lights
-    async Task TogglePlay()
+    async Task InternalStartPlaying()
     {
-        playStarting = true;
+        Debug.Assert(hideCursorTimer is null);
+        hideCursorTimer = new(HideCursorTick, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
-        if (isPlaying)
-        {
-            await StopPlaying();
-        }
-        else
-        {
-            await StartPlaying();
-        }
-
-        playStarting = false;
-    }
-
-    async Task StartPlaying()
-    {
         await Task.Delay(500);
         isPlaying = true;
     }
 
-    async Task StopPlaying()
+    async Task InternalStopPlaying()
     {
+        Debug.Assert(hideCursorTimer is not null);
+        hideCursorTimer.Dispose();
+        hideCursorTimer = null;
+        ResetCursorHide();
+
         await Task.Delay(500);
         isPlaying = false;
     }
@@ -551,7 +612,7 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(await (new ScreenLightHandler(new ScreenLightHandlerConfig("<temp test>"))).GetLights());
+        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(await (new ScreenLightHandler(null)).GetLights());
         EffectConfig effects = new();
         NDiscoPlusArgs args = new(track, features, analysis, effects, lights);
 
