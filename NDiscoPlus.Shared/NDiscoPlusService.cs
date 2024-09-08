@@ -162,12 +162,16 @@ public class NDiscoPlusService
 
     public NDPData ComputeData(NDiscoPlusArgs args)
     {
+        // *** ANALYSIS ***
         // Analyze audio
         AudioAnalysis analysis = AudioAnalyzer.Analyze(args.Features, args.Analysis);
 
-        // Initialize effect generation
+        // Generate effects on analysis
         MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
+        GeneratedEffects effects = effectGen.Generate(analysis);
 
+
+        // *** GENERATION ***
         NDPColorPalette referencePalette = args.ReferencePalette ?? GetRandomDefaultPalette();
         NDPColorPalette effectPalette = ModifyPaletteForEffects(referencePalette);
 
@@ -188,17 +192,18 @@ public class NDiscoPlusService
             analysis: analysis
         );
 
+
         // Strobes
+        StrobeContext strobeContext = StrobeContext.Extend(context, effects);
         foreach (NDPStrobe strobe in NDPStrobe.All)
-            strobe.Generate(context, api);
+            strobe.Generate(strobeContext, api);
 
         // TODO: Flahes
 
         // Effects
-        foreach (EffectRecord eff in effectGen.Generate(analysis))
+        foreach (EffectRecord eff in effects.Effects)
         {
             EffectContext effectContext = EffectContext.Extend(context, eff.Section);
-
             eff.Effect?.Generate(effectContext, api);
         }
 
@@ -208,6 +213,8 @@ public class NDiscoPlusService
         float endOfFadeIn = args.Analysis.Track.EndOfFadeIn;
         float startOfFadeOut = args.Analysis.Track.StartOfFadeOut;
 
+
+        // *** OUTPUT ***
         return new NDPData(
             track: args.Track,
             referencePalette: referencePalette,

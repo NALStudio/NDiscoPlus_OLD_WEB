@@ -1,8 +1,10 @@
-﻿using NDiscoPlus.Shared.Effects.API;
+﻿using NDiscoPlus.Shared.Analyzer.Analysis;
+using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Music;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -12,12 +14,23 @@ namespace NDiscoPlus.Shared.Effects.Strobes;
 
 internal class SegmentBurstStrobes : NDPStrobe
 {
-    const int MinSegmentCount = 4;
-
-    public override void Generate(Context ctx, EffectAPI api)
+    public override void Generate(StrobeContext ctx, EffectAPI api)
     {
         foreach (ImmutableArray<NDPInterval> burst in ctx.Analysis.Segments.Bursts)
-            GenerateForBurst(api, burst);
+        {
+            if (IsEffectIntenseEnoughForBurst(ctx, burst))
+                GenerateForBurst(api, burst);
+        }
+    }
+
+    private static bool IsEffectIntenseEnoughForBurst(StrobeContext ctx, ImmutableArray<NDPInterval> burst)
+    {
+        NDPInterval burstInterval = NDPInterval.FromStartAndEnd(burst[0].Start, burst[^1].End);
+
+        IEnumerable<EffectRecord> overlappingEffects = ctx.Effects.Effects.Where(effect => NDPInterval.Overlap(effect.Section.Interval, burstInterval));
+
+        // returns true if enumerable is empty
+        return overlappingEffects.All(effect => effect.Effect is null || effect.Effect.Intensity >= EffectIntensity.Medium);
     }
 
     private static void GenerateForBurst(EffectAPI api, ImmutableArray<NDPInterval> burst)

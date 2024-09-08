@@ -41,7 +41,7 @@
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
-    <BackgroundGradientCanvas Colors="@(lightHandling?.ScreenLightHandlerSingleton.Colors ?? data.CurrentTrackGradient?.Gradient ?? defaultGradient.Gradient)" />
+    <BackgroundGradientCanvas Colors="@BestBackgroundGradientOption" />
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
             <MudImage
@@ -105,7 +105,7 @@
                        OnClick="ToggleFullscreen" />
         @if (DebugEnabled)
         {
-            <MudIconButton Disabled="@(lightHandling?.CurrentData is not null)"
+            <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
                            Icon="@Icons.Material.Rounded.BugReport"
                            Size="Size.Large"
                            OnClick="@(async () => await OpenEffectVisualizer(lightHandling!.CurrentData!))" />
@@ -113,7 +113,7 @@
     </MudStack>
 }
 <MudStack AlignItems="AlignItems.End" Style="">
-    @if(data.NextTrack is SpotifyPlayerTrack nextTrack)
+    @if(context?.NextTrack is SpotifyPlayerTrack nextTrack)
     {
         <MudPaper Elevation="8" Class="next_track_fadein" Style="position: fixed; top:24px; right: 24px; background:#000000AA; padding:16px; border-radius:16px;">
         <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -162,32 +162,32 @@
     record struct PaletteGradient(NDPColorPalette Palette)
     {
         private ImmutableArray<NDPColor>? gradient = null;
-        public ImmutableArray<NDPColor> Gradient
+        public ImmutableArray<NDPColor>? Gradient
         {
             get
             {
                 gradient ??= PaletteToGradient(Palette);
+                return gradient;
+            }
+        }
+        public ImmutableArray<NDPColor> GradientMustNotBeNull
+        {
+            get
+            {
+                ImmutableArray<NDPColor>? gradient = Gradient;
+                if (!gradient.HasValue)
+                    throw new InvalidOperationException("Palette cannot be turned into a gradient.");
                 return gradient.Value;
             }
         }
 
-        static ImmutableArray<NDPColor> PaletteToGradient(NDPColorPalette palette)
+        static ImmutableArray<NDPColor>? PaletteToGradient(NDPColorPalette palette)
         {
             if (palette.Count < 4)
-                throw new ArgumentException("Not enough colors in palette.");
+                return null;
 
             return palette.Take(4).ToImmutableArray();
         }
-    }
-
-    record NDPDataContainer {
-        public SpotifyPlayerTrack? CurrentTrack { get; set; } = null;
-        public Task<PaletteGradient?>? CurrentTrackGradientTask { get; set; } = null;
-        public PaletteGradient? CurrentTrackGradient => CurrentTrackGradientTask?.IsCompleted == true ? CurrentTrackGradientTask.Result : null;
-
-        public SpotifyPlayerTrack? NextTrack { get; set; } = null;
-        public Task<PaletteGradient?>? NextTrackGradientTask { get; set; } = null;
-        public PaletteGradient? NextTrackGradient => NextTrackGradientTask?.IsCompleted == true ? NextTrackGradientTask.Result : null;
     }
 
     record LightHandlingData(
@@ -196,9 +196,11 @@
         ScreenLightHandler ScreenLightHandlerSingleton
     )
     {
+        public string? CurrentDataTrackId{ get; set; }
         public Task<Shared.Models.NDPData>? CurrentDataTask { get; set; }
         public Shared.Models.NDPData? CurrentData => CurrentDataTask?.IsCompleted == true ? CurrentDataTask.Result : null;
 
+        public string? NextDataTrackId { get; set; }
         public Task<Shared.Models.NDPData>? NextDataTask { get; set; }
         public Shared.Models.NDPData? NextData => NextDataTask?.IsCompleted == true ? NextDataTask.Result : null;
     }
@@ -209,10 +211,13 @@
     const string TimespanFormat = @"mm\:ss";
 
     static readonly PaletteGradient defaultGradient = new(NDiscoPlusService.DefaultPalettes[0]);
+    public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
+
+    // cache can be big as I don't really care about how slow cache misses are since it's still magnitudes faster than when we serialize the gradient computation request to BlazorWorker
+    readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 25);
 
     LightInterpreter gradientLights = new();
 
-    readonly NDPDataContainer data = new();
 
     LightHandlingData? lightHandling = null;
     [MemberNotNullWhen(true, nameof(lightHandling))]
@@ -272,18 +277,22 @@
     {
         if (enabled)
         {
-            Snackbar.Add("Wake Lock Enabled", Severity.Info, static config =>
+            Snackbar.Add("Wake Lock Enabled", Severity.Warning, static config =>
             {
                 config.Icon = Icons.Material.Rounded.Brightness5;
                 config.IconColor = Color.Warning;
+                config.SnackbarVariant = Variant.Outlined;
+                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
             });
         }
         else
         {
-            Snackbar.Add("Wake Lock Disabled", Severity.Info, static config =>
+            Snackbar.Add("Wake Lock Disabled", Severity.Normal, static config =>
             {
                 config.Icon = Icons.Material.Rounded.Brightness4;
                 config.IconColor = MudBlazor.Color.Primary;
+                config.SnackbarVariant = Variant.Outlined;
+                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
             });
         }
     }
@@ -414,7 +423,7 @@
             await InternalStopPlaying();
 
             foreach (string error in errors.Collect())
-                Snackbar.Add(error, Severity.Error);
+                Snackbar.Add(error, Severity.Error, config => config.RequireInteraction = true);
 
             return;
         }
@@ -442,116 +451,117 @@
     #endregion
 
     #region Spotify
-    void _CurrentTrackChanged(SpotifyPlayerTrack? oldTrack, SpotifyPlayerTrack? newTrack)
-    {
-        data.CurrentTrack = newTrack;
-        if (data.NextTrack?.Id == data.CurrentTrack?.Id)
-            data.CurrentTrackGradientTask = data.NextTrackGradientTask;
-        else
-            data.CurrentTrackGradientTask = newTrack is not null ? FetchImagePaletteGradient(newTrack) : null;
-    }
-
-    void _NextTrackChanged(SpotifyPlayerTrack? oldTrack, SpotifyPlayerTrack? newTrack)
-    {
-        data.NextTrack = newTrack;
-        data.NextTrackGradientTask = newTrack is not null ? FetchImagePaletteGradient(newTrack) : null;
-    }
-
     async Task StartPlayer()
     {
         if (spotify is null)
             return;
 
         SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
-        player.CurrentTrackChanged += _CurrentTrackChanged;
-        player.NextTrackChanged += _NextTrackChanged;
 
         await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps))
         {
             this.context = context;
 
-            if (IsPlaying && context is not null)
+            if (!IsPlaying)
             {
-                Debug.Assert(data.CurrentTrack is not null);
-                Debug.Assert(data.CurrentTrackGradientTask is not null);
+                interpreterFps = null;
+                continue;
+            }
 
-                // TODO: Use cache for palettes and light data instead of this stupid state machine abomination...
-                throw new NotImplementedException();
+            SpotifyPlayerTrack? currentTrack = context?.Track;
+            SpotifyPlayerTrack? nextTrack = context?.NextTrack;
 
-                if (lightHandling.CurrentDataTask?.IsCompleted == true && lightHandling.CurrentDataTask.Result.Track.Id != data.CurrentTrack.Id)
+            // Update current track light data
+            if (lightHandling.CurrentDataTrackId != currentTrack?.Id)
+            {
+                lightHandling.CurrentDataTrackId = currentTrack?.Id;
+                lightHandling.CurrentDataTask = null;
+            }
+            if (lightHandling.CurrentDataTask is null && lightHandling.CurrentDataTrackId is not null)
+            {
+                Debug.Assert(currentTrack is not null);
+                Debug.Assert(currentTrack.Id == lightHandling.CurrentDataTrackId);
+
+                PaletteGradient? gradient = TryGetTrackGradient(currentTrack);
+                if (gradient is PaletteGradient pg)
+                    lightHandling.CurrentDataTask = ComputeData(spotify, currentTrack, pg.Palette, lightHandling);
+            }
+
+            // Update next track light data
+            if (lightHandling.NextDataTrackId != nextTrack?.Id)
+            {
+                lightHandling.NextDataTrackId = nextTrack?.Id;
+                lightHandling.NextDataTask = null;
+            }
+            if (lightHandling.NextDataTask is null && lightHandling.NextDataTrackId is not null)
+            {
+                Debug.Assert(nextTrack is not null);
+                Debug.Assert(nextTrack.Id == lightHandling.NextDataTrackId);
+
+                PaletteGradient? gradient = TryGetTrackGradient(nextTrack);
+                if (gradient is PaletteGradient pg)
+                    lightHandling.NextDataTask = ComputeData(spotify, nextTrack, pg.Palette, lightHandling);
+
+
+            }
+
+            // if current light data has loaded, run interpreter
+            if (lightHandling.CurrentData is not null)
+            {
+                // no CurrentData can be loaded if context?.Track is null
+                Debug.Assert(context is not null);
+
+                try
                 {
-                    lightHandling.CurrentDataTask = null;
-                }
-                if (lightHandling.CurrentDataTask is null && data.CurrentTrackGradientTask.IsCompleted)
-                    lightHandling.CurrentDataTask = ComputeData(spotify, data.CurrentTrack, data.CurrentTrackGradientTask.Result?.Palette, lightHandling);
-
-                if (data.NextTrack is not null)
-                {
-                    Debug.Assert(data.NextTrackGradientTask is not null);
-                    if (lightHandling.NextDataTask?.IsCompleted == true && lightHandling.NextDataTask.Result.Track.Id != data.NextTrack.Id)
-                        lightHandling.NextDataTask = null;
-                    if (lightHandling.NextDataTask is null && data.NextTrackGradientTask.IsCompleted)
-                        lightHandling.NextDataTask = ComputeData(spotify, data.NextTrack, data.CurrentTrackGradientTask.Result?.Palette, lightHandling);
-                }
-
-                if (lightHandling.CurrentData is not null)
-                {
-                    try
+                    LightInterpreterResult result = gradientLights.Update(context.Progress, lightHandling.CurrentData);
+                    interpreterFpsFrames.Add(result.FPS);
+                    foreach (LightHandler handler in lightHandling.Handlers)
                     {
-                        LightInterpreterResult result = gradientLights.Update(context.Progress, lightHandling.CurrentData);
-                        interpreterFpsFrames.Add(result.FPS);
-                        foreach (LightHandler handler in lightHandling.Handlers)
-                        {
-                            ValueTask updateTask = handler.Update(result);
-                            if (!updateTask.IsCompleted)
-                                lightHandlerUpdates.Add(updateTask);
-                            else
-                                await updateTask; // if task is already completed, do not bother adding it to the list and await for any errors instead
-                        }
-
-                        while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
-                        {
-                            await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
-                            lightHandlerUpdates.RemoveAt(0);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        logger.LogError($"Lights update failed with error: '{e}'");
+                        ValueTask updateTask = handler.Update(result);
+                        if (!updateTask.IsCompleted)
+                            lightHandlerUpdates.Add(updateTask);
+                        else
+                            await updateTask; // if task is already completed, do not bother adding it to the list and await for any errors instead
                     }
 
-                    if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
+                    while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
                     {
-                        double avgFps = interpreterFpsFrames.Sum() / interpreterFpsFrames.Count;
-                        double minFps = interpreterFpsFrames.Min();
-                        interpreterFps = new(Average: avgFps, Min: minFps);
-
-                        interpreterFpsFrames.Clear();
+                        await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
+                        lightHandlerUpdates.RemoveAt(0);
                     }
                 }
-                else
+                catch (Exception e)
                 {
-                    interpreterFps = null;
+                    logger.LogError($"Lights update failed with error: '{e}'");
+                }
+
+                if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
+                {
+                    double avgFps = interpreterFpsFrames.Sum() / interpreterFpsFrames.Count;
+                    double minFps = interpreterFpsFrames.Min();
+                    interpreterFps = new(Average: avgFps, Min: minFps);
+
+                    interpreterFpsFrames.Clear();
                 }
             }
             else
             {
                 interpreterFps = null;
-
-                if (lightHandling is not null)
-                {
-                    Debug.Assert(data.CurrentTrack is null);
-                    Debug.Assert(data.NextTrack is null);
-                    lightHandling.CurrentDataTask = null;
-                    lightHandling.NextDataTask = null;
-                }
             }
 
             StateHasChanged();
         }
+    }
 
-        player.CurrentTrackChanged -= _CurrentTrackChanged;
-        player.NextTrackChanged -= _NextTrackChanged;
+    PaletteGradient? TryGetTrackGradient(SpotifyPlayerTrack? track)
+    {
+        if (track is null)
+            return null;
+
+        Task<PaletteGradient?> gradient = trackIdToGradientCache.GetOrAdd(track.Id, _ => FetchImagePaletteGradient(track));
+        if (!gradient.IsCompleted)
+            return null;
+        return gradient.Result;
     }
 
     async Task<PaletteGradient?> FetchImagePaletteGradient(SpotifyPlayerTrack track)

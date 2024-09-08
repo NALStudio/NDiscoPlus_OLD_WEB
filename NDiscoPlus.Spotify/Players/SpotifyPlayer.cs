@@ -18,33 +18,12 @@ public abstract class SpotifyPlayer
 
         PeriodicTimer timer = new(TimeSpan.FromSeconds(periodSeconds));
 
-        SpotifyPlayerTrack? currentTrack = null;
-        SpotifyPlayerTrack? nextTrack = null;
-
         while (await timer.WaitForNextTickAsync(cancellationToken))
         {
             if (cancellationToken.IsCancellationRequested)
                 yield break;
-            SpotifyPlayerContext? ctx = Update();
 
-            SpotifyPlayerTrack? newCurrentTrack = ctx?.Track;
-            SpotifyPlayerTrack? newNextTrack = ctx?.NextTrack;
-
-            if (newCurrentTrack?.Id != currentTrack?.Id)
-            {
-                CurrentTrackChanged?.Invoke(currentTrack, newCurrentTrack);
-                currentTrack = newCurrentTrack;
-            }
-            if (newNextTrack?.Id != nextTrack?.Id)
-            {
-                NextTrackChanged?.Invoke(nextTrack, newNextTrack);
-                nextTrack = newNextTrack;
-            }
-
-            yield return ctx;
+            yield return Update();
         }
     }
-
-    public event TrackChanged? CurrentTrackChanged;
-    public event TrackChanged? NextTrackChanged;
 }

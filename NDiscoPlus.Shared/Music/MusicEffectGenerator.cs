@@ -9,10 +9,9 @@ using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Music;
 
-internal record EffectRecord
+internal class EffectRecord
 {
     public NDPEffect? Effect { get; }
-
     public AudioAnalysisSection Section { get; }
     // public NDPInterval Interval { get; }
 
@@ -21,6 +20,16 @@ internal record EffectRecord
         Effect = effect;
         Section = section;
         // Interval = NDPInterval.FromSeconds(section.Start, section.Duration);
+    }
+}
+
+internal class GeneratedEffects
+{
+    public ImmutableArray<EffectRecord> Effects { get; }
+
+    public GeneratedEffects(ImmutableArray<EffectRecord> effects)
+    {
+        Effects = effects;
     }
 }
 
@@ -74,7 +83,13 @@ public class MusicEffectGenerator
         return t.Bars.IsEmpty && t.Beats.IsEmpty && t.Tatums.IsEmpty;
     }
 
-    internal IEnumerable<EffectRecord> Generate(AudioAnalysis analysis)
+    internal GeneratedEffects Generate(AudioAnalysis analysis)
+    {
+        ImmutableArray<EffectRecord> effects = InternalGenerate(analysis).ToImmutableArray();
+        return new(effects);
+    }
+
+    private IEnumerable<EffectRecord> InternalGenerate(AudioAnalysis analysis)
     {
         foreach ((EffectIntensity intensity, AudioAnalysisSection section) in ComputeIntensities(analysis))
         {

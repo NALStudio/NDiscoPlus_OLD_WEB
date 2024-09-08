@@ -3,6 +3,7 @@ using Blazored.SessionStorage;
 using BlazorWorker.Core;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using MudBlazor;
 using MudBlazor.Services;
 
 namespace NDiscoPlus;
@@ -20,7 +21,14 @@ internal static class Program
         builder.Services.AddBlazoredLocalStorage();
         builder.Services.AddBlazoredSessionStorage();
 
-        builder.Services.AddMudServices();
+        builder.Services.AddMudServices(config =>
+        {
+            // Configure Snackbar
+            config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomLeft;
+            config.SnackbarConfiguration.ShowTransitionDuration = 250;
+            config.SnackbarConfiguration.VisibleStateDuration = 5000;
+            config.SnackbarConfiguration.HideTransitionDuration = 2000;
+        });
 
         // TODO: Wait for Blazor WASM Threads
         // see: https://github.com/dotnet/aspnetcore/issues/17730

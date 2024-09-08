@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Shared.Analyzer.Analysis;
+using NDiscoPlus.Shared.Music;
 using SpotifyAPI.Web;
 using System.Collections.Immutable;
 
@@ -19,8 +20,30 @@ internal class Context
     }
 }
 
+internal sealed class StrobeContext : Context
+{
+    public GeneratedEffects Effects { get; }
+
+    private StrobeContext(Random random, NDPColorPalette palette, AudioAnalysis analysis, GeneratedEffects effects) : base(random, palette, analysis)
+    {
+        Effects = effects;
+    }
+
+    public static StrobeContext Extend(Context context, GeneratedEffects effects)
+    {
+        return new StrobeContext(
+            random: context.Random,
+            palette: context.Palette,
+            analysis: context.Analysis,
+            effects: effects
+        );
+    }
+}
+
 internal sealed class EffectContext : Context
 {
+    public AudioAnalysisSection Section { get; }
+
     private EffectContext(Random random, NDPColorPalette palette, AudioAnalysis analysis, AudioAnalysisSection section) : base(random, palette, analysis)
     {
         Section = section;
@@ -35,6 +58,4 @@ internal sealed class EffectContext : Context
             section: section
         );
     }
-
-    public AudioAnalysisSection Section { get; }
 }
