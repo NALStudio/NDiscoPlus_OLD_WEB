@@ -2,16 +2,16 @@
 
 namespace NDiscoPlus.LightHandlers;
 
-public struct ValidationErrorCollector
+public class ErrorMessageCollector
 {
     private List<string>? errors;
 
-    public ValidationErrorCollector()
+    public ErrorMessageCollector()
     {
         errors = new();
     }
 
-    public readonly void Add(string msg)
+    public void Add(string msg)
     {
         if (errors is null)
             throw new InvalidOperationException("Cannot add new errors after Collect() is called.");

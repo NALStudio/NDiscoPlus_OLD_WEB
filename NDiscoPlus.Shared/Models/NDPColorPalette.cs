@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Helpers;
+﻿using MemoryPack;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models.Color;
 using SkiaSharp;
 using System.Collections;
@@ -7,10 +8,14 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Models;
-public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
+[MemoryPackable(SerializeLayout.Explicit)]
+public readonly partial struct NDPColorPalette : IReadOnlyList<NDPColor>
 {
+    [MemoryPackOrder(0)]
+    [MemoryPackInclude]
     private readonly ImmutableArray<NDPColor> colors;
 
+    [MemoryPackIgnore]
     public readonly int Count => colors.Length;
 
     public NDPColor this[int index] => colors[index];
@@ -25,6 +30,7 @@ public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
         this.colors = colors.ToImmutableArray();
     }
 
+    [MemoryPackConstructor]
     public NDPColorPalette(ImmutableArray<NDPColor> colors)
     {
         this.colors = colors;
@@ -38,6 +44,7 @@ public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
     public NDPColorPalette(params SKColor[] colors) : this((IEnumerable<SKColor>)colors)
     { }
 
+    [MemoryPackIgnore]
     public readonly IList<NDPColor> Colors => colors;
 
 

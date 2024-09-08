@@ -236,7 +236,7 @@
 
 @code {
     [Parameter]
-    public IList<NDPColor> Colors { get; set; } = new List<NDPColor>();
+    public IReadOnlyList<NDPColor> Colors { get; set; } = new List<NDPColor>();
 
     [Parameter]
     public bool UseHDR { get; set; } = false;

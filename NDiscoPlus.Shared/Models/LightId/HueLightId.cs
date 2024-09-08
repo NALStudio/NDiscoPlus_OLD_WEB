@@ -5,12 +5,14 @@ namespace NDiscoPlus.Shared.Models;
 [MemoryPackable]
 public partial class HueLightId : LightId
 {
+    public Guid EntertainmentConfigurationId { get; }
     public byte ChannelId { get; }
 
     public override string HumanReadableString => $"Hue Light (id: {ChannelId})";
 
-    public HueLightId(byte channelId)
+    public HueLightId(Guid entertainmentConfigurationId, byte channelId)
     {
+        EntertainmentConfigurationId = entertainmentConfigurationId;
         ChannelId = channelId;
     }
 

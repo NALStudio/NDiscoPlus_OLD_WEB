@@ -1,6 +1,9 @@
 ﻿using Blazored.LocalStorage;
 using MemoryPack;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Models.Color;
+using NDiscoPlus.Shared.Music;
+using System.Diagnostics;
 
 namespace NDiscoPlus.LightHandlers.Screen;
 
@@ -13,14 +16,27 @@ internal enum ScreenLightCount
 internal class ScreenLightHandlerConfig : LightHandlerConfig
 {
     public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
+    public bool UseHDR { get; set; } = false;
 
     public override LightHandler CreateLightHandler()
         => new ScreenLightHandler(this);
 }
 
+internal readonly record struct ScreenLight(NDPLight Light, NDPColor? Color)
+{
+    public ScreenLight ReplaceColor(NDPColor color)
+        => new(Light, color);
+}
+
 internal class ScreenLightHandler : LightHandler
 {
-    public const bool UseHDR = false;
+    private record class LightsContainer(NDPLight[] Lights)
+    {
+        public NDPColor[]? Colors { get; set; } = null;
+    }
+
+    private LightsContainer? lights;
+    public IReadOnlyList<NDPColor>? Colors => lights?.Colors;
 
     public ScreenLightHandler(LightHandlerConfig? config) : base(config)
     {
@@ -58,22 +74,66 @@ internal class ScreenLightHandler : LightHandler
         };
     }
 
-    public override ValueTask<NDPLight[]> GetLights()
+    private NDPLight[] GetLightsInternal()
     {
         var config = Config<ScreenLightHandlerConfig>();
 
-        ColorGamut colorGamut = UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
+        ColorGamut colorGamut = config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
 
         if (config.LightCount == ScreenLightCount.Four)
-            return new ValueTask<NDPLight[]>(GetLights4(colorGamut));
+            return GetLights4(colorGamut);
         else if (config.LightCount == ScreenLightCount.Six)
-            return new ValueTask<NDPLight[]>(GetLights6(colorGamut));
+            return GetLights6(colorGamut);
         else
             throw new InvalidLightHandlerConfigException("Invalid light count.");
     }
 
-    public override ValueTask<bool> ValidateConfig(ValidationErrorCollector errors)
+    public override ValueTask<NDPLight[]> GetLights()
+        => new(GetLightsInternal());
+
+    public override ValueTask<bool> ValidateConfig(ErrorMessageCollector errors)
     {
+        ScreenLightHandlerConfig config = Config<ScreenLightHandlerConfig>();
+
+        bool valid = true;
+
+        if (!Enum.GetValues<ScreenLightCount>().Contains(config.LightCount))
+        {
+            errors.Add($"Invalid Screen Light Count: {config.LightCount}");
+            valid = false;
+        }
+
+        return new ValueTask<bool>(valid);
+    }
+
+    public override ValueTask<bool> Start(ErrorMessageCollector errors, out NDPLight[] lights)
+    {
+        if (this.lights is null)
+        {
+            NDPLight[] l = GetLightsInternal();
+            this.lights = new LightsContainer(l);
+        }
+
+        lights = this.lights.Lights;
+
         return new ValueTask<bool>(true);
+    }
+
+    public override ValueTask Update(LightInterpreterResult result)
+    {
+        if (lights is null)
+            throw new InvalidOperationException("Screen Light Handler not started.");
+        lights.Colors ??= new NDPColor[lights.Lights.Length];
+
+        foreach ((ScreenLightId light, NDPColor color) in result.GetLightsOfType<ScreenLightId>())
+            lights.Colors[light.Index] = color;
+
+        return new();
+    }
+
+    public override ValueTask Stop()
+    {
+        lights = null;
+        return new();
     }
 }

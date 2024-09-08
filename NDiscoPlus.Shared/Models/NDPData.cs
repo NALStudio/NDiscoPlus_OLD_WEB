@@ -38,9 +38,7 @@ public partial class NDPData
 
     public SpotifyPlayerTrack Track { get; }
 
-    [NDPColorPaletteFormatter]
     public NDPColorPalette ReferencePalette { get; }
-    [NDPColorPaletteFormatter]
     public NDPColorPalette EffectPalette { get; }
 
     public EffectConfig EffectConfig { get; }
@@ -55,11 +53,11 @@ public partial class NDPData
         return ByteHelper.UnsafeCastToStringUtf8(bytes);
     }
 
-    public static NDPData Deserialize(string data)
+    public static NDPData Deserialize(string dataSerialized)
     {
-        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(data);
-        NDPData? d = MemoryPackSerializer.Deserialize<NDPData>(bytes);
-        return d ?? throw new InvalidOperationException("Cannot deserialize value.");
+        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(dataSerialized);
+        NDPData? data = MemoryPackSerializer.Deserialize<NDPData>(bytes);
+        return data ?? throw new ArgumentException("Cannot deserialize value.", nameof(dataSerialized));
     }
 }
 

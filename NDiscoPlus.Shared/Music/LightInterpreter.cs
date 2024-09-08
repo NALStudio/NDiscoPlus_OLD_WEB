@@ -9,6 +9,9 @@ using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Music;
 
+/// <summary>
+/// Thread-safe interpreter result.
+/// </summary>
 public readonly record struct LightInterpreterResult
 {
     public LightInterpreterResult(ReadOnlyDictionary<LightId, NDPColor> lights, double frameTime)
@@ -17,7 +20,7 @@ public readonly record struct LightInterpreterResult
         FrameTime = frameTime;
     }
 
-    public IDictionary<LightId, NDPColor> Lights { get; }
+    public IReadOnlyDictionary<LightId, NDPColor> Lights { get; }
 
     public IEnumerable<(T LightId, NDPColor Color)> GetLightsOfType<T>() where T : LightId
     {
@@ -154,7 +157,7 @@ public class LightInterpreter
         double deltaTime = TickDeltaTime();
 
         return new LightInterpreterResult(
-            lights: lights.AsReadOnly(),
+            lights: lights.AsReadOnly(), // should be thread-safe as we don't keep a reference to the dictionary after this function ends
             frameTime: deltaTime
         );
     }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -17,6 +18,13 @@ internal static class ByteHelper
         return new string(chars);
     }
 
+    // Doesn't seem to roundtrip correctly...
+    // public static string UnsafeCastToStringUtf16(ReadOnlySpan<byte> bytes)
+    // {
+    //     ReadOnlySpan<char> chars = MemoryMarshal.Cast<byte, char>(bytes);
+    //     return new string(chars);
+    // }
+
     public static byte[] UnsafeCastFromStringUtf8(string str)
     {
         ReadOnlySpan<char> src = str.AsSpan();
@@ -29,4 +37,11 @@ internal static class ByteHelper
 
         return output;
     }
+
+    // Doesn't seem to roundtrip correctly...
+    // public static ReadOnlySpan<byte> UnsafeCastFromStringUtf16(string str)
+    // {
+    //     ReadOnlySpan<char> chars = str.AsSpan();
+    //     return MemoryMarshal.Cast<char, byte>(chars);
+    // }
 }

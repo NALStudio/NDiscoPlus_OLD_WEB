@@ -2,28 +2,54 @@
 using NDiscoPlus.Constants;
 using NDiscoPlus.LightHandlers;
 using NDiscoPlus.LightHandlers.Screen;
-using System.Reflection.Metadata;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Models;
 
 internal sealed class LightConfigurationProfile
 {
+    private class SerializableProfile
+    {
+        public ImmutableArray<LightHandlerConfig> Handlers { get; }
+
+        public SerializableProfile(ImmutableArray<LightHandlerConfig> handlers)
+            => Handlers = handlers;
+
+        public static SerializableProfile Construct(LightConfigurationProfile profile)
+        {
+            ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.Config()).ToImmutableArray();
+
+            return new SerializableProfile(
+                handlers: handlers
+            );
+        }
+    }
+
     private readonly string localStoragePath;
     private readonly List<LightHandler> handlers;
 
-    [JsonConstructor]
-    private LightConfigurationProfile(string localStoragePath, List<LightHandler> handlers)
+    private LightConfigurationProfile(string localStoragePath, IEnumerable<LightHandler> handlers)
     {
         this.localStoragePath = localStoragePath;
-        this.handlers = handlers;
+        this.handlers = handlers.ToList();
     }
 
-    public IList<LightHandler> Handlers => handlers.AsReadOnly();
+    [JsonIgnore]
+    public IReadOnlyList<LightHandler> Handlers => handlers.AsReadOnly();
 
-    public static async IAsyncEnumerable<LightConfigurationProfile> LoadAll(ILocalStorageService localStorage)
+    public static async IAsyncEnumerable<LightConfigurationProfile> LoadAll(ILocalStorageService localStorage, bool _createDefault = true)
     {
-        IEnumerable<string> keys = await localStorage.GetKeysWithPrefix(LocalStoragePaths.LightConfigurationProfilePrefix);
+        IEnumerable<string> keysEnumerable = await localStorage.GetKeysWithPrefix(LocalStoragePaths.LightConfigurationProfilePrefix);
+        string[] keys = keysEnumerable.ToArray();
+
+        if (keys.Length < 1)
+        {
+            if (_createDefault)
+                yield return await GetOrCreateDefaultInstance(localStorage);
+            yield break;
+        }
+
         foreach (string key in keys)
         {
             LightConfigurationProfile? profile = await Load(localStorage, key);
@@ -36,7 +62,7 @@ internal sealed class LightConfigurationProfile
     private static async Task<LightConfigurationProfile> GetOrCreateDefaultInstance(ILocalStorageService localStorage)
     {
         // Try to return the first profile if any are available
-        await foreach (LightConfigurationProfile loaded in LoadAll(localStorage))
+        await foreach (LightConfigurationProfile loaded in LoadAll(localStorage, _createDefault: false))
             return loaded;
 
         // Create a new default instance and set it as current.
@@ -53,7 +79,10 @@ internal sealed class LightConfigurationProfile
             return await GetOrCreateDefaultInstance(localStorage);
 
         LightConfigurationProfile? profile = await Load(localStorage, currentKey);
-        return profile ?? await GetOrCreateDefaultInstance(localStorage);
+        if (profile is null)
+            return await GetOrCreateDefaultInstance(localStorage);
+
+        return profile;
     }
 
     public static async Task SaveAsCurrent(ILocalStorageService localStorage, LightConfigurationProfile profile)
@@ -62,13 +91,19 @@ internal sealed class LightConfigurationProfile
         await localStorage.SetItemAsStringAsync(LocalStoragePaths.LightConfigurationCurrent, profile.localStoragePath);
     }
 
-    private static ValueTask<LightConfigurationProfile?> Load(ILocalStorageService localStorage, string key)
+    private static async Task<LightConfigurationProfile?> Load(ILocalStorageService localStorage, string key)
     {
-        return localStorage.GetItemAsync<LightConfigurationProfile>(key);
+        SerializableProfile? serializable = await localStorage.GetItemAsync<SerializableProfile>(key);
+        if (serializable is null)
+            return null;
+
+        return new LightConfigurationProfile(key, serializable.Handlers.Select(h => h.CreateLightHandler()));
     }
+
     public static ValueTask Save(ILocalStorageService localStorage, LightConfigurationProfile profile)
     {
-        return localStorage.SetItemAsync(profile.localStoragePath, profile);
+        SerializableProfile serializable = SerializableProfile.Construct(profile);
+        return localStorage.SetItemAsync(profile.localStoragePath, serializable);
     }
 
     public static async Task<LightConfigurationProfile> CreateNew(ILocalStorageService localStorage)
@@ -84,10 +119,7 @@ internal sealed class LightConfigurationProfile
 
         return new(
             localStoragePath: localStoragePath,
-            handlers: new List<LightHandler>()
-            {
-                new ScreenLightHandler(null)
-            }
+            handlers: [new ScreenLightHandler(null)]
         );
     }
 

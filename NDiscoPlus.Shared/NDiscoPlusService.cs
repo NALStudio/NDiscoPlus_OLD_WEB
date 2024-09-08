@@ -8,6 +8,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
 using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.MemoryPack;
 using NDiscoPlus.Shared.MemoryPack.Formatters;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
@@ -16,32 +17,32 @@ using NDiscoPlus.Spotify.Models;
 using NDiscoPlus.Spotify.Serializable;
 using SkiaSharp;
 using SpotifyAPI.Web;
-using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared;
 
 [MemoryPackable]
 public partial class NDiscoPlusArgs
 {
-    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
+    public NDiscoPlusArgs(SpotifyPlayerTrack track, NDPColorPalette? referencePalette, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
     {
         Track = track;
+        ReferencePalette = referencePalette;
+
         Features = features;
         Analysis = analysis;
+
         Effects = effects;
         Lights = lights;
     }
 
     public SpotifyPlayerTrack Track { get; }
+
+    /// <summary>
+    /// <para>If <see langword="null"/>, use a random default color palette.</para>
+    /// </summary>
+    public NDPColorPalette? ReferencePalette { get; }
 
     [TrackAudioFeaturesFormatter]
     public TrackAudioFeatures Features { get; }
@@ -50,27 +51,6 @@ public partial class NDiscoPlusArgs
 
     public EffectConfig Effects { get; }
     public NDiscoPlusArgsLights Lights { get; }
-
-    /// <summary>
-    /// Serialize to pass object to workers.
-    /// Serialized representation is currently JSON, but might change in the future.
-    /// </summary>
-    public static string Serialize(NDiscoPlusArgs args)
-    {
-        byte[] bytes = MemoryPackSerializer.Serialize(args);
-        return ByteHelper.UnsafeCastToStringUtf8(bytes);
-    }
-
-    /// <summary>
-    /// Deserialize to receive object from workers.
-    /// Serialized representation is currently JSON, but might change in the future. Use the one provided by <see cref="Serialize(SpotifyPlayerTrack)"/>
-    /// </summary>
-    public static NDiscoPlusArgs Deserialize(string args)
-    {
-        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(args);
-        NDiscoPlusArgs? d = MemoryPackSerializer.Deserialize<NDiscoPlusArgs>(bytes);
-        return d ?? throw new InvalidOperationException("Cannot deserialize value.");
-    }
 }
 
 [MemoryPackable]
@@ -144,11 +124,6 @@ public class NDiscoPlusService
         )
     ];
 
-    private NDPColorPalette GetRandomDefaultPalette()
-    {
-        return DefaultPalettes[random.Next(DefaultPalettes.Count)];
-    }
-
     private NDPColorPalette ModifyPaletteForEffects(NDPColorPalette palette)
     {
         const int MinPaletteCount = 4;
@@ -185,7 +160,7 @@ public class NDiscoPlusService
         return palette;
     }
 
-    public NDPData ComputeData(NDiscoPlusArgs args, NDPColorPalette palette)
+    public NDPData ComputeData(NDiscoPlusArgs args)
     {
         // Analyze audio
         AudioAnalysis analysis = AudioAnalyzer.Analyze(args.Features, args.Analysis);
@@ -193,7 +168,8 @@ public class NDiscoPlusService
         // Initialize effect generation
         MusicEffectGenerator effectGen = MusicEffectGenerator.CreateRandom(random);
 
-        NDPColorPalette effectPalette = ModifyPaletteForEffects(palette);
+        NDPColorPalette referencePalette = args.ReferencePalette ?? GetRandomDefaultPalette();
+        NDPColorPalette effectPalette = ModifyPaletteForEffects(referencePalette);
 
         EffectAPI api = new(
             args.Effects,
@@ -234,7 +210,7 @@ public class NDiscoPlusService
 
         return new NDPData(
             track: args.Track,
-            referencePalette: palette,
+            referencePalette: referencePalette,
             effectPalette: effectPalette,
 
             effectConfig: api.Config,
@@ -243,25 +219,15 @@ public class NDiscoPlusService
             lights: args.Lights.Lights
         );
     }
+    public SerializedValue ComputeDataBlazorWorker(SerializedValue args)
+        => SerializedValue.Serialize(ComputeData(args.Deserialize<NDiscoPlusArgs>()));
 
-    public async Task<NDPData> ComputeDataWithImageColors(NDiscoPlusArgs args)
+    private NDPColorPalette GetRandomDefaultPalette()
     {
-        var palette = await FetchImagePalette(args.Track);
-        return ComputeData(args, palette);
+        return DefaultPalettes[random.Next(DefaultPalettes.Count)];
     }
 
-    /// <summary>
-    /// Blazor workers have a hard time serializing objects.
-    /// </summary>
-    /// <param name="argsSerialized">A serialized <see cref="NDiscoPlusArgs"/> instance.</param>
-    public async Task<string> ComputeDataWithImageColorsFromSerialized(string argsSerialized)
-    {
-        NDiscoPlusArgs args = NDiscoPlusArgs.Deserialize(argsSerialized);
-        NDPData data = await ComputeDataWithImageColors(args);
-        return NDPData.Serialize(data);
-    }
-
-    public async Task<NDPColorPalette> FetchImagePalette(SpotifyPlayerTrack track)
+    public async Task<NDPColorPalette?> FetchImagePalette(SpotifyPlayerTrack track)
     {
         http ??= new HttpClient();
 
@@ -272,12 +238,20 @@ public class NDiscoPlusService
 
         var result = await http.GetAsync(halfSizeImage.Url);
         if (!result.IsSuccessStatusCode)
-            return GetRandomDefaultPalette();
+            return null;
 
         SKBitmap bitmap = SKBitmap.Decode(await result.Content.ReadAsStreamAsync());
         uint[] pixels = Array.ConvertAll(bitmap.Pixels, p => (uint)p);
         List<uint> rawColors = MaterialColorUtilities.Utils.ImageUtils.ColorsFromImage(pixels);
 
         return new NDPColorPalette(rawColors.Select(c => new SKColor(c)));
+    }
+    public async Task<SerializedValue?> FetchImagePaletteBlazorWorker(SerializedValue track)
+    {
+        NDPColorPalette? palette = await FetchImagePalette(track.Deserialize<SpotifyPlayerTrack>());
+        if (palette.HasValue)
+            return SerializedValue.Serialize(palette.Value);
+        else
+            return null;
     }
 }
