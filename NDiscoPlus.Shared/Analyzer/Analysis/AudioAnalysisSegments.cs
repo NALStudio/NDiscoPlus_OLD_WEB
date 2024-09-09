@@ -8,6 +8,20 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Analyzer.Analysis;
 
+internal readonly struct Timbre
+{
+    public ImmutableArray<float> Values { get; }
+    public Timbre(ImmutableArray<float> values)
+    {
+        Values = values;
+    }
+
+    public static double EuclideanDistance(Timbre a, Timbre b)
+    {
+
+    }
+}
+
 internal readonly struct NDPSegment
 {
     public NDPSegment(NDPInterval interval, float confidence, float loudnessStart, float loudnessMax, TimeSpan loudnessMaxTime, float loudnessEnd, ImmutableArray<float> pitches, ImmutableArray<float> timbre)
