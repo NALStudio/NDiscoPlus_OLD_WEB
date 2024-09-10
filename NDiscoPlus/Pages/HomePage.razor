@@ -213,8 +213,8 @@
     static readonly PaletteGradient defaultGradient = new(NDiscoPlusService.DefaultPalettes[0]);
     public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
 
-    // cache can be big as I don't really care about how slow cache misses are since it's still magnitudes faster than when we serialize the gradient computation request to BlazorWorker
-    readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 25);
+    // Large capacity is fine. I'd rather use a bit more memory than compute a new gradient (heavy operation!)
+    readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 50);
 
     LightInterpreter gradientLights = new();
 
