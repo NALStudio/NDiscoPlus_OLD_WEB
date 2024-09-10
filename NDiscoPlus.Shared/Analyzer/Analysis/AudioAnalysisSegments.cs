@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared.Models;
+﻿using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -8,23 +9,32 @@ using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Analyzer.Analysis;
 
-internal readonly struct Timbre
+public readonly struct Timbre
 {
     public ImmutableArray<float> Values { get; }
+    public const int ValueCount = 12;
+
     public Timbre(ImmutableArray<float> values)
     {
+        if (values.Length < ValueCount)
+            throw new ArgumentException($"Invalid values count. Expected: {ValueCount}, Got: {values.Length}.", nameof(values));
         Values = values;
+    }
+    public Timbre(IEnumerable<float> values) : this(values.ToImmutableArray())
+    {
     }
 
     public static double EuclideanDistance(Timbre a, Timbre b)
     {
-
+        IEnumerable<double> aa = a.Values.Select(static x => (double)x);
+        IEnumerable<double> bb = b.Values.Select(static x => (double)x);
+        return EnumerableHelpers.EuclideanDistance(aa, bb);
     }
 }
 
 internal readonly struct NDPSegment
 {
-    public NDPSegment(NDPInterval interval, float confidence, float loudnessStart, float loudnessMax, TimeSpan loudnessMaxTime, float loudnessEnd, ImmutableArray<float> pitches, ImmutableArray<float> timbre)
+    public NDPSegment(NDPInterval interval, float confidence, float loudnessStart, float loudnessMax, TimeSpan loudnessMaxTime, float loudnessEnd, ImmutableArray<float> pitches, Timbre timbre)
     {
         Interval = interval;
         Confidence = confidence;
@@ -70,7 +80,7 @@ internal readonly struct NDPSegment
 
     public ImmutableArray<float> Pitches { get; }
 
-    public ImmutableArray<float> Timbre { get; }
+    public Timbre Timbre { get; }
 
     public static NDPSegment FromSpotify(SpotifyAPI.Web.Segment segment)
     {
@@ -82,7 +92,7 @@ internal readonly struct NDPSegment
             loudnessMaxTime: TimeSpan.FromSeconds(segment.LoudnessMaxTime),
             loudnessEnd: segment.LoudnessEnd,
             pitches: segment.Pitches.ToImmutableArray(),
-            timbre: segment.Timbre.ToImmutableArray()
+            timbre: new Timbre(segment.Timbre)
         );
     }
 }

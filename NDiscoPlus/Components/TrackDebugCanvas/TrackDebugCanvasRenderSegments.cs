@@ -1,16 +1,25 @@
 ﻿using Excubo.Blazor.Canvas;
 using Excubo.Blazor.Canvas.Contexts;
 using MudBlazor;
+using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Spotify.Models;
 using SpotifyAPI.Web;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace NDiscoPlus.Components;
 
 public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
 {
+    private enum Style
+    {
+        Desibels,
+        Distance
+    }
+
     private readonly record struct SegmentRender(Segment Segment, double X, double Width)
     {
         public bool GetVisible(double canvasWidth)
@@ -27,14 +36,21 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
     const double minLoudness = -60;
     const double maxLoudness = 0;
 
-    public TrackDebugCanvasRenderSegments(Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis) : base(canvas, canvasWidth, canvasHeight, context, features, analysis)
+    private readonly Style style;
+
+    private TrackDebugCanvasRenderSegments(Style style, Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis) : base(canvas, canvasWidth, canvasHeight, context, features, analysis)
     {
+        this.style = style;
     }
+    public static TrackDebugCanvasRenderSegments DesibelsStyle(Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis)
+        => new(Style.Desibels, canvas: canvas, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: context, features: features, analysis: analysis);
+    public static TrackDebugCanvasRenderSegments DistanceStyle(Context2D canvas, int canvasWidth, int canvasHeight, SpotifyPlayerContext context, TrackAudioFeatures features, TrackAudioAnalysis analysis)
+        => new(Style.Distance, canvas: canvas, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: context, features: features, analysis: analysis);
 
     public override async Task RenderAsync()
     {
-        Segment current = await RenderSegments();
-        await RenderPlayer(current);
+        int currentSegmentIndex = await RenderSegments();
+        await RenderPlayer(currentSegmentIndex);
     }
 
     double GetScrollingX(double start)
@@ -54,48 +70,51 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         return frac * canvasWidth;
     }
 
-    static int SegmentBinarySearch(List<Segment> segments, double progress)
+    /// <summary>
+    /// Return the index of the current segment.
+    /// </summary>
+    /// <returns></returns>
+    async Task<int> RenderSegments()
     {
-        int first = 0;
-        int last = segments.Count - 1;
-        int mid = 0;
-        do
-        {
-            mid = first + (last - first) / 2;
-            if (progress > segments[mid].Start)
-                first = mid + 1;
-            else
-                last = mid - 1;
-            if (segments[mid].Start == progress)
-                return mid;
-        } while (first <= last);
-        return mid;
-    }
-
-    async Task<Segment> RenderSegments()
-    {
-        int currentSegmentIndex = SegmentBinarySearch(analysis.Segments, player.Progress.TotalSeconds);
+        // The return value i is such that all e in a[..i] have e <= x, and all e in a[i..] have e > x.
+        // so Segments[i - 1].Start <= Progress
+        int nextSegment = Bisect.BisectRight(analysis.Segments, player.Progress.TotalSeconds, segment => (double)segment.Start);
+        int currentSegment = nextSegment - 1;
 
         await canvas.LineWidthAsync(1);
 
-        SegmentRender[] renders = VisibleRenders(currentSegmentIndex, analysis.Segments).ToArray();
+        SegmentRender[] renders = VisibleRenders(currentSegment, analysis.Segments).ToArray();
 
-        await canvas.FillStyleAsync("hsl(0, 100%, 50%)");
-        await canvas.StrokeStyleAsync("hsl(0, 100%, 35%)");
-        foreach (SegmentRender r in renders)
-            await RenderSegmentMax(r);
+        if (style == Style.Desibels)
+        {
+            await canvas.FillStyleAsync("hsl(0, 100%, 50%)");
+            await canvas.StrokeStyleAsync("hsl(0, 100%, 35%)");
+            foreach (SegmentRender r in renders)
+                await RenderSegmentMax(r);
 
-        await canvas.FillStyleAsync("hsl(60, 100%, 50%)");
-        await canvas.StrokeStyleAsync("hsl(60, 100%, 35%)");
-        foreach (SegmentRender r in renders)
-            await RenderSegmentRise(r);
+            await canvas.FillStyleAsync("hsl(60, 100%, 50%)");
+            await canvas.StrokeStyleAsync("hsl(60, 100%, 35%)");
+            foreach (SegmentRender r in renders)
+                await RenderSegmentRise(r);
 
-        await canvas.FillStyleAsync("hsl(120, 100%, 50%)");
-        await canvas.StrokeStyleAsync("hsl(120, 100%, 35%)");
-        foreach (SegmentRender r in renders)
-            await RenderSegment(r);
+            await canvas.FillStyleAsync("hsl(120, 100%, 50%)");
+            // await canvas.StrokeStyleAsync("hsl(120, 100%, 35%)");
+            foreach (SegmentRender r in renders)
+                await RenderSegmentLoudnessStart(r);
+        }
+        else if (style == Style.Distance)
+        {
+            await canvas.StrokeStyleAsync("#000000");
+            foreach (SegmentRender r in renders)
+                await RenderSegmentConfidence(r);
+        }
+        else
+        {
+            throw StyleNotImplementedError(style);
+        }
 
-        return analysis.Segments[currentSegmentIndex];
+
+        return currentSegment;
     }
 
     IEnumerable<SegmentRender> VisibleRenders(int currentIndex, List<Segment> segments)
@@ -123,12 +142,24 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         }
     }
 
-    async Task RenderSegment(SegmentRender segment)
+    async Task RenderSegmentLoudnessStart(SegmentRender segment)
     {
         double segmentHeight = DoubleHelpers.Remap(segment.Segment.LoudnessStart, minLoudness, maxLoudness, 0, canvasHeight);
 
         await canvas.FillRectAsync(segment.X, canvasHeight - segmentHeight, segment.Width, segmentHeight);
         // await canvas.StrokeRectAsync(segment.X, canvasHeight - segmentHeight, segment.Width, segmentHeight);
+    }
+
+    async Task RenderSegmentConfidence(SegmentRender segment)
+    {
+        // double height = DoubleHelpers.Lerp(0, canvasHeight, segment.Segment.Confidence);
+        double hue = DoubleHelpers.Lerp(0, 120, segment.Segment.Confidence);
+        double height = 0.9 * canvasHeight;
+        double y = canvasHeight - height;
+
+        await canvas.FillStyleAsync($"hsl({hue.ToString(CultureInfo.InvariantCulture)}, 100%, 50%)");
+        await canvas.FillRectAsync(segment.X, y, segment.Width, height);
+        await canvas.StrokeRectAsync(segment.X, y, segment.Width, height);
     }
 
     async Task RenderSegmentMax(SegmentRender render)
@@ -154,8 +185,42 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         await canvas.FillRectAsync(render.X, canvasHeight - maxHeight, width, maxHeight);
     }
 
-    async Task RenderPlayer(Segment currentSegment)
+    async Task RenderPlayer(int currentSegmentIndex)
     {
+        await canvas.FillStyleAsync("#000000");
+
+        int nextSegmentIndex = currentSegmentIndex + 1;
+        int prevSegmentIndex = currentSegmentIndex - 1;
+
+        Segment current = analysis.Segments[currentSegmentIndex];
+        Segment? prev = prevSegmentIndex >= 0 ? analysis.Segments[prevSegmentIndex] : null;
+        Segment? next = nextSegmentIndex < analysis.Segments.Count ? analysis.Segments[nextSegmentIndex] : null;
+
+        string[] lines;
+        if (style == Style.Desibels)
+        {
+            lines = [
+                $"{current.LoudnessStart} dB for: {current.Duration} sec",
+                $"{current.LoudnessMax} dB (max) at: {current.LoudnessMaxTime} sec",
+            ];
+        }
+        else if (style == Style.Distance)
+        {
+            Timbre currentTimbre = new(current.Timbre);
+            double? distanceFromPrev = prev is not null ? Timbre.EuclideanDistance(currentTimbre, new Timbre(prev.Timbre)) : null;
+            double? distanceToNext = next is not null ? Timbre.EuclideanDistance(currentTimbre, new Timbre(next.Timbre)) : null;
+
+            lines = [
+                $"{current.Confidence * 100:.00} % confidence",
+                $"{(distanceFromPrev ?? -1):.00} distance from previous",
+                $"{(distanceToNext ?? -1):.00} distance to next"
+            ];
+        }
+        else
+        {
+            throw StyleNotImplementedError(style);
+        }
+
         double pos = canvasWidth / 2d;
 
         await canvas.StrokeStyleAsync("#000000");
@@ -166,12 +231,6 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         await canvas.LineToAsync(pos, canvasHeight);
         await canvas.StrokeAsync();
 
-        string[] lines = [
-            $"{currentSegment.LoudnessStart} dB for: {currentSegment.Duration} sec",
-            $"{currentSegment.LoudnessMax} dB (max) at: {currentSegment.LoudnessMaxTime} sec",
-            $"{currentSegment.Confidence * 100:.00} % confidence"
-        ];
-
         double textY = 0d;
         foreach (string line in lines)
         {
@@ -180,4 +239,9 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
             await canvas.FillTextAsync(line, pos + 1, textY);
         }
     }
+
+    // return error as DoesNotReturnAttribute doesn't tell the compiler that the rest of the code is inaccessible.
+    static NotImplementedException StyleNotImplementedError(Style style)
+        => throw new NotImplementedException($"Style not implemented: {style}");
+
 }

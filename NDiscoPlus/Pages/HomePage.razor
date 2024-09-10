@@ -465,6 +465,7 @@
             if (!IsPlaying)
             {
                 interpreterFps = null;
+                StateHasChanged(); // So that the track progressed time keeps updating
                 continue;
             }
 

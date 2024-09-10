@@ -10,6 +10,7 @@ using System.Diagnostics;
 
 namespace NDiscoPlus.Components;
 
+[Obsolete("Timbre values should not be compared independently.", true, UrlFormat = "https://github.com/spotify/web-api/issues/947#issuecomment-569582040")]
 public class TrackDebugCanvasRenderTimbre : TrackDebugCanvasRender
 {
     const double TimbreMaxValue = 150d;

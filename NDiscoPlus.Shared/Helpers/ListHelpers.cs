@@ -1,8 +1,50 @@
-﻿namespace NDiscoPlus.Shared.Helpers;
+﻿using System.Numerics;
+
+namespace NDiscoPlus.Shared.Helpers;
 
 
-public static class ListHelpers
+public static class EnumerableHelpers
 {
+    /// <summary>
+    /// <see cref="Enumerable.Zip{TFirst, TSecond, TResult}(IEnumerable{TFirst}, IEnumerable{TSecond}, Func{TFirst, TSecond, TResult})"/> with forced equal length.
+    /// </summary>
+    public static IEnumerable<TResult> ZipStrict<TFirst, TSecond, TResult>(this IEnumerable<TFirst> first, IEnumerable<TSecond> second, Func<TFirst, TSecond, TResult> resultSelector)
+    {
+        using IEnumerator<TFirst> e1 = first.GetEnumerator();
+        using IEnumerator<TSecond> e2 = second.GetEnumerator();
+
+        while (true)
+        {
+            bool next1 = e1.MoveNext();
+            bool next2 = e2.MoveNext();
+            if (next1 != next2)
+                throw new InvalidOperationException("Sequences differed in length.");
+
+            if (next1)
+                yield return resultSelector(e1.Current, e2.Current);
+            else
+                yield break;
+        }
+    }
+    /// <summary>
+    /// <see cref="Enumerable.Zip{TFirst, TSecond}(IEnumerable{TFirst}, IEnumerable{TSecond})"/> with forced equal length.
+    /// </summary>
+    public static IEnumerable<(TFirst First, TSecond Second)> ZipStrict<TFirst, TSecond>(this IEnumerable<TFirst> first, IEnumerable<TSecond> second)
+        => ZipStrict(first, second, static (first, second) => (first, second));
+
+    public static T EuclideanDistance<T>(IEnumerable<T> a, IEnumerable<T> b) where T : INumberBase<T>, IRootFunctions<T>
+    {
+        T x = T.Zero;
+        foreach ((T v1, T v2) in ZipStrict(a, b))
+        {
+            // v1 and v2 direction does not matter as we square this value anyways...
+            T diff = v1 - v2;
+            x += diff * diff;
+        }
+
+        return T.Sqrt(x);
+    }
+
     private readonly record struct ValuePosition<T>(T Value, double Position)
     {
         public void Deconstruct(out T value, out double position)
@@ -17,19 +59,22 @@ public static class ListHelpers
     /// <summary>
     /// Chunk <paramref name="values"/> values into <paramref name="groups"/> groups by position.
     /// </summary>
-    public static IEnumerable<T[]> ChunkByPositionByGroupNumber<T>(this IReadOnlyList<T> values, int groups, Func<T, double> positionSelector)
+    public static IEnumerable<T[]> ChunkByPositionByGroupNumber<T>(this IEnumerable<T> values, int groups, Func<T, double> positionSelector)
     {
         static double Distance(double a, double b)
             => Math.Abs(a - b);
 
         ArgumentOutOfRangeException.ThrowIfLessThan(groups, 1, nameof(groups));
 
-        if (values.Count < 1)
+        // Sort by position (start)
+        ValuePosition<T>[] positions = values.Select(v => new ValuePosition<T>(v, positionSelector(v))).ToArray();
+
+        // early return if no values provided
+        if (positions.Length < 1)
             return Enumerable.Repeat(Array.Empty<T>(), groups).ToList();
 
-        // Sort by position
-        ValuePosition<T>[] positions = values.Select(v => new ValuePosition<T>(v, positionSelector(v))).ToArray();
         Array.Sort(positions, (a, b) => a.Position.CompareTo(b.Position));
+        // Sort by position (end)
 
         // Generate group position points
         // these are kind of like hooks where the closest values will cling to.
