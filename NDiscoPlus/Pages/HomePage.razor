@@ -483,9 +483,18 @@
                 Debug.Assert(currentTrack is not null);
                 Debug.Assert(currentTrack.Id == lightHandling.CurrentDataTrackId);
 
-                PaletteGradient? gradient = TryGetTrackGradient(currentTrack);
-                if (gradient is PaletteGradient pg)
-                    lightHandling.CurrentDataTask = ComputeData(spotify, currentTrack, pg.Palette, lightHandling);
+                if (lightHandling.CurrentDataTrackId == lightHandling.NextDataTrackId)
+                {
+                    // Steal data from the next track if the tracks are the same
+                    lightHandling.CurrentDataTask = lightHandling.NextDataTask;
+                }
+                else
+                {
+                    // Next track is different, we must compute new data
+                    PaletteGradient? gradient = TryGetTrackGradient(currentTrack);
+                    if (gradient is PaletteGradient pg)
+                        lightHandling.CurrentDataTask = ComputeData(spotify, currentTrack, pg.Palette, lightHandling);
+                }
             }
 
             // Update next track light data
@@ -502,9 +511,10 @@
                 PaletteGradient? gradient = TryGetTrackGradient(nextTrack);
                 if (gradient is PaletteGradient pg)
                     lightHandling.NextDataTask = ComputeData(spotify, nextTrack, pg.Palette, lightHandling);
-
-
             }
+
+            // Default to all lights black if no effect data (for the light interpreter) has been computed yet
+            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights);
 
             // if current light data has loaded, run interpreter
             if (lightHandling.CurrentData is not null)
@@ -515,21 +525,8 @@
                 try
                 {
                     LightInterpreterResult result = gradientLights.Update(context.Progress, lightHandling.CurrentData);
+                    lightColors = result.Lights;
                     interpreterFpsFrames.Add(result.FPS);
-                    foreach (LightHandler handler in lightHandling.Handlers)
-                    {
-                        ValueTask updateTask = handler.Update(result);
-                        if (!updateTask.IsCompleted)
-                            lightHandlerUpdates.Add(updateTask);
-                        else
-                            await updateTask; // if task is already completed, do not bother adding it to the list and await for any errors instead
-                    }
-
-                    while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
-                    {
-                        await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
-                        lightHandlerUpdates.RemoveAt(0);
-                    }
                 }
                 catch (Exception e)
                 {
@@ -548,6 +545,23 @@
             else
             {
                 interpreterFps = null;
+            }
+
+            // Update colors even if no data is available (to keep the connection on)
+            foreach (LightHandler handler in lightHandling.Handlers)
+            {
+                ValueTask updateTask = handler.Update(lightColors);
+                if (!updateTask.IsCompleted)
+                    lightHandlerUpdates.Add(updateTask);
+                else
+                    await updateTask; // if task is already completed (used synchronous ValueTask<T>), do not bother adding it to the list and await for any errors instead
+            }
+
+            // Remove finished updates (pop from top as it's faster than removing all finished values in the middle of the list)
+            while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
+            {
+                await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
+                lightHandlerUpdates.RemoveAt(0);
             }
 
             StateHasChanged();

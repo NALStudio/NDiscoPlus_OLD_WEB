@@ -119,13 +119,13 @@ internal class ScreenLightHandler : LightHandler
         return new ValueTask<bool>(true);
     }
 
-    public override ValueTask Update(LightInterpreterResult result)
+    public override ValueTask Update(LightColorCollection lightColors)
     {
         if (lights is null)
             throw new InvalidOperationException("Screen Light Handler not started.");
         lights.Colors ??= new NDPColor[lights.Lights.Length];
 
-        foreach ((ScreenLightId light, NDPColor color) in result.GetLightsOfType<ScreenLightId>())
+        foreach ((ScreenLightId light, NDPColor color) in lightColors.OfType<ScreenLightId>()) // get lights of correct type
             lights.Colors[light.Index] = color;
 
         return new();

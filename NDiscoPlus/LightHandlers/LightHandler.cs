@@ -46,7 +46,7 @@ internal abstract class LightHandler : IAsyncDisposable
     /// <para>If handler is already running, should result in a no-op.</para>
     /// </summary>
     public abstract ValueTask<bool> Start(ErrorMessageCollector errors, out NDPLight[] lights);
-    public abstract ValueTask Update(LightInterpreterResult result);
+    public abstract ValueTask Update(LightColorCollection lights);
 
     /// <summary>
     /// If handler isn't running, should result in a no-op.

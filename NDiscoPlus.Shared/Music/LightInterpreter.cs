@@ -14,22 +14,13 @@ namespace NDiscoPlus.Shared.Music;
 /// </summary>
 public readonly record struct LightInterpreterResult
 {
-    public LightInterpreterResult(ReadOnlyDictionary<LightId, NDPColor> lights, double frameTime)
+    public LightInterpreterResult(LightColorCollection lights, double frameTime)
     {
         Lights = lights;
         FrameTime = frameTime;
     }
 
-    public IReadOnlyDictionary<LightId, NDPColor> Lights { get; }
-
-    public IEnumerable<(T LightId, NDPColor Color)> GetLightsOfType<T>() where T : LightId
-    {
-        foreach ((LightId lightId, NDPColor color) in Lights)
-        {
-            if (lightId is T li)
-                yield return (li, color);
-        }
-    }
+    public LightColorCollection Lights { get; }
 
     public double FrameTime { get; }
     public double FPS => 1d / FrameTime;
@@ -157,7 +148,7 @@ public class LightInterpreter
         double deltaTime = TickDeltaTime();
 
         return new LightInterpreterResult(
-            lights: lights.AsReadOnly(), // should be thread-safe as we don't keep a reference to the dictionary after this function ends
+            lights: LightColorCollection.Unsafe(lights), // should be (thread-)safe as we don't keep a reference to the dictionary after this function ends
             frameTime: deltaTime
         );
     }

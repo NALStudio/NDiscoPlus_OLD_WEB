@@ -124,3 +124,14 @@ public readonly partial record struct ColorGamutPoint(double X, double Y)
     public NDPColor ToColor(double brightness = 1d)
         => new(x: X, y: Y, brightness: brightness);
 }
+
+public static class ColorGamutHelpers
+{
+    public static NDPColor GamutBlack(this ColorGamut? gamut)
+    {
+        if (gamut is null)
+            return new();
+
+        return gamut.Red.ToColor(brightness: 0d);
+    }
+}

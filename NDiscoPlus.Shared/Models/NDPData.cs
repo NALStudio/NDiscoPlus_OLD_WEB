@@ -62,13 +62,9 @@ public partial class NDPData
 }
 
 
-[MemoryPackable]
-internal readonly partial struct EffectChunk
+internal readonly struct EffectChunk
 {
-    [MemoryPackInclude]
     private readonly List<int> effectIndexes;
-
-    [MemoryPackIgnore]
     public IEnumerable<int> EffectIndexes => effectIndexes.AsReadOnly();
 
     public void AddIndex(int index)
@@ -78,40 +74,29 @@ internal readonly partial struct EffectChunk
     {
         effectIndexes = new();
     }
-
-#pragma warning disable IDE0051 // Remove unused private members
-    [MemoryPackConstructor]
-    private EffectChunk(List<int> effectIndexes)
-    {
-        this.effectIndexes = effectIndexes;
-    }
-#pragma warning restore IDE0051 // Remove unused private members
 }
 
-[MemoryPackable]
+[MemoryPackable(SerializeLayout.Explicit)]
 public sealed partial class ChunkedEffectsCollection
 {
-
     public const int CHUNK_SIZE_SECONDS = 1;
 
+    [MemoryPackOrder(0)]
     public FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> BackgroundTransitions { get; }
 
-
-    [MemoryPackInclude]
-    private readonly ImmutableArray<EffectChunk> chunks;
-    [MemoryPackInclude]
+    [MemoryPackInclude, MemoryPackOrder(1)]
     private readonly ImmutableArray<Effect> effects;
+    private readonly ImmutableArray<EffectChunk> chunks;
 
     [MemoryPackIgnore]
     public int ChunkCount => chunks.Length;
-    [MemoryPackIgnore]
     public static TimeSpan ChunkSize => TimeSpan.FromSeconds(CHUNK_SIZE_SECONDS);
 
-    private ChunkedEffectsCollection(ImmutableArray<EffectChunk> chunks, ImmutableArray<Effect> effects, FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions)
+    private ChunkedEffectsCollection(FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions, ImmutableArray<Effect> effects)
     {
-        this.chunks = chunks;
-        this.effects = effects;
         BackgroundTransitions = backgroundTransitions;
+        this.effects = effects;
+        chunks = ConstructChunks(effects);
     }
 
     private static int ToChunkIndex(TimeSpan time)
@@ -158,12 +143,12 @@ public sealed partial class ChunkedEffectsCollection
             return Enumerable.Empty<Effect>();
     }
 
-    private static void ConstructEffects(ref List<Effect> effects, ref List<EffectChunk> chunks, EffectChannel channel)
+    private static ImmutableArray<EffectChunk> ConstructChunks(ImmutableArray<Effect> effects)
     {
-        foreach (Effect e in channel.Effects)
+        List<EffectChunk> chunks = new();
+        for (int i = 0; i < effects.Length; i++)
         {
-            int effectIndex = effects.Count;
-            effects.Add(e);
+            Effect e = effects[i];
 
             double startTotalSeconds = e.Start.TotalSeconds;
             int startChunk = startTotalSeconds >= 0d ? ToChunkIndex(startTotalSeconds) : 0;
@@ -172,23 +157,24 @@ public sealed partial class ChunkedEffectsCollection
             while (chunks.Count < (endChunk + 1))
                 chunks.Add(new EffectChunk());
 
-            for (int i = startChunk; i <= endChunk; i++)
-                chunks[i].AddIndex(effectIndex);
+            for (int j = startChunk; j <= endChunk; j++)
+                chunks[j].AddIndex(i); // add effect index to chunk
         }
+
+        return chunks.ToImmutableArray();
     }
 
     internal static ChunkedEffectsCollection Construct(EffectAPI effects)
     {
         List<Effect> effectList = new();
-        List<EffectChunk> chunkList = new();
         // iterate in reverse so that later channels override the previous channels (strobes override flashes, flashes override default effects, ...)
+        // ^^^^ I don't know whether this is actually true, but I'm not gonna mess with the behaviour before I'm completely sure...
         for (int i = (effects.Channels.Count - 1); i >= 0; i--)
-            ConstructEffects(ref effectList, ref chunkList, effects.Channels[i]);
+            effectList.AddRange(effects.Channels[i].Effects);
 
         return new ChunkedEffectsCollection(
-            chunks: chunkList.ToImmutableArray(),
-            effects: effectList.ToImmutableArray(),
-            backgroundTransitions: effects.Background.Freeze()
+            backgroundTransitions: effects.Background.Freeze(),
+            effects: effectList.ToImmutableArray()
         );
     }
 }
