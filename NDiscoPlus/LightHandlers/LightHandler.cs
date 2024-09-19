@@ -9,16 +9,14 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.LightHandlers;
 
-internal abstract class LightHandler : IAsyncDisposable
+public abstract class LightHandler : IAsyncDisposable
 {
-    private readonly LightHandlerConfig config;
-
-    protected T Config<T>() where T : LightHandlerConfig => (T)config;
-    public LightHandlerConfig Config() => config;
+    protected T Config<T>() where T : LightHandlerConfig => (T)ConfigRef;
+    public LightHandlerConfig ConfigRef { get; }
 
     protected LightHandler(LightHandlerConfig? config)
     {
-        this.config = config ?? CreateConfig();
+        ConfigRef = config ?? CreateConfig();
     }
 
     public abstract string DisplayName { get; }

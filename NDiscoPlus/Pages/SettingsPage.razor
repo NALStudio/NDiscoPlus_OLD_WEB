@@ -1,9 +1,83 @@
 ﻿@page "/settings"
+@using System.Collections.Immutable
+@using NDiscoPlus.Components.LightHandlerConfigEditor
+@using NDiscoPlus.LightHandlers
+@using NDiscoPlus.Models
+@using NDiscoPlus.Shared.Helpers
+
+@inject Blazored.LocalStorage.ILocalStorageService localStorage;
+@inject ILogger<SettingsPage> logger;
 
 <PageTitle>NDiscoPlus Settings</PageTitle>
 
-<h3>SettingsPage</h3>
+<MudAppBar>
+    <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack" Color="Color.Inherit" OnClick="NavigateBack" />
+    <MudSpacer />
+    <!-- TODO: Temporary icon, use logo instead. -->
+    <MudIcon Icon="@Icons.Material.Rounded.Lightbulb" Color="Color.Inherit" />
+</MudAppBar>
+
+<MudMainContent Class="mt-16 pa-4">
+    <MudSelect T=LightConfigurationProfile Value="@currentProfile" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Variant="Variant.Outlined" Label="Profile">
+        @foreach (LightConfigurationProfile profile in profiles)
+        {
+            <MudSelectItem T="LightConfigurationProfile" Value=@profile />
+        }
+    </MudSelect>
+    @if (currentProfile is not null)
+    {
+        <MudForm @ref=form @bind-IsTouched=currentProfileEdited>
+            @foreach (LightHandler handler in currentProfile.Handlers)
+            {
+                LightHandlerConfig config = handler.ConfigRef;
+                var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
+                <DynamicComponent Type="config.GetEditorType()" Parameters="@parameters" />
+            }
+        </MudForm>
+    }
+</MudMainContent>
+
 
 @code {
+    private readonly List<LightConfigurationProfile> profiles = new();
+    private LightConfigurationProfile? currentProfile;
+    private bool currentProfileEdited;
 
+    private MudForm? form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfiles();
+    }
+
+    private string GetProfileName(LightConfigurationProfile profile)
+        => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
+
+    private async Task LoadProfiles()
+    {
+        // profiles are sorted in alphabetical order by their name
+
+        // load current before loading all profiles so that the current profile is included in all profiles
+        LightConfigurationProfile currentProfile = await LightConfigurationProfile.LoadCurrent(localStorage);
+
+        profiles.Clear();
+        await foreach (LightConfigurationProfile profile in LightConfigurationProfile.LoadAll(localStorage))
+            Bisect.InsortRight(profiles, profile, keySelector: p => p.Name);
+
+        // get current profile from list so that we only have a single instance of all profiles
+        this.currentProfile = profiles.Single(p => p.UniqueId == currentProfile.UniqueId);
+    }
+
+    private async Task ChangeProfile(LightConfigurationProfile newProfile)
+    {
+        if (newProfile == currentProfile)
+            return;
+
+        
+    }
+
+    private async Task NavigateBack()
+    {
+        
+    }
 }

@@ -1,10 +1,12 @@
 ﻿using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
+using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,6 +16,20 @@ namespace NDiscoPlus.Shared.Analyzer;
 // Bursts are a collection of multiple short (and approximately equal length) segments
 internal static class AudioAnalyzerBurst
 {
+    private class Burst
+    {
+        public List<BurstNode> Nodes { get; }
+        public int SplitNodeCount { get; set; }
+
+        public double AverageConfidence => Nodes.Sum(n => (double)n.SegmentReference.Confidence) / Nodes.Count;
+
+        public Burst()
+        {
+            Nodes = new();
+            SplitNodeCount = 0;
+        }
+    }
+
     private readonly record struct BurstNode(NDPInterval Interval, TimeSpan SegmentOffset, NDPSegment SegmentReference)
     {
         public BurstNode(TimeSpan Start, TimeSpan Duration, TimeSpan SegmentOffset, NDPSegment SegmentReference) : this(
@@ -31,53 +47,94 @@ internal static class AudioAnalyzerBurst
                 SegmentReference: segment
             );
         }
+
+        public static (BurstNode First, BurstNode Second) SplitInHalf(NDPSegment segment)
+        {
+            IEnumerator<BurstNode> enumerator = SplitInto(segment, 2).GetEnumerator();
+
+            bool firstMoveNext = enumerator.MoveNext();
+            Debug.Assert(firstMoveNext);
+            BurstNode first = enumerator.Current;
+
+            bool secondMoveNext = enumerator.MoveNext();
+            Debug.Assert(secondMoveNext);
+            BurstNode second = enumerator.Current;
+
+            Debug.Assert(!enumerator.MoveNext());
+
+            return (first, second);
+        }
+
+        /// <summary>
+        /// Split segment into <paramref name="count"/> count of <see cref="BurstNode"/> objects.
+        /// </summary>
+        private static IEnumerable<BurstNode> SplitInto(NDPSegment segment, int count)
+        {
+            TimeSpan duration = segment.Interval.Duration / count;
+            for (int i = 0; i < count; i++)
+            {
+                TimeSpan startOffset = i * duration;
+                TimeSpan start = segment.Interval.Start + startOffset;
+                yield return new BurstNode(start, duration, startOffset, segment);
+            }
+        }
     }
 
     const double MaxDurationDifferenceRatio = 0.15d;
+    const double MaxTimbreDistance = 100d;
     const int MinBurstLength = 4;
+    const double MinBurstSegmentConfidence = 0.15d;
 
-    private static bool SegmentCanBeInTheSameBurst(NDPInterval segment1, NDPInterval segment2)
+    private static bool NodeCanBeAddedToBurst(BurstNode node, Burst burst)
     {
-        // if (segment.Duration.TotalSeconds > MaxSegmentDurationSeconds)
-        //     return false;
+        // No bursts to reference => segment can be added into burst
+        if (burst.Nodes.Count < 1)
+            return true;
+
+        // Use last node in burst as reference
+        BurstNode refNode = burst.Nodes[^1];
+
+
+        if (Timbre.EuclideanDistance(node.SegmentReference.Timbre, refNode.SegmentReference.Timbre) > MaxTimbreDistance)
+            return false;
 
         // ratio valid values: 0,9 - 1,1   (when MaxDurationDifference 0,1)
-        double ratio = segment1.Duration.TotalSeconds / segment2.Duration.TotalSeconds;
-
+        double ratio = node.Interval.Duration.TotalSeconds / refNode.Interval.Duration.TotalSeconds;
         // diff valid values: -0,1 - 0,1   (when MaxDurationDifference 0,1)
         double diff = ratio - 1d;
-
         return Math.Abs(diff) <= MaxDurationDifferenceRatio;
     }
 
-    private static bool BurstIsValid(IReadOnlyList<BurstNode> burst)
+    private static bool BurstIsValid(Burst burst)
     {
-        static bool VerifyDuration(BurstNode burst, int burstNodeCount)
+        static int BurstMaxSplitCount(Burst burst)
         {
-            const double minDur = 0.15;
+            // maximum 1/4 of segments can be split
+            // or technically 1/3 since the split segment is 2 nodes
+            return (int)Math.Round((1d / 4d) * burst.Nodes.Count);
+        }
+
+        static bool VerifyNodeDuration(BurstNode node, Burst burst)
+        {
+            const double minDur = 0.10;
             const double maxDur = 0.20;
-            double maxSegmentDurationSeconds = ((double)burstNodeCount).Remap(4, 12, minDur, maxDur)
-                                                                       .Clamp(minDur, maxDur);
+            double maxSegmentDurationSeconds = ((double)burst.Nodes.Count)
+                                                .Remap(4, 12, minDur, maxDur)
+                                                .Clamp(minDur, maxDur);
 
-            return burst.Interval.Duration.TotalSeconds < maxSegmentDurationSeconds;
+            return node.Interval.Duration.TotalSeconds < maxSegmentDurationSeconds;
         }
 
-        static bool VerifyConfidence(BurstNode burst)
-        {
-            double minConfidence = burst.Interval.Duration.TotalSeconds.Remap((0.1, 0.2), (0.3, 0.6));
-            return burst.SegmentReference.Confidence > minConfidence;
-        }
-
-        if (burst.Count < MinBurstLength)
+        if (burst.SplitNodeCount > BurstMaxSplitCount(burst))
+            return false;
+        if (burst.Nodes.Count < MinBurstLength)
             return false;
 
-        // no need to verify empty list behaviour with .Any() as burst count is already verified
-        if (!burst.All(b => VerifyDuration(b, burst.Count)))
+        // Spotify is never completely confident on bursts
+        // but bursts need to have at least some confidence
+        if (burst.Nodes.Any(n => n.SegmentReference.Confidence < MinBurstSegmentConfidence))
             return false;
-
-        // at least two thirds of burst segments must have a valid confidence value
-        int minConfidentSegments = (int)((2d / 3d) * burst.Count);
-        if (burst.Count(static b => VerifyConfidence(b)) < minConfidentSegments)
+        if (!burst.Nodes.All(n => VerifyNodeDuration(n, burst)))
             return false;
 
         // minimum burst loudness ???
@@ -85,145 +142,48 @@ internal static class AudioAnalyzerBurst
         return true;
     }
 
-    private static List<BurstNode> MergeBursts(IReadOnlyList<BurstNode> left, BurstNode mid, IReadOnlyList<BurstNode> right)
-    {
-        BurstNode l = left[^1];
-        BurstNode r = right[0];
-
-        TimeSpan averageDuration = (l.Interval.Duration + r.Interval.Duration) / 2;
-
-        // mid is a different length than the average duration of the burst
-        // if it's longer, we have to split it
-        int midSubsectionCount = (int)Math.Round(mid.Interval.Duration.TotalSeconds / averageDuration.TotalSeconds);
-        if (midSubsectionCount < 1) // if mid is shorter than the average duration, just display mid as normal
-            midSubsectionCount = 1;
-
-        List<BurstNode> output = new(capacity: left.Count + midSubsectionCount + right.Count);
-        output.AddRange(left);
-
-        if (midSubsectionCount > 1)
-        {
-            TimeSpan subsectionDuration = mid.Interval.Duration / midSubsectionCount;
-            for (int i = 0; i < midSubsectionCount; i++)
-            {
-                TimeSpan startOffset = i * subsectionDuration;
-                TimeSpan newStart = mid.Interval.Start + startOffset;
-                if (i < (midSubsectionCount - 1))
-                    output.Add(new BurstNode(newStart, subsectionDuration, startOffset, mid.SegmentReference));
-                else
-                    output.Add(new BurstNode(newStart, mid.Interval.Duration - newStart, startOffset, mid.SegmentReference));
-            }
-        }
-        else
-        {
-            output.Add(mid);
-        }
-
-        output.AddRange(right);
-
-        return output;
-    }
-
     // TODO: How to differentiate correct bursts from incorrect ones?
     // Now, some very important bursts are missing and some unnecessary ones exist...
     public static IEnumerable<ImmutableArray<NDPInterval>> AnalyzeBursts(ImmutableArray<NDPSegment> segments)
     {
-        List<List<BurstNode>> bursts = new() { new List<BurstNode>() };
+        List<Burst> bursts = new() { new() };
 
         foreach (NDPSegment segment in segments)
         {
             // we initialize bursts list with a value so bursts.Count should always be above 0
-            List<BurstNode> lastBurst = bursts[^1];
-            // take the last node of the last burst, the length of this list is not guaranteed to be above 0 due to bursts being initialized with an empty sublist
-            BurstNode? lastBurstNode = lastBurst.Count > 0 ? lastBurst[^1] : null;
+            Burst lastBurst = bursts[^1];
 
-            // skip checking if segment fits into burst if burst does not have any segments to compare against
-            if (lastBurstNode is BurstNode burstNode)
+            // Try add segment into burst
+            BurstNode wholeSegment = BurstNode.NoOffset(segment);
+            if (NodeCanBeAddedToBurst(wholeSegment, lastBurst))
             {
-                Debug.Assert(burstNode.SegmentOffset == TimeSpan.Zero);
-                // if difference was over limit (segment is not valid to be appended to the burst)
-                if (!SegmentCanBeInTheSameBurst(segment.Interval, burstNode.Interval))
-                {
-                    // start building a new burst
-                    bursts.Add(new());
-                }
+                lastBurst.Nodes.Add(wholeSegment);
+                continue;
             }
 
-            // add segment to last burst
-            bursts[^1].Add(BurstNode.NoOffset(segment));
-        }
-
-        // Merge neighbouring bursts that are separated by one-element longer burst
-        // (Spotify analysis sometimes merges two short segments into a longer segment)
-
-        // Add items into a temporary buffer before removal so that list can be iterated safely.
-        List<(int StartIndex, int Count, List<BurstNode> MergedBurst)> merged = new();
-
-        for (int i = 1; i < (bursts.Count - 1); i++)
-        {
-            int startIndex = i - 1;
-            int endIndex = i + 1;  // inclusive
-            int count = (endIndex - startIndex) + 1; // +1 because end is inclusive
-
-            List<BurstNode> left = bursts[startIndex];
-            List<BurstNode> midNodes = bursts[i];
-            List<BurstNode> right = bursts[endIndex];
-
-            if (midNodes.Count != 1)
-                continue;
-            if (left.Count < 1)
-                continue;
-            if (right.Count < 1)
-                continue;
-
-            BurstNode mid = midNodes[0];
-
-            // If there is only one element in left or right, only allow merge after some additional checks
-            if (left.Count == 1 || right.Count == 1)
+            // Try split segment and add both parts into burst
+            // (Spotify sometimes merges two segments into a longer segment)
+            (BurstNode splitFirst, BurstNode splitSecond) = BurstNode.SplitInHalf(segment);
+            if (NodeCanBeAddedToBurst(splitFirst, lastBurst) && NodeCanBeAddedToBurst(splitSecond, lastBurst))
             {
-                NDPInterval prev = left[^1].Interval;
-                NDPInterval next = right[0].Interval;
-
-                bool prevNextCanBeMerged = SegmentCanBeInTheSameBurst(prev, next);
-
-                Debug.Assert(mid.SegmentOffset == TimeSpan.Zero);
-                NDPSegment midSegment = mid.SegmentReference;
-
-                // some short segments are conjoined together in the Spotify analysis (i.e. they form a segment with double the length)
-                // usually in these cases the length is around double the left or right length and loudness max time is in the middle
-                NDPInterval midSplit1 = new(midSegment.Interval.Start, midSegment.LoudnessMaxTime);
-                NDPInterval midSplit2 = new(midSegment.Interval.Start + midSegment.LoudnessMaxTime, midSegment.Interval.Duration - midSegment.LoudnessMaxTime);
-
-                bool prevMidCanBeMerged = SegmentCanBeInTheSameBurst(prev, midSplit1);
-                bool nextMidCanBeMerged = SegmentCanBeInTheSameBurst(midSplit2, next);
-
-                if (!(prevNextCanBeMerged && prevMidCanBeMerged && nextMidCanBeMerged))
-                    continue;
+                lastBurst.Nodes.Add(splitFirst);
+                lastBurst.Nodes.Add(splitSecond);
+                lastBurst.SplitNodeCount++;
+                continue;
             }
 
-            // Do not check.
-            // If there are two burst side by side separated by one longer/shorter segment
-            // we want to always merge them as otherwise two bursts one after another looks quite odd (the animations don't line up)
-            // if (!SegmentCanBeInTheSameBurst(left[^1], right[0]))
-            //     continue;
-
-            merged.Add((startIndex, count, MergeBursts(left, mid, right)));
-        }
-
-        // replace bursts with their merged variants
-        // order by descending so that we can safely remove the value without affecting other indexes that haven't yet been removed
-        foreach ((int startIndex, int count, List<BurstNode> merge) in merged.OrderByDescending(x => x.StartIndex))
-        {
-            bursts.RemoveRange(startIndex, count);
-            bursts.Insert(startIndex, merge);
+            // Start building a new burst with the whole segment
+            Burst newBurst = new();
+            newBurst.Nodes.Add(wholeSegment);
+            bursts.Add(newBurst);
         }
 
 
         // enumerate output
-        foreach (List<BurstNode> burst in bursts)
+        foreach (Burst burst in bursts)
         {
             if (BurstIsValid(burst))
-                yield return burst.Select(b => b.Interval).ToImmutableArray();
+                yield return burst.Nodes.Select(b => b.Interval).ToImmutableArray();
         }
     }
 }

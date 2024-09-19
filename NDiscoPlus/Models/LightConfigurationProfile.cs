@@ -11,16 +11,22 @@ internal sealed class LightConfigurationProfile
 {
     private class SerializableProfile
     {
+        public string Name { get; }
         public ImmutableArray<LightHandlerConfig> Handlers { get; }
 
-        public SerializableProfile(ImmutableArray<LightHandlerConfig> handlers)
-            => Handlers = handlers;
+        [JsonConstructor]
+        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers)
+        {
+            Name = name;
+            Handlers = handlers;
+        }
 
         public static SerializableProfile Construct(LightConfigurationProfile profile)
         {
-            ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.Config()).ToImmutableArray();
+            ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.ConfigRef).ToImmutableArray();
 
             return new SerializableProfile(
+                profile.Name,
                 handlers: handlers
             );
         }
@@ -29,11 +35,17 @@ internal sealed class LightConfigurationProfile
     private readonly string localStoragePath;
     private readonly List<LightHandler> handlers;
 
-    private LightConfigurationProfile(string localStoragePath, IEnumerable<LightHandler> handlers)
+    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers)
     {
         this.localStoragePath = localStoragePath;
+
+        Name = name;
         this.handlers = handlers.ToList();
     }
+
+    public string UniqueId => localStoragePath;
+
+    public string Name { get; set; }
 
     [JsonIgnore]
     public IReadOnlyList<LightHandler> Handlers => handlers.AsReadOnly();
@@ -97,7 +109,11 @@ internal sealed class LightConfigurationProfile
         if (serializable is null)
             return null;
 
-        return new LightConfigurationProfile(key, serializable.Handlers.Select(h => h.CreateLightHandler()));
+        return new LightConfigurationProfile(
+            localStoragePath: key,
+            name: serializable.Name,
+            handlers: serializable.Handlers.Select(h => h.CreateLightHandler())
+        );
     }
 
     public static ValueTask Save(ILocalStorageService localStorage, LightConfigurationProfile profile)
@@ -119,6 +135,7 @@ internal sealed class LightConfigurationProfile
 
         return new(
             localStoragePath: localStoragePath,
+            name: string.Empty,
             handlers: [new ScreenLightHandler(null)]
         );
     }

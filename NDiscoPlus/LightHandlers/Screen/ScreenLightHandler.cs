@@ -1,5 +1,7 @@
 ﻿using Blazored.LocalStorage;
 using MemoryPack;
+using Microsoft.AspNetCore.Components;
+using NDiscoPlus.Components.LightHandlerConfigEditor;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
@@ -7,19 +9,20 @@ using System.Diagnostics;
 
 namespace NDiscoPlus.LightHandlers.Screen;
 
-internal enum ScreenLightCount
+public enum ScreenLightCount
 {
     Four = 4,
     Six = 6
 }
 
-internal class ScreenLightHandlerConfig : LightHandlerConfig
+public class ScreenLightHandlerConfig : LightHandlerConfig
 {
     public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
     public bool UseHDR { get; set; } = false;
 
     public override LightHandler CreateLightHandler()
         => new ScreenLightHandler(this);
+    public override Type GetEditorType() => typeof(ScreenLightHandlerConfigEditor);
 }
 
 internal readonly record struct ScreenLight(NDPLight Light, NDPColor? Color)

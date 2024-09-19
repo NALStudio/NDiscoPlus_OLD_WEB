@@ -96,19 +96,34 @@
 @if (!HideUI)
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
-        <MudIconButton Icon="@Icons.Material.Rounded.Settings"
-                       Size="Size.Large"
-                       OnClick="OpenSettings"
-                       Disabled="IsPlaying" />
-        <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
-                       Size="Size.Large"
-                       OnClick="ToggleFullscreen" />
+        <MudTooltip Text="Open Settings" Placement="Placement.Right" Delay="1000">
+            <MudIconButton Icon="@Icons.Material.Rounded.Settings"
+                           Size="Size.Large"
+                           OnClick="OpenSettings"
+                           Disabled="IsPlaying"
+                           />
+        </MudTooltip>
+        <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
+            <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
+                           Size="Size.Large"
+                           OnClick="ToggleFullscreen" />
+        </MudTooltip>
         @if (DebugEnabled)
         {
-            <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
-                           Icon="@Icons.Material.Rounded.BugReport"
-                           Size="Size.Large"
-                           OnClick="@(async () => await OpenEffectVisualizer(lightHandling!.CurrentData!))" />
+            <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
+                               Icon="@Icons.Material.Rounded.BugReport"
+                               Size="Size.Large"
+                               OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
+            </MudTooltip>
+            <!-- Didn't work... Hot Reload changes didn't apply.
+            <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Disabled="@(lightHandling is null)"
+                               Icon="@Icons.Material.Rounded.Refresh"
+                               Size="Size.Large"
+                               OnClick="@(async () => await DebugRestartServiceAndRegenerateEffects())" />
+            </MudTooltip>
+            -->
         }
     </MudStack>
 }
@@ -232,6 +247,7 @@
     SpotifyClient? spotify = null;
     SpotifyPlayerContext? context = null;
 
+    IWorker? ndpWorker = null;
     IWorkerBackgroundService<NDiscoPlusService>? ndpService = null;
 
     readonly List<ValueTask> lightHandlerUpdates = new();
@@ -263,13 +279,35 @@
             RequestLogin();
         }
 
-        var ndpWorker = await workerFactory.CreateAsync();
+        await CreateNDPService();
+
+        _ = StartPlayer();
+    }
+
+    private async Task CreateNDPService(bool recreate = false)
+    {
+        if (recreate)
+        {
+            if (ndpService is not null)
+            {
+                await ndpService.DisposeAsync();
+                ndpService = null;
+            }
+            if (ndpWorker is not null)
+            {
+                await ndpWorker.DisposeAsync();
+                ndpWorker = null;
+            }
+        }
+
+        if (ndpWorker is not null || ndpService is not null)
+            throw new InvalidOperationException("Service already created. To recreate a service, set argument recreate: true");
+
+        ndpWorker = await workerFactory.CreateAsync();
         ndpService = await ndpWorker.CreateBackgroundServiceAsync<NDiscoPlusService>(options =>
         {
             options.UseCustomExpressionSerializer(typeof(CustomSerializeLinqExpressionJsonSerializer));
         });
-
-        _ = StartPlayer();
     }
 
     [JSInvokable] // Called by: toggleNDiscoPlusFullscreen()
@@ -347,7 +385,7 @@
     #endregion
 
     #region Button Handlers
-    async Task OpenEffectVisualizer(NDPData data)
+    async Task DebugOpenEffectVisualizer(NDPData data)
     {
         ArgumentNullException.ThrowIfNull(data, nameof(data));
 
@@ -365,6 +403,14 @@
 
         await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
     }
+
+    /* Didn't work... Hot Reload changes didn't apply
+    async Task DebugRestartServiceAndRegenerateEffects()
+    {
+        await CreateNDPService(recreate: true);
+        lightHandling!.CurrentDataTask = null;
+    }
+    */
 
     void OpenSettings()
     {

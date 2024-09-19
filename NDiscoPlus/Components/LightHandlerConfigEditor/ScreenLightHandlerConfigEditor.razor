@@ -1,0 +1,17 @@
+﻿@using NDiscoPlus.LightHandlers.Screen
+
+<MudStack>
+    <MudChipSet T="ScreenLightCount" @bind-SelectedValue="Config.LightCount">
+        @foreach(ScreenLightCount count in Enum.GetValues<ScreenLightCount>())
+        {
+            <MudChip Text="@count.ToString()" Value=count />
+        }
+    </MudChipSet>
+
+    <MudSwitch @bind-Value="Config.UseHDR" />
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ScreenLightHandlerConfig Config { get; set; }
+}

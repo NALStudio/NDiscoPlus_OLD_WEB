@@ -1,6 +1,7 @@
 ﻿using Excubo.Blazor.Canvas;
 using Excubo.Blazor.Canvas.Contexts;
 using MudBlazor;
+using MudBlazor.Charts;
 using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -20,7 +21,7 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         Distance
     }
 
-    private readonly record struct SegmentRender(Segment Segment, double X, double Width)
+    private readonly record struct SegmentRender(Segment Segment, double X, double Width, Segment? PreviousSegment)
     {
         public bool GetVisible(double canvasWidth)
         {
@@ -104,7 +105,10 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         }
         else if (style == Style.Distance)
         {
+            await canvas.FillStyleAsync("#000000");
             await canvas.StrokeStyleAsync("#000000");
+            foreach (SegmentRender r in renders)
+                await RenderSegmentTimbreDistance(r);
             foreach (SegmentRender r in renders)
                 await RenderSegmentConfidence(r);
         }
@@ -122,7 +126,8 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         SegmentRender CreateRender(int index)
         {
             Segment segment = segments[index];
-            return new SegmentRender(segment, GetScrollingX(segment.Start), GetWidth(segment.Duration));
+            Segment? previousSegment = index > 0 ? segments[index - 1] : null;
+            return new SegmentRender(segment, GetScrollingX(segment.Start), GetWidth(segment.Duration), previousSegment);
         }
 
         for (int i = currentIndex; i >= 0; i--)
@@ -160,6 +165,20 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
         await canvas.FillStyleAsync($"hsl({hue.ToString(CultureInfo.InvariantCulture)}, 100%, 50%)");
         await canvas.FillRectAsync(segment.X, y, segment.Width, height);
         await canvas.StrokeRectAsync(segment.X, y, segment.Width, height);
+    }
+
+    async Task RenderSegmentTimbreDistance(SegmentRender segment)
+    {
+        if (segment.PreviousSegment is null)
+            return;
+
+        Timbre currentTimbre = new(segment.Segment.Timbre);
+        Timbre previousTimbre = new(segment.PreviousSegment.Timbre);
+        string text = Timbre.EuclideanDistance(currentTimbre, previousTimbre).ToString("0.") + ".";
+
+        double x = segment.X;
+        double y = 0.075 * canvasHeight;
+        await canvas.FillTextAsync(text, x, y);
     }
 
     async Task RenderSegmentMax(SegmentRender render)
@@ -212,8 +231,6 @@ public class TrackDebugCanvasRenderSegments : TrackDebugCanvasRender
 
             lines = [
                 $"{current.Confidence * 100:.00} % confidence",
-                $"{(distanceFromPrev ?? -1):.00} distance from previous",
-                $"{(distanceToNext ?? -1):.00} distance to next"
             ];
         }
         else
