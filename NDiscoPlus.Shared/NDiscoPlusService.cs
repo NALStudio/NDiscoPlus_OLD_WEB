@@ -25,10 +25,9 @@ namespace NDiscoPlus.Shared;
 [MemoryPackable]
 public partial class NDiscoPlusArgs
 {
-    public NDiscoPlusArgs(SpotifyPlayerTrack track, NDPColorPalette? referencePalette, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
+    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
     {
         Track = track;
-        ReferencePalette = referencePalette;
 
         Features = features;
         Analysis = analysis;
@@ -39,11 +38,6 @@ public partial class NDiscoPlusArgs
 
     public SpotifyPlayerTrack Track { get; }
 
-    /// <summary>
-    /// <para>If <see langword="null"/>, use a random default color palette.</para>
-    /// </summary>
-    public NDPColorPalette? ReferencePalette { get; }
-
     [TrackAudioFeaturesFormatter]
     public TrackAudioFeatures Features { get; }
     [TrackAudioAnalysisFormatter]
@@ -51,6 +45,12 @@ public partial class NDiscoPlusArgs
 
     public EffectConfig Effects { get; }
     public NDiscoPlusArgsLights Lights { get; }
+
+    public bool AllowHDR { get; init; } = false;
+    /// <summary>
+    /// <para>If <see langword="null"/>, use a random default color palette.</para>
+    /// </summary>
+    public NDPColorPalette? ReferencePalette { get; init; } = null;
 }
 
 [MemoryPackable]
@@ -104,27 +104,7 @@ public class NDiscoPlusService
     HttpClient? http;
     readonly Random random = new();
 
-    public static readonly ImmutableList<NDPColorPalette> DefaultPalettes =
-    [
-        // sRGB
-        new NDPColorPalette(new SKColor(255, 0, 0), new SKColor(0, 255, 255), new SKColor(255, 105, 180), new SKColor(102, 51, 153)),
-        new NDPColorPalette(new SKColor(15, 192, 252), new SKColor(123, 29, 175), new SKColor(255, 47, 185), new SKColor(212, 255, 71)),
-        new NDPColorPalette(new SKColor(255, 0, 0), new SKColor(0, 255, 0), new SKColor(0, 0, 255), new SKColor(255, 255, 0)),
-        new NDPColorPalette(new SKColor(164, 20, 217), new SKColor(255, 128, 43), new SKColor(249, 225, 5), new SKColor(52, 199, 165), new SKColor(93, 80, 206)),
-
-        // Hue color space
-        // six colors might be a bit excessive, but I was annoyed that the final lerp was missing.
-        new NDPColorPalette(
-            ColorGamut.hueGamutC.Red.ToColor(),
-            NDPColor.Lerp(ColorGamut.hueGamutC.Red.ToColor(), ColorGamut.hueGamutC.Green.ToColor(), 0.5),
-            ColorGamut.hueGamutC.Green.ToColor(),
-            NDPColor.Lerp(ColorGamut.hueGamutC.Green.ToColor(), ColorGamut.hueGamutC.Blue.ToColor(), 0.5),
-            ColorGamut.hueGamutC.Blue.ToColor(),
-            NDPColor.Lerp(ColorGamut.hueGamutC.Blue.ToColor(), ColorGamut.hueGamutC.Red.ToColor(), 0.5)
-        )
-    ];
-
-    private NDPColorPalette ModifyPaletteForEffects(NDPColorPalette palette)
+    private NDPColorPalette ModifyPaletteForEffects(NDiscoPlusArgs args, NDPColorPalette palette)
     {
         const int MinPaletteCount = 4;
         const int MaxPaletteCount = 5;
@@ -152,7 +132,7 @@ public class NDiscoPlusService
         }
 
         if (newPalette.Count < MinPaletteCount)
-            return GetRandomDefaultPalette();
+            return GetRandomDefaultPalette(args);
 
         if (newPalette.Count > MaxPaletteCount)
             return new NDPColorPalette(palette.Take(MaxPaletteCount));
@@ -172,8 +152,8 @@ public class NDiscoPlusService
 
 
         // *** GENERATION ***
-        NDPColorPalette referencePalette = args.ReferencePalette ?? GetRandomDefaultPalette();
-        NDPColorPalette effectPalette = ModifyPaletteForEffects(referencePalette);
+        NDPColorPalette referencePalette = args.ReferencePalette ?? GetRandomDefaultPalette(args);
+        NDPColorPalette effectPalette = ModifyPaletteForEffects(args, referencePalette);
 
         EffectAPI api = new(
             args.Effects,
@@ -229,10 +209,8 @@ public class NDiscoPlusService
     public SerializedValue ComputeDataBlazorWorker(SerializedValue args)
         => SerializedValue.Serialize(ComputeData(args.Deserialize<NDiscoPlusArgs>()));
 
-    private NDPColorPalette GetRandomDefaultPalette()
-    {
-        return DefaultPalettes[random.Next(DefaultPalettes.Count)];
-    }
+    private NDPColorPalette GetRandomDefaultPalette(NDiscoPlusArgs args)
+        => NDPDefaultPalettes.GetRandomPalette(random, allowHDR: args.AllowHDR);
 
     public async Task<NDPColorPalette?> FetchImagePalette(SpotifyPlayerTrack track)
     {

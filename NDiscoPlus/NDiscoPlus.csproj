@@ -39,4 +39,8 @@
     <Folder Include="wwwroot\img\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="wwwroot\js\WindowProvider.js" />
+  </ItemGroup>
+
 </Project>

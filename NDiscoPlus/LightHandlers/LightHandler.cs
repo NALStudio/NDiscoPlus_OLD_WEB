@@ -20,6 +20,7 @@ public abstract class LightHandler : IAsyncDisposable
     }
 
     public abstract string DisplayName { get; }
+    public abstract string DisplayIcon { get; }
 
     /// <summary>
     /// Inclusive. (example: MinCount 1, LightHandler cannot be removed if it is the only handler remaining)

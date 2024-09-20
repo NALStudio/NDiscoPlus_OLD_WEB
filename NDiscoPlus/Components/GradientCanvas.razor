@@ -4,7 +4,7 @@
 @using NDiscoPlus.Shared.Models.Color
 @inject IJSRuntime JSRuntime;
 
-<canvas id="canvas" style="position:fixed;top:0;bottom:0;left:0;right:0;" />
+<canvas id="canvas" style="@Style" />
 
 <script id="vertex" type="x-shader/x-vertex">
     #version 300 es
@@ -160,9 +160,9 @@
 
     const MAX_LIGHT_COUNT = 6;
 
-    function renderGradientCanvas(useHDR, colors) {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    function renderGradientCanvas(width, height, useHDR, colors) {
+        canvas.width = width ?? window.innerWidth;
+        canvas.height = height ?? window.innerHeight;
 
         // //                                  normalize values from [-1, 1] to [0, 1]
         // lightPos = colors.map(c => c[0].map(cc => (cc + 1) / 2));
@@ -235,16 +235,34 @@
 </script>
 
 @code {
-    [Parameter]
-    public IReadOnlyList<NDPColor> Colors { get; set; } = new List<NDPColor>();
+    [Parameter, EditorRequired]
+    public IReadOnlyList<NDPColor>? Colors { get; set; }
 
     [Parameter]
     public bool UseHDR { get; set; } = false;
 
+    /// <summary>
+    /// Set as <see langword="null"/> to force to window width.
+    /// </summary>
+    [Parameter]
+    public int? Width { get; set; } = null;
+
+    /// <summary>
+    /// Set as <see langword="null"/> to force to window height.
+    /// </summary>
+    [Parameter]
+    public int? Height { get; set; } = null;
+
+    [Parameter]
+    public string Style { get; set; } = string.Empty;
+
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (Colors is null)
+            throw new InvalidOperationException("No Colors provided.");
         if (Colors.Count != 4 && Colors.Count != 6)
             throw new InvalidOperationException("Colors count must either be 4 or 6");
-        await JSRuntime.InvokeVoidAsync("renderGradientCanvas", UseHDR, Colors.Select(c => new double[] { c.X, c.Y, c.Brightness }));
+        await JSRuntime.InvokeVoidAsync("renderGradientCanvas", Width, Height, UseHDR, Colors.Select(c => new double[] { c.X, c.Y, c.Brightness }));
     }
 }

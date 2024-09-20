@@ -41,7 +41,3 @@ async function toggleNDiscoPlusFullscreen(wakeLockCallback) {
         await wakeLockCallback.invokeMethodAsync("WakeLockStateChanged", wakeLockState);
     }
 }
-
-function getWindowAspectRatio() {
-    return window.innerWidth / window.innerHeight;
-}

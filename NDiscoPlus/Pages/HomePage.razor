@@ -41,7 +41,10 @@
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
-    <BackgroundGradientCanvas Colors="@BestBackgroundGradientOption" />
+    <div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+        <GradientCanvas Colors="@BestBackgroundGradientOption"
+                        UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
+    </div>
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
         @if(context is not null) {
             <MudImage
@@ -225,8 +228,8 @@
 
     const string TimespanFormat = @"mm\:ss";
 
-    static readonly PaletteGradient defaultGradient = new(NDiscoPlusService.DefaultPalettes[0]);
-    public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
+    static readonly PaletteGradient defaultGradient = new(NDPDefaultPalettes.DefaultSRGB);
+    public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Render.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
 
     // Large capacity is fine. I'd rather use a bit more memory than compute a new gradient (heavy operation!)
     readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 50);
@@ -406,7 +409,7 @@
 
     /* Didn't work... Hot Reload changes didn't apply
     async Task DebugRestartServiceAndRegenerateEffects()
-    {
+        {
         await CreateNDPService(recreate: true);
         lightHandling!.CurrentDataTask = null;
     }
@@ -646,7 +649,11 @@
         NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(lightHandling.Lights);
         EffectConfig effects = new();
 
-        NDiscoPlusArgs args = new(track, referencePalette: referencePalette, features, analysis, effects, lights);
+        NDiscoPlusArgs args = new(track, features, analysis, effects, lights)
+        {
+            ReferencePalette = referencePalette,
+            AllowHDR = lightHandling.ScreenLightHandlerSingleton.Render.HDR
+        };
 
         Stopwatch sw = Stopwatch.StartNew();
         SerializedValue argsSerialized = SerializedValue.Serialize(args);

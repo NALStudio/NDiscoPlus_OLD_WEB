@@ -1,6 +1,7 @@
 ﻿using Blazored.LocalStorage;
 using MemoryPack;
 using Microsoft.AspNetCore.Components;
+using MudBlazor;
 using NDiscoPlus.Components.LightHandlerConfigEditor;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
@@ -19,6 +20,11 @@ public class ScreenLightHandlerConfig : LightHandlerConfig
 {
     public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
     public bool UseHDR { get; set; } = false;
+
+    public int AspectRatioHorizontal { get; set; } = 16;
+    public int AspectRatioVertical { get; set; } = 9;
+    public double AspectRatio => AspectRatioHorizontal / ((double)AspectRatioVertical);
+    public double InverseAspectRatio => AspectRatioVertical / ((double)AspectRatioHorizontal);
 
     public override LightHandler CreateLightHandler()
         => new ScreenLightHandler(this);
@@ -39,13 +45,29 @@ internal class ScreenLightHandler : LightHandler
     }
 
     private LightsContainer? lights;
-    public IReadOnlyList<NDPColor>? Colors => lights?.Colors;
+    public class RenderData
+    {
+        private readonly ScreenLightHandler parent;
+        public RenderData(ScreenLightHandler parent)
+        {
+            this.parent = parent;
+        }
+
+        public IReadOnlyList<NDPColor>? Colors => parent.lights?.Colors;
+        public bool HDR => parent.Config<ScreenLightHandlerConfig>().UseHDR;
+    }
+
+
+    // Publicly exposed parameters for screen light handling
+    public RenderData Render { get; }
 
     public ScreenLightHandler(LightHandlerConfig? config) : base(config)
     {
+        Render = new RenderData(this);
     }
 
     public override string DisplayName => "Screen";
+    public override string DisplayIcon => Icons.Material.Rounded.DesktopWindows;
 
     public override int MinCount => 1;
     public override int MaxCount => 1;

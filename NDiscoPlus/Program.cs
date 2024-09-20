@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor;
 using MudBlazor.Services;
+using NDiscoPlus.Components.WindowProvider;
 
 namespace NDiscoPlus;
 
@@ -33,6 +34,8 @@ internal static class Program
         // TODO: Wait for Blazor WASM Threads
         // see: https://github.com/dotnet/aspnetcore/issues/17730
         builder.Services.AddWorkerFactory();
+
+        builder.Services.AddSingleton<WindowProvider>();
 
         await builder.Build().RunAsync();
     }

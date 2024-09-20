@@ -1,12 +1,15 @@
 ﻿@page "/settings"
 @using System.Collections.Immutable
+@using NDiscoPlus.Components
 @using NDiscoPlus.Components.LightHandlerConfigEditor
 @using NDiscoPlus.LightHandlers
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared.Helpers
 
+@inject NavigationManager navigationManager
 @inject Blazored.LocalStorage.ILocalStorageService localStorage;
 @inject ILogger<SettingsPage> logger;
+@inject IDialogService DialogService
 
 <PageTitle>NDiscoPlus Settings</PageTitle>
 
@@ -26,34 +29,67 @@
     </MudSelect>
     @if (currentProfile is not null)
     {
-        <MudForm @ref=form @bind-IsTouched=currentProfileEdited>
-            @foreach (LightHandler handler in currentProfile.Handlers)
-            {
-                LightHandlerConfig config = handler.ConfigRef;
-                var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
-                <DynamicComponent Type="config.GetEditorType()" Parameters="@parameters" />
-            }
+        <MudForm @bind-IsTouched=currentProfileEdited>
+            <MudExpansionPanels MultiExpansion="true">
+                @foreach (LightHandler handler in currentProfile.Handlers)
+                {
+                    LightHandlerConfig config = handler.ConfigRef;
+                    var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
+                    
+                    <MudExpansionPanel>
+                        <TitleContent>
+                            <div class="d-flex">
+                                <MudIcon Icon="@(handler.DisplayIcon)" Class="mr-3" />
+                                <MudText><strong>@(handler.DisplayName)</strong></MudText>
+                            </div>
+                        </TitleContent>
+                        <ChildContent>
+                            <DynamicComponent Type="config.GetEditorType()" Parameters="@parameters" />
+                        </ChildContent>
+                    </MudExpansionPanel>
+                }
+            </MudExpansionPanels>
         </MudForm>
     }
 </MudMainContent>
 
+<MudMessageBox @ref=_mudMessageBox Title="Unsaved Changes!" CancelText="Cancel">
+    <MessageContent>
+        There are unsaved messages.
+        Are you sure you want to discard them?
+    </MessageContent>
+    <YesButton>
+        <MudButton Color="Color.Error">Discard</MudButton>
+    </YesButton>
+</MudMessageBox>
 
 @code {
     private readonly List<LightConfigurationProfile> profiles = new();
     private LightConfigurationProfile? currentProfile;
-    private bool currentProfileEdited;
+    private bool currentProfileEdited = false;
 
-    private MudForm? form;
+    private HashSet<int> _expandedHandlerSettings = new();
+
+    private MudMessageBox? _mudMessageBox;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadProfiles();
+        await ReloadProfiles();
+    }
+
+    private bool HandlerIsExpanded(int index) => _expandedHandlerSettings.Contains(index);
+    private void ExpandHandler(int index, bool expand)
+    {
+        if (expand)
+            _ = _expandedHandlerSettings.Add(index);
+        else
+            _ = _expandedHandlerSettings.Remove(index);
     }
 
     private string GetProfileName(LightConfigurationProfile profile)
         => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
 
-    private async Task LoadProfiles()
+    private async Task ReloadProfiles()
     {
         // profiles are sorted in alphabetical order by their name
 
@@ -68,16 +104,32 @@
         this.currentProfile = profiles.Single(p => p.UniqueId == currentProfile.UniqueId);
     }
 
+    private async Task<bool> CanDiscardCurrentProfile()
+    {
+        if (!currentProfileEdited)
+            return true;
+
+        bool? result = await _mudMessageBox!.ShowAsync();
+        return result == true;
+    }
+
     private async Task ChangeProfile(LightConfigurationProfile newProfile)
     {
         if (newProfile == currentProfile)
             return;
 
-        
+        if (!(await CanDiscardCurrentProfile()))
+            return;
+
+        await LightConfigurationProfile.SaveAsCurrent(localStorage, newProfile);
+        await ReloadProfiles();
     }
 
     private async Task NavigateBack()
     {
-        
+        if (!(await CanDiscardCurrentProfile()))
+            return;
+
+        navigationManager.NavigateTo("..", forceLoad: true);
     }
 }
