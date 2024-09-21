@@ -34,7 +34,7 @@ public abstract class LightHandler : IAsyncDisposable
     /// <summary>
     /// This method is called by the constructor to create a default config instance for the object if none was passed to the constructor.
     /// </summary>
-    public abstract LightHandlerConfig CreateConfig();
+    protected abstract LightHandlerConfig CreateConfig();
 
     public abstract ValueTask<bool> ValidateConfig(ErrorMessageCollector errors);
 
@@ -52,5 +52,10 @@ public abstract class LightHandler : IAsyncDisposable
     /// </summary>
     public abstract ValueTask Stop();
 
-    public ValueTask DisposeAsync() => Stop();
+    public ValueTask DisposeAsync()
+    {
+        ValueTask t = Stop();
+        GC.SuppressFinalize(this);
+        return t;
+    }
 }

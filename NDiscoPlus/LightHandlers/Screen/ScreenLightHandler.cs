@@ -76,7 +76,7 @@ internal class ScreenLightHandler : LightHandler
     public override int MinCount => 1;
     public override int MaxCount => 1;
 
-    public override LightHandlerConfig CreateConfig()
+    protected override LightHandlerConfig CreateConfig()
         => new ScreenLightHandlerConfig();
 
     private static NDPLight[] GetLights4(ColorGamut colorGamut)
