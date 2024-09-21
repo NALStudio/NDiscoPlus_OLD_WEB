@@ -16,6 +16,7 @@ public class TrackDebugCanvasRenderTimbre : TrackDebugCanvasRender
     const double TimbreMaxValue = 150d;
 
     enum DrawColor { Red, Green, Gray }
+    // Use FrozenDictinoary as variable is instantiated only once
     readonly FrozenDictionary<DrawColor, string> ColorToHTML = new Dictionary<DrawColor, string>()
     {
         { DrawColor.Red, "#ff0000" },

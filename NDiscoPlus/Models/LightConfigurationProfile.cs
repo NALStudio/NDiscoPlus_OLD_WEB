@@ -2,6 +2,8 @@
 using NDiscoPlus.Constants;
 using NDiscoPlus.LightHandlers;
 using NDiscoPlus.LightHandlers.Screen;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
+using NDiscoPlus.Shared.Models;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
@@ -13,12 +15,14 @@ public sealed class LightConfigurationProfile
     {
         public string Name { get; }
         public ImmutableArray<LightHandlerConfig> Handlers { get; }
+        public ImmutableDictionary<LightId, Channel> LightChannelOverrides { get; }
 
         [JsonConstructor]
-        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers)
+        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<LightId, Channel>? lightChannelOverrides)
         {
             Name = name;
             Handlers = handlers;
+            LightChannelOverrides = lightChannelOverrides ?? ImmutableDictionary<LightId, Channel>.Empty;  // Might be null when migrating from an older (dev) version
         }
 
         public static SerializableProfile Construct(LightConfigurationProfile profile)
@@ -27,29 +31,44 @@ public sealed class LightConfigurationProfile
 
             return new SerializableProfile(
                 profile.Name,
-                handlers: handlers
+                handlers: handlers,
+                lightChannelOverrides: profile.lightChannelOverrides.ToImmutableDictionary()
+            );
+        }
+
+        public static LightConfigurationProfile Deconstruct(string localStoragePath, SerializableProfile profile)
+        {
+            return new LightConfigurationProfile(
+                localStoragePath: localStoragePath,
+                name: profile.Name,
+                handlers: profile.Handlers.Select(h => h.CreateLightHandler()),
+                lightChannelOverrides: profile.LightChannelOverrides
             );
         }
     }
 
-    private readonly string localStoragePath;
-    private readonly List<LightHandler> handlers;
 
-    [JsonConstructor]
-    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers)
+    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers, IDictionary<LightId, Channel> lightChannelOverrides)
     {
         this.localStoragePath = localStoragePath;
 
         Name = name;
+
         this.handlers = handlers.ToList();
+        this.lightChannelOverrides = lightChannelOverrides.ToDictionary();
     }
 
     public string UniqueId => localStoragePath;
 
     public string Name { get; set; } = string.Empty;
 
-    [JsonIgnore]
-    public IReadOnlyList<LightHandler> Handlers => handlers.AsReadOnly();
+    private readonly string localStoragePath;
+
+    private readonly List<LightHandler> handlers;
+    private readonly Dictionary<LightId, Channel> lightChannelOverrides;
+
+    public IList<LightHandler> Handlers => handlers.AsReadOnly();
+    public IDictionary<LightId, Channel> LightChannelOverrides => lightChannelOverrides.AsReadOnly();
 
     public static async IAsyncEnumerable<LightConfigurationProfile> LoadAll(ILocalStorageService localStorage, bool _createDefault = true)
     {
@@ -109,12 +128,7 @@ public sealed class LightConfigurationProfile
         SerializableProfile? serializable = await localStorage.GetItemAsync<SerializableProfile>(key);
         if (serializable is null)
             return null;
-
-        return new LightConfigurationProfile(
-            localStoragePath: key,
-            name: serializable.Name,
-            handlers: serializable.Handlers.Select(h => h.CreateLightHandler())
-        );
+        return SerializableProfile.Deconstruct(key, serializable);
     }
 
     public static ValueTask Save(ILocalStorageService localStorage, LightConfigurationProfile profile)
@@ -134,51 +148,64 @@ public sealed class LightConfigurationProfile
     {
         string localStoragePath = LocalStoragePaths.LightConfigurationProfilePrefix.NewKey();
 
-        return new(
+        return new LightConfigurationProfile(
             localStoragePath: localStoragePath,
             name: string.Empty,
-            handlers: [new ScreenLightHandler(null)]
+            handlers: [new ScreenLightHandler(null)],
+            lightChannelOverrides: ImmutableDictionary<LightId, Channel>.Empty
         );
     }
 
-    public bool CanAddHandler<T>(T handler) where T : LightHandler
+    public bool CanAddHandler(LightHandlerImplementation implementation)
     {
-        int existingCount = handlers.Count(h => h is T);
-        return existingCount < handler.MaxCount;
+        int existingCount = handlers.Count(h => h.GetType() == implementation.Type);
+        return existingCount < implementation.MaxCount;
     }
+    public bool CanAddHandler(Type type)
+        => CanAddHandler(LightHandler.GetImplementation(type));
+    public bool CanAddHandler<T>() where T : LightHandler
+        => CanAddHandler(typeof(T));
 
-    public bool CanRemoveHandler<T>(T handler) where T : LightHandler
+    public bool CanRemoveHandler(LightHandlerImplementation implementation)
     {
-        int existingCount = handlers.Count(h => h is T);
-        return existingCount > handler.MinCount;
+        int existingCount = handlers.Count(h => h.GetType() == implementation.Type);
+        return existingCount > implementation.MinCount;
     }
+    public bool CanRemoveHandler(Type type)
+        => CanRemoveHandler(LightHandler.GetImplementation(type));
+    public bool CanRemoveHandler<T>() where T : LightHandler
+        => CanRemoveHandler(typeof(T));
 
-    public bool TryAddHandler<T>(T handler) where T : LightHandler
+    public bool TryAddHandler(Type type)
     {
-        if (!CanAddHandler(handler))
+        if (!CanAddHandler(type))
             return false;
 
-        handlers.Add(handler);
+        LightHandlerImplementation impl = LightHandler.GetImplementation(type);
+        handlers.Add(impl.Constructor(null));
         return true;
     }
+    public bool TryAddHandler<T>() where T : LightHandler
+        => TryAddHandler(typeof(T));
 
-    public void AddHandler<T>(T handler) where T : LightHandler
+    public void AddHandler(Type type)
     {
-        bool added = TryAddHandler(handler);
+        bool added = TryAddHandler(type);
         if (!added)
             throw new ArgumentException("Cannot add handler. Maximum handlers reached.");
     }
+    public void AddHandler<T>() where T : LightHandler
+        => AddHandler(typeof(T));
 
-    public bool TryRemoveHandler<T>(T handler) where T : LightHandler
+    public bool TryRemoveHandler(LightHandler handler)
     {
-        if (!CanRemoveHandler(handler))
+        if (!CanRemoveHandler(handler.GetType()))
             return false;
 
         handlers.Remove(handler);
         return true;
     }
-
-    public void RemoveHandler<T>(T handler) where T : LightHandler
+    public void RemoveHandler(LightHandler handler)
     {
         bool removed = TryRemoveHandler(handler);
         if (!removed)

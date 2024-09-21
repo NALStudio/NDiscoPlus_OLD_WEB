@@ -6,6 +6,8 @@
 @using NDiscoPlus.LightHandlers
 @using NDiscoPlus.Models
 @using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models
+@using System.Diagnostics.CodeAnalysis
 
 @inject NavigationManager navigationManager
 @inject Blazored.LocalStorage.ILocalStorageService localStorage;
@@ -17,22 +19,37 @@
 <MudAppBar>
     <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack" Color="Color.Inherit" OnClick="NavigateBack" />
 
-    <MudStack Row="true" Class="px-4 py-1" Spacing="1" Style="background:#ffffff; margin-left:24px; border-radius:8px" AlignItems="AlignItems.Center">
-        <MudSelect T=LightConfigurationProfile Style="width:256px" Value="@currentProfile" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
-            @foreach (LightConfigurationProfile profile in profiles)
-            {
-                <MudSelectItem T="LightConfigurationProfile" Value=@profile />
+    <MudForm Disabled="LockInput.IsLocked">
+        <MudStack Row="true" Class="px-4 py-1" Spacing="1" Style="background:#ffffff; margin-left:24px; border-radius:8px" AlignItems="AlignItems.Center">
+            <MudSelect T=LightConfigurationProfile Style="width:256px" Value="@currentProfile" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
+                @foreach (LightConfigurationProfile profile in profiles)
+                {
+                    <MudSelectItem T="LightConfigurationProfile" Value=@profile />
+                }
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
+
+            <MudDivider Style="height:48px; margin-right:8px" Vertical="true" />
+
+            @{
+                ImmutableArray<LightHandlerImplementation> validImplementations;
+                if (currentProfile is not null)
+                    validImplementations = ImplementationsThatCanBeAddedTo(currentProfile).ToImmutableArray();
+                else
+                    validImplementations = ImmutableArray<LightHandlerImplementation>.Empty;
             }
-        </MudSelect>
-        <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
-
-        <MudDivider Style="height:48px; margin-right:8px" Vertical="true" />
-
-        <MudMenu Disabled="@(currentProfile is null)" Icon="@Icons.Material.Rounded.Add">
-            <!-- TODO: Create light handlers -->
-        </MudMenu>
-        <MudIconButton Icon="@Icons.Material.Rounded.Save" Disabled="@(!CurrentProfileEdited)" OnClick="SaveCurrentProfile" />
-    </MudStack>
+            <MudMenu Disabled="@(currentProfile is null || validImplementations.Length < 1)" Icon="@Icons.Material.Rounded.Add">
+                @if (currentProfile is not null)
+                {
+                    @foreach (LightHandlerImplementation impl in validImplementations)
+                    {
+                        <MudMenuItem OnClick="@(() => AddHandler(impl))">@(impl.DisplayName)</MudMenuItem>
+                    }
+                }
+            </MudMenu>
+            <MudIconButton Icon="@Icons.Material.Rounded.Save" Disabled="@(!CurrentProfileEdited)" OnClick="SaveCurrentProfile" />
+        </MudStack>
+    </MudForm>
 
     <MudSpacer />
 
@@ -43,22 +60,47 @@
 <MudMainContent Class="mt-16 pa-4">
     @if (currentProfile is not null)
     {
-        <MudForm @ref=form @bind-IsTouched=_formIsTouched>
+        <MudForm @ref=form @bind-IsTouched=_formIsTouched Disabled="LockInput.IsLocked">
+            <MudExpansionPanels>
+                <MudExpansionPanel Class="mud-theme-primary" HideIcon="true">
+                    <TitleContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center">
+                            <!-- Set margin and padding to center the text vertically -->
+                            <MudText><h5 style="margin:0;padding:0">Light Configuration</h5></MudText>
+                            <MudSpacer />
+                            @if (currentProfileLights.Count > 0)
+                            {
+                                <MudBadge Content="@(currentProfileLights.Count)">
+                                    <MudIcon Icon="@(Icons.Material.Rounded.Lightbulb)" Color="Color.Warning" />
+                                </MudBadge>
+                            }
+                            <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)" Color="Color.Inherit" />
+                        </MudStack>
+                    </TitleContent>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+
+            <div style="height:24px; align-content:center;">
+                <MudDivider />
+            </div>
+
             <MudExpansionPanels MultiExpansion="true">
                 @foreach (LightHandler handler in currentProfile.Handlers)
                 {
                     LightHandlerConfig config = handler.ConfigRef;
                     var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
-                    
+                    Type editorType = config.GetEditorType();
+
                     <MudExpansionPanel>
                         <TitleContent>
                             <div class="d-flex">
-                                <MudIcon Icon="@(handler.DisplayIcon)" Class="mr-3" />
-                                <MudText><strong>@(handler.DisplayName)</strong></MudText>
+                                <MudIcon Icon="@(handler.Implementation.DisplayIcon)" Class="mr-3" />
+                                <MudText><strong>@(handler.Implementation.DisplayName)</strong></MudText>
                             </div>
                         </TitleContent>
                         <ChildContent>
-                            <DynamicComponent Type="config.GetEditorType()" Parameters="@parameters" />
+                            <!-- If object could not be instantiated, one common cause can be that object does not inherit LightHandlerConfigEditor<T> -->
+                            <DynamicComponent Type="editorType" Parameters="@parameters" />
                         </ChildContent>
                     </MudExpansionPanel>
                 }
@@ -78,8 +120,39 @@
 </MudMessageBox>
 
 @code {
+    private readonly struct LockInput : IDisposable
+    {
+        private static readonly List<LockInput> _locks = new();
+        public static bool IsLocked => _locks.Count > 0;
+
+        private readonly SettingsPage parentRef;
+        private LockInput(SettingsPage parentRef)
+        {
+            this.parentRef = parentRef;
+        }
+
+        public static LockInput Lock(SettingsPage parentRef)
+        {
+            LockInput handle = new(parentRef);
+
+            _locks.Add(handle);
+            parentRef.StateHasChanged();
+
+            return handle;
+        }
+
+        public void Dispose()
+        {
+            _locks.Remove(this);
+            parentRef.StateHasChanged();
+        }
+    }
+
+
     private readonly List<LightConfigurationProfile> profiles = new();
+
     private LightConfigurationProfile? currentProfile;
+    private readonly List<NDPLight> currentProfileLights = new();
 
     private HashSet<int> _expandedHandlerSettings = new();
 
@@ -88,15 +161,27 @@
     private MudForm? form;
 
     private bool _formIsTouched = false;
-    private bool _currentProfileEdited = false;
+    private bool __currentProfileEdited = false;
     private bool CurrentProfileEdited
     {
-        get => _formIsTouched || _currentProfileEdited;
+        get => _formIsTouched || __currentProfileEdited;
         set
         {
             if (!value)
                 throw new ArgumentException("Cannot set value as false.");
-            _currentProfileEdited = true;
+            __currentProfileEdited = true;
+        }
+    }
+
+    private IEnumerable<LightHandlerImplementation> ImplementationsThatCanBeAddedTo(LightConfigurationProfile? profile)
+    {
+        if (profile is null)
+            yield break;
+
+        foreach (LightHandlerImplementation impl in LightHandler.Implementations)
+        {
+            if (profile.CanAddHandler(impl))
+                yield return impl;
         }
     }
 
@@ -119,17 +204,20 @@
 
     private async Task ReloadProfiles()
     {
-        // profiles are sorted in alphabetical order by their name
+        using (LockInput.Lock(this))
+        {
+            // profiles are sorted in alphabetical order by their name
 
-        // load current before loading all profiles so that the current profile is included in all profiles
-        LightConfigurationProfile currentProfile = await LightConfigurationProfile.LoadCurrent(localStorage);
+            // load current before loading all profiles so that the current profile is included in all profiles
+            LightConfigurationProfile currentProfile = await LightConfigurationProfile.LoadCurrent(localStorage);
 
-        profiles.Clear();
-        await foreach (LightConfigurationProfile profile in LightConfigurationProfile.LoadAll(localStorage))
-            Bisect.InsortRight(profiles, profile, keySelector: p => p.Name);
+            profiles.Clear();
+            await foreach (LightConfigurationProfile profile in LightConfigurationProfile.LoadAll(localStorage))
+                Bisect.InsortRight(profiles, profile, keySelector: p => p.Name);
 
-        // get current profile from list so that we only have a single instance of all profiles
-        this.currentProfile = profiles.Single(p => p.UniqueId == currentProfile.UniqueId);
+            // get current profile from list so that we only have a single instance of all profiles
+            this.currentProfile = profiles.Single(p => p.UniqueId == currentProfile.UniqueId);
+        }
     }
 
     private async Task<bool> CanDiscardCurrentProfile()
@@ -143,13 +231,17 @@
 
     private async Task SaveCurrentProfile()
     {
-        if (currentProfile is null)
-            throw new InvalidOperationException("No current profile loaded.");
+        ThrowIfCurrentProfileIsNull();
 
-        _currentProfileEdited = false;
-        form!.ResetTouched();
-        _formIsTouched = false;
-        await LightConfigurationProfile.Save(localStorage, currentProfile);
+        using (LockInput.Lock(this))
+        {
+            await Task.Delay(500);
+
+            await LightConfigurationProfile.Save(localStorage, currentProfile);
+            __currentProfileEdited = false;
+            form!.ResetTouched();
+            _formIsTouched = false;
+        }
     }
 
     private async Task ChangeProfile(LightConfigurationProfile newProfile)
@@ -157,17 +249,39 @@
         if (newProfile == currentProfile)
             return;
 
-        if (!(await CanDiscardCurrentProfile()))
-            return;
+        using (LockInput.Lock(this))
+        {
+            if (!(await CanDiscardCurrentProfile()))
+                return;
 
-        await LightConfigurationProfile.SaveAsCurrent(localStorage, newProfile);
-        await ReloadProfiles();
+            await LightConfigurationProfile.SaveAsCurrent(localStorage, newProfile);
+            await ReloadProfiles(); // ReloadProfiles sets the new currentProfile reference
+            await ReloadLights();
+        }
+    }
+
+    private async Task ReloadLights()
+    {
+        using (LockInput.Lock(this))
+        {
+            ThrowIfCurrentProfileIsNull();
+
+            currentProfileLights.Clear();
+
+            foreach (LightHandler handler in currentProfile.Handlers)
+            {
+                bool configValid = await handler.ValidateConfig(null);
+                if (!configValid)
+                    continue;
+
+                currentProfileLights.AddRange(await handler.GetLights());
+            }
+        }
     }
 
     private async Task ChangeCurrentProfileName()
     {
-        if (currentProfile is null)
-            throw new InvalidOperationException("No current profile loaded.");
+        ThrowIfCurrentProfileIsNull();
 
         string initialText = currentProfile.Name;
         DialogParameters<RenameProfileDialog> parameters = new()
@@ -183,11 +297,26 @@
         }
     }
 
+    private void AddHandler(LightHandlerImplementation implementation)
+    {
+        ThrowIfCurrentProfileIsNull();
+
+        currentProfile.AddHandler(implementation.Type);
+        CurrentProfileEdited = true;
+    }
+
     private async Task NavigateBack()
     {
         if (!(await CanDiscardCurrentProfile()))
             return;
 
         navigationManager.NavigateTo("..", forceLoad: true);
+    }
+
+    [MemberNotNull(nameof(currentProfile))]
+    private void ThrowIfCurrentProfileIsNull()
+    {
+        if (currentProfile is null)
+            throw new InvalidOperationException("No current profile loaded.");
     }
 }

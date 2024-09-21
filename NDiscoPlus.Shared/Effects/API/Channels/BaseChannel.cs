@@ -3,13 +3,17 @@ using System.Collections.Frozen;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels;
-public abstract class Channel
+public abstract class BaseChannel
 {
     public NDPLightCollection Lights { get; }
 
-    protected Channel(IEnumerable<NDPLight> lights)
+    protected BaseChannel(IEnumerable<NDPLight> lights)
     {
         Lights = NDPLightCollection.Create(lights);
+    }
+    protected BaseChannel(NDPLightCollection lights)
+    {
+        Lights = lights;
     }
 
     public NDPLight GetLight(LightId id) => Lights[id];

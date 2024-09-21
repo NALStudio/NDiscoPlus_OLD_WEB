@@ -9,7 +9,6 @@ using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.MemoryPack;
-using NDiscoPlus.Shared.MemoryPack.Formatters;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
@@ -56,46 +55,34 @@ public partial class NDiscoPlusArgs
 [MemoryPackable]
 public partial class NDiscoPlusArgsLights
 {
-    [NDPLightFrozenDictionaryValueFormatter]
-    public FrozenDictionary<LightId, NDPLight> Lights { get; }
+    public ImmutableDictionary<Channel, ImmutableArray<NDPLight>> Lights { get; }
 
-    public ImmutableArray<LightId> Strobe { get; }
-    public ImmutableArray<LightId> Flash { get; }
-    public ImmutableArray<LightId> Effect { get; }
-    public ImmutableArray<LightId> Background { get; }
-
-    public NDiscoPlusArgsLights(IEnumerable<NDPLight> lights)
+    public IEnumerable<NDPLight> EnumerateLights()
     {
-        Lights = lights.ToFrozenDictionary(key => key.Id);
+        foreach (ImmutableArray<NDPLight> lightArray in Lights.Values)
+        {
+            foreach (NDPLight light in lightArray)
+                yield return light;
+        }
+    }
 
-        Strobe = ImmutableArray<LightId>.Empty;
-        Flash = ImmutableArray<LightId>.Empty;
-        Effect = ImmutableArray<LightId>.Empty;
-        Background = ImmutableArray<LightId>.Empty;
+    public NDiscoPlusArgsLights(ICollection<NDPLight> lights, IDictionary<LightId, Channel> channels)
+    {
+        Channel GetChannel(NDPLight light)
+        {
+            if (channels.TryGetValue(light.Id, out Channel channel))
+                return channel;
+            return Channel.All;
+        }
+
+        IEnumerable<IGrouping<Channel, NDPLight>> grouped = lights.GroupBy(keySelector: GetChannel);
+        Lights = grouped.ToImmutableDictionary(key => key.Key, value => value.ToImmutableArray());
     }
 
     [MemoryPackConstructor]
-    private NDiscoPlusArgsLights(FrozenDictionary<LightId, NDPLight> lights, ImmutableArray<LightId> strobe, ImmutableArray<LightId> flash, ImmutableArray<LightId> effect, ImmutableArray<LightId> background)
+    private NDiscoPlusArgsLights(ImmutableDictionary<Channel, ImmutableArray<NDPLight>> lights)
     {
         Lights = lights;
-
-        Strobe = strobe;
-        Flash = flash;
-        Effect = effect;
-        Background = background;
-    }
-
-    public static NDiscoPlusArgsLights CreateSingleChannel(IEnumerable<NDPLight> lights)
-        => CreateSingleChannel(lights.ToImmutableArray());
-
-    public static NDiscoPlusArgsLights CreateSingleChannel(params NDPLight[] lights)
-        => CreateSingleChannel(lights.ToImmutableArray());
-
-    public static NDiscoPlusArgsLights CreateSingleChannel(ImmutableArray<NDPLight> lights)
-    {
-        FrozenDictionary<LightId, NDPLight> lightsDict = lights.ToFrozenDictionary(key => key.Id);
-        ImmutableArray<LightId> lightIds = lightsDict.Keys;
-        return new(lightsDict, lightIds, lightIds, lightIds, lightIds);
     }
 }
 
@@ -157,13 +144,7 @@ public class NDiscoPlusService
 
         EffectAPI api = new(
             args.Effects,
-            [
-                new StrobeEffectChannel(args.Lights.Strobe.Select(id => args.Lights.Lights[id])),
-                new FlashEffectChannel(args.Lights.Flash.Select(id => args.Lights.Lights[id])),
-                new DefaultEffectChannel(args.Lights.Effect.Select(id => args.Lights.Lights[id])),
-                new BackgroundEffectChannel(args.Lights.Background.Select(id => args.Lights.Lights[id])),
-            ],
-            new BackgroundChannel(args.Lights.Background.Select(id => args.Lights.Lights[id]))
+            args.Lights
         );
 
         Models.Context context = new(
@@ -203,7 +184,7 @@ public class NDiscoPlusService
             effectConfig: api.Config,
             effects: ChunkedEffectsCollection.Construct(api),
 
-            lights: args.Lights.Lights
+            lights: args.Lights.EnumerateLights().ToImmutableArray()
         );
     }
     public SerializedValue ComputeDataBlazorWorker(SerializedValue args)

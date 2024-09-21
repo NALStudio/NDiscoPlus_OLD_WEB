@@ -30,7 +30,7 @@ internal sealed class BrightLightEffect : NDPEffect
 
     public override void Generate(EffectContext ctx, EffectAPI api)
     {
-        EffectChannel? channel = api.GetChannel<DefaultEffectChannel>();
+        EffectChannel? channel = api.GetChannel(Channel.Default);
         if (channel is null)
             return;
 

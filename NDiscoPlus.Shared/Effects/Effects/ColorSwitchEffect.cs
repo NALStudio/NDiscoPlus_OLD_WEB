@@ -7,6 +7,7 @@ using NDiscoPlus.Shared.Models.Color;
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -26,7 +27,7 @@ internal class ColorSwitchEffect : NDPEffect
 
     public override void Generate(EffectContext ctx, EffectAPI api)
     {
-        EffectChannel? channel = api.GetChannel<BackgroundEffectChannel>();
+        EffectChannel? channel = api.GetChannel(Channel.Background);
         if (channel is null)
             return;
 
@@ -50,19 +51,19 @@ internal class ColorSwitchEffect : NDPEffect
         }
 
         Dictionary<LightId, NDPColor?> colors;
-        FrozenDictionary<LightId, NDPColor?> approximateBackgroundColors;
+        ImmutableDictionary<LightId, NDPColor?> approximateBackgroundColors;
 
 #pragma warning disable CS0162 // Unreachable code detected
         if (_kInitializeUsingBackgroundApproximation)
         {
             colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
-            approximateBackgroundColors = channel.Lights.Values.ToFrozenDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
+            approximateBackgroundColors = channel.Lights.Values.ToImmutableDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
         }
         else
         {
             NDPColor[] paletteColors = ctx.Palette.ToArray();
             colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)ctx.Random.Choice(paletteColors));
-            approximateBackgroundColors = FrozenDictionary<LightId, NDPColor?>.Empty;
+            approximateBackgroundColors = ImmutableDictionary<LightId, NDPColor?>.Empty;
         }
 #pragma warning restore CS0162
 
@@ -94,7 +95,7 @@ internal class ColorSwitchEffect : NDPEffect
                 NDPLight? light = null;
                 do
                 {
-                    light = ctx.Random.Choice(channel.Lights.Values);
+                    light = channel.Lights.Random(ctx.Random);
                 }
                 while (light is null || changedLights.Contains(light.Value.Id));
                 LightId lightId = light.Value.Id;

@@ -8,6 +8,8 @@
 
 @inject WindowProvider windowProvider
 
+@inherits LightHandlerConfigEditor<ScreenLightHandlerConfig>
+
 <MudStack>
     <MudRadioGroup T="ScreenLightCount"
                     @bind-Value=Config.LightCount>
@@ -59,9 +61,6 @@
 
 @code {
     private readonly record struct PreviewGradient(ImmutableArray<NDPColor> Colors, bool HDR);
-
-    [Parameter, EditorRequired]
-    public required ScreenLightHandlerConfig Config { get; set; }
 
     private PreviewGradient? _preview;
 

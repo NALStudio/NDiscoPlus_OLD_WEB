@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Effects;
 
-public class EffectChannel : Channel
+public class EffectChannel : BaseChannel
 {
     public EffectChannel(IEnumerable<NDPLight> lights) : base(lights)
     {

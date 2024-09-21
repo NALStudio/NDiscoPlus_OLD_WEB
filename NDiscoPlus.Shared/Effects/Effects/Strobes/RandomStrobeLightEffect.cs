@@ -25,7 +25,7 @@ internal class RandomStrobeLightEffect : BaseStrobeLightEffect
                 LightId light;
                 do
                 {
-                    light = ctx.Random.Choice(lights.Values).Id;
+                    light = lights.Random(ctx.Random).Id;
                 } while (currentFrame.Contains(light) || (lastFrame?.Contains(light) == true));
 
                 bool wasAdded = currentFrame.Add(light);

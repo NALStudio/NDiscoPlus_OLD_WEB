@@ -68,7 +68,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
 
     public override void Generate(EffectContext ctx, EffectAPI api)
     {
-        EffectChannel? channel = api.GetChannel<StrobeEffectChannel>();
+        EffectChannel? channel = api.GetChannel(Channel.Strobe);
         if (channel is null)
             return;
         NDPLightCollection lights = channel.Lights;

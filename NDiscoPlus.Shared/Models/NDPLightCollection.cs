@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
@@ -15,15 +16,18 @@ namespace NDiscoPlus.Shared.Models;
 
 public readonly record struct NDPLightBounds(double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ);
 
+// MUST BE READ-ONLY
+// AS THIS IS SHARED WITH BOTH BACKGROUND CHANNEL AND BACKGROUND EFFECT CHANNEL
 public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>, IEnumerable<NDPLight>
 {
-    private readonly FrozenDictionary<LightId, NDPLight> lights;
+    private readonly ImmutableDictionary<LightId, NDPLight> lights;
 
     public NDPLightBounds Bounds { get; }
 
     private NDPLightCollection(Dictionary<LightId, NDPLight> lights, NDPLightBounds bounds)
     {
-        this.lights = lights.ToFrozenDictionary();
+        this.lights = lights.ToImmutableDictionary();
+
         Bounds = bounds;
     }
     /// <summary>
@@ -48,6 +52,27 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     public List<NDPLight[]> GroupZ(int count)
     {
         return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.Z).ToList();
+    }
+
+
+    public NDPLight Random(Random random)
+    {
+        int count = lights.Count;
+        if (count < 1)
+            throw new InvalidOperationException("Cannot take a random value from an empty collection.");
+
+        IEnumerator<NDPLight> lightEnumerator = lights.Values.GetEnumerator();
+        int index = random.Next(count);
+
+        // -1 since at least one MoveNext must happen before current value can be fetched.
+        while (index > -1)
+        {
+            bool mn = lightEnumerator.MoveNext();
+            Debug.Assert(mn);
+            index--;
+        }
+
+        return lightEnumerator.Current;
     }
 
 
@@ -90,20 +115,16 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
         );
     }
 
-    public IList<LightId> Keys => lights.Keys;
-    public IList<NDPLight> Values => lights.Values;
-
     public int Count => lights.Count;
-
-    IEnumerable<LightId> IReadOnlyDictionary<LightId, NDPLight>.Keys => Keys;
-    IEnumerable<NDPLight> IReadOnlyDictionary<LightId, NDPLight>.Values => Values;
+    public IEnumerable<LightId> Keys => lights.Keys;
+    public IEnumerable<NDPLight> Values => lights.Values;
 
     public NDPLight this[LightId key] => lights[key];
 
     public bool ContainsKey(LightId key) => lights.ContainsKey(key);
     public bool TryGetValue(LightId key, [MaybeNullWhen(false)] out NDPLight value) => lights.TryGetValue(key, out value);
 
-    public IEnumerator<NDPLight> GetEnumerator() => ((IEnumerable<NDPLight>)lights.Values).GetEnumerator();
+    public IEnumerator<NDPLight> GetEnumerator() => lights.Values.GetEnumerator();
     IEnumerator<KeyValuePair<LightId, NDPLight>> IEnumerable<KeyValuePair<LightId, NDPLight>>.GetEnumerator() => lights.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

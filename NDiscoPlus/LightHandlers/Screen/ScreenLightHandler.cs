@@ -11,30 +11,6 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.LightHandlers.Screen;
 
-public enum ScreenLightCount
-{
-    Four = 4,
-    Six = 6
-}
-
-public class ScreenLightHandlerConfig : LightHandlerConfig
-{
-    public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
-    public bool UseHDR { get; set; } = false;
-
-    public int AspectRatioHorizontal { get; set; } = 16;
-    public int AspectRatioVertical { get; set; } = 9;
-
-    [JsonIgnore]
-    public double AspectRatio => AspectRatioHorizontal / ((double)AspectRatioVertical);
-    [JsonIgnore]
-    public double InverseAspectRatio => AspectRatioVertical / ((double)AspectRatioHorizontal);
-
-    public override LightHandler CreateLightHandler()
-        => new ScreenLightHandler(this);
-    public override Type GetEditorType() => typeof(ScreenLightHandlerConfigEditor);
-}
-
 internal readonly record struct ScreenLight(NDPLight Light, NDPColor? Color)
 {
     public ScreenLight ReplaceColor(NDPColor color)
@@ -69,12 +45,6 @@ internal class ScreenLightHandler : LightHandler
     {
         Render = new RenderData(this);
     }
-
-    public override string DisplayName => "Screen";
-    public override string DisplayIcon => Icons.Material.Rounded.DesktopWindows;
-
-    public override int MinCount => 1;
-    public override int MaxCount => 1;
 
     protected override LightHandlerConfig CreateConfig()
         => new ScreenLightHandlerConfig();
@@ -117,10 +87,16 @@ internal class ScreenLightHandler : LightHandler
             throw new InvalidLightHandlerConfigException("Invalid light count.");
     }
 
-    public override ValueTask<NDPLight[]> GetLights()
-        => new(GetLightsInternal());
+    private async Task<NDPLight[]> GetLightsInternalWithTestDelay()
+    {
+        await Task.Delay(500);
+        return GetLightsInternal();
+    }
 
-    public override ValueTask<bool> ValidateConfig(ErrorMessageCollector errors)
+    public override ValueTask<NDPLight[]> GetLights()
+        => new(GetLightsInternalWithTestDelay());
+
+    public override ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors)
     {
         ScreenLightHandlerConfig config = Config<ScreenLightHandlerConfig>();
 
@@ -128,14 +104,14 @@ internal class ScreenLightHandler : LightHandler
 
         if (!Enum.GetValues<ScreenLightCount>().Contains(config.LightCount))
         {
-            errors.Add($"Invalid Screen Light Count: {config.LightCount}");
+            errors?.Add($"Invalid Screen Light Count: {config.LightCount}");
             valid = false;
         }
 
         return new ValueTask<bool>(valid);
     }
 
-    public override ValueTask<bool> Start(ErrorMessageCollector errors, out NDPLight[] lights)
+    public override ValueTask<bool> Start(ErrorMessageCollector? errors, out NDPLight[] lights)
     {
         if (this.lights is null)
         {

@@ -210,7 +210,7 @@
 
     record LightHandlingData(
         ImmutableArray<LightHandler> Handlers,
-        ImmutableArray<NDPLight> Lights,
+        NDiscoPlusArgsLights Lights,
         ScreenLightHandler ScreenLightHandlerSingleton
     )
     {
@@ -477,7 +477,8 @@
             return;
         }
 
-        lightHandling = new(profile.Handlers.ToImmutableArray(), lights.ToImmutableArray(), screenLightHandlerSingleton);
+        NDiscoPlusArgsLights lightsCollection = new(lights, profile.LightChannelOverrides);
+        lightHandling = new(profile.Handlers.ToImmutableArray(), lightsCollection, screenLightHandlerSingleton);
     }
 
     async Task InternalStopPlaying()
@@ -563,7 +564,7 @@
             }
 
             // Default to all lights black if no effect data (for the light interpreter) has been computed yet
-            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights);
+            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights.EnumerateLights());
 
             // if current light data has loaded, run interpreter
             if (lightHandling.CurrentData is not null)
@@ -646,10 +647,9 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        NDiscoPlusArgsLights lights = NDiscoPlusArgsLights.CreateSingleChannel(lightHandling.Lights);
         EffectConfig effects = new();
 
-        NDiscoPlusArgs args = new(track, features, analysis, effects, lights)
+        NDiscoPlusArgs args = new(track, features, analysis, effects, lightHandling.Lights)
         {
             ReferencePalette = referencePalette,
             AllowHDR = lightHandling.ScreenLightHandlerSingleton.Render.HDR

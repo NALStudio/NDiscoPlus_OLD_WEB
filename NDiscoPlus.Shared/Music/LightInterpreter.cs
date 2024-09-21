@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
@@ -143,7 +144,7 @@ public class LightInterpreter
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
         UpdateEffects(ref lights, data, progress);
-        AddMissingLights(ref lights, data.Lights.Values);
+        AddMissingLights(ref lights, data.Lights);
 
         double deltaTime = TickDeltaTime();
 

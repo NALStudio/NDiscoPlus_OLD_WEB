@@ -16,48 +16,35 @@ internal class EffectAPI
 {
     public EffectConfig Config { get; }
 
-    public IList<EffectChannel> Channels => channels.Values;
-    private readonly FrozenDictionary<Type, EffectChannel> channels;
+    public IList<EffectChannel> Channels => channelsArr;
+    private readonly ImmutableArray<EffectChannel> channelsArr;
+    private readonly ImmutableDictionary<Channel, EffectChannel> channelsDic;
 
     public BackgroundChannel Background { get; }
 
-    public EffectAPI(EffectConfig config, EffectChannel[] channels, BackgroundChannel background)
+    public EffectAPI(EffectConfig config, NDiscoPlusArgsLights lights)
     {
+        KeyValuePair<Channel, EffectChannel> CreateChannel(Channel type)
+        {
+            IEnumerable<NDPLight> channelLights = lights.Lights.Where(l => l.Key.HasFlag(type))
+                                                               .SelectMany(l => l.Value);
+
+            return new(type, new EffectChannel(channelLights));
+        }
+
         Config = config;
 
-        Dictionary<Type, EffectChannel> chnls = new();
-        foreach (EffectChannel c in channels)
-        {
-            if (!chnls.TryAdd(c.GetType(), c))
-                throw new ArgumentException($"Cannot have multiple instances of {c.GetType().Name}.");
-        }
+        KeyValuePair<Channel, EffectChannel>[] channels = Enum.GetValues<Channel>()
+                                                                  .Select(CreateChannel)
+                                                                  .ToArray();
+        channelsArr = channels.Select(c => c.Value).ToImmutableArray();
+        channelsDic = channels.ToImmutableDictionary();
 
-        this.channels = chnls.ToFrozenDictionary();
-
-        Background = background;
+        Background = new(channelsDic[Channel.Background].Lights);
     }
 
-
-    public T GetChannel<T>() where T : EffectChannel
-        => (T)GetChannel(typeof(T));
-
-    public EffectChannel GetChannel(Type type)
-        => channels[type];
-
-    public bool TryGetChannel<T>([MaybeNullWhen(false)] out T channel) where T : EffectChannel
-    {
-        if (TryGetChannel(typeof(T), out EffectChannel? chnl))
-        {
-            channel = (T)chnl;
-            return true;
-        }
-        else
-        {
-            channel = null;
-            return false;
-        }
-
-    }
-    public bool TryGetChannel(Type type, [MaybeNullWhen(false)] out EffectChannel channel)
-        => channels.TryGetValue(type, out channel);
+    public EffectChannel GetChannel(Channel type)
+        => channelsDic[type];
+    public bool TryGetChannel(Channel type, [MaybeNullWhen(false)] out EffectChannel channel)
+        => channelsDic.TryGetValue(type, out channel);
 }

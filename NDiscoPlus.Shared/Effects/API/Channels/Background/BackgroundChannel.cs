@@ -1,4 +1,5 @@
 ﻿using MemoryPack;
+using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
@@ -8,37 +9,9 @@ using System.Collections.Immutable;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Background;
 
-[MemoryPackable]
-public readonly partial struct BackgroundTransition
+public class BackgroundChannel : BaseChannel
 {
-    public LightId LightId { get; }
-
-    public TimeSpan Start { get; }
-    public TimeSpan Duration { get; }
-
-    [MemoryPackIgnore]
-    public TimeSpan End => Start + Duration;
-
-    public NDPColor Color { get; }
-
-    public BackgroundTransition(LightId lightId, TimeSpan start, TimeSpan duration, NDPColor color)
-    {
-        LightId = lightId;
-        Start = start;
-        Duration = duration;
-        Color = color;
-    }
-
-    public NDPColor Interpolate(TimeSpan progress, NDPColor from)
-    {
-        double t = (progress - Start) / Duration;
-        return NDPColor.Lerp(from, Color, t);
-    }
-}
-
-public class BackgroundChannel : Channel
-{
-    public BackgroundChannel(IEnumerable<NDPLight> lights) : base(lights)
+    public BackgroundChannel(NDPLightCollection lights) : base(lights)
     {
     }
 
@@ -76,6 +49,6 @@ public class BackgroundChannel : Channel
             return null;
     }
 
-    internal FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> Freeze()
-        => transitions.ToFrozenDictionary(key => key.Key, value => value.Value.ToImmutableArray());
+    internal ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>> Freeze()
+        => transitions.ToImmutableDictionary(key => key.Key, value => value.Value.ToImmutableArray());
 }

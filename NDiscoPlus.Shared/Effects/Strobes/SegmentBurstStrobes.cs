@@ -47,7 +47,7 @@ internal class SegmentBurstStrobes : NDPStrobe
         else
             groupCount = 2;
 
-        StrobeEffectChannel channel = api.GetChannel<StrobeEffectChannel>();
+        EffectChannel channel = api.GetChannel(Channel.Strobe);
         List<NDPLight[]> lightGroups = channel.Lights.GroupX(groupCount);
 
         // Console.WriteLine(groupCount);

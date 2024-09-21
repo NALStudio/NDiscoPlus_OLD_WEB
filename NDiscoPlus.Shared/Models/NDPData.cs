@@ -2,10 +2,10 @@
 using Microsoft.AspNetCore.WebUtilities;
 using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
-using NDiscoPlus.Shared.MemoryPack.Formatters;
 using NDiscoPlus.Spotify.Models;
 using System.Buffers;
 using System.Collections.Frozen;
@@ -18,12 +18,11 @@ namespace NDiscoPlus.Shared.Models;
 [MemoryPackable]
 public partial class NDPData
 {
-    [MemoryPackConstructor]
     internal NDPData(
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
         EffectConfig effectConfig, ChunkedEffectsCollection effects,
-        FrozenDictionary<LightId, NDPLight> lights
+        ImmutableArray<NDPLight> lights
     )
     {
         Track = track;
@@ -44,8 +43,7 @@ public partial class NDPData
     public EffectConfig EffectConfig { get; }
     public ChunkedEffectsCollection Effects { get; }
 
-    [NDPLightFrozenDictionaryValueFormatter]
-    public FrozenDictionary<LightId, NDPLight> Lights { get; }
+    public ImmutableArray<NDPLight> Lights { get; }
 
     public static string Serialize(NDPData data)
     {
@@ -82,7 +80,7 @@ public sealed partial class ChunkedEffectsCollection
     public const int CHUNK_SIZE_SECONDS = 1;
 
     [MemoryPackOrder(0)]
-    public FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> BackgroundTransitions { get; }
+    public ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>> BackgroundTransitions { get; }
 
     [MemoryPackInclude, MemoryPackOrder(1)]
     private readonly ImmutableArray<Effect> effects;
@@ -92,7 +90,7 @@ public sealed partial class ChunkedEffectsCollection
     public int ChunkCount => chunks.Length;
     public static TimeSpan ChunkSize => TimeSpan.FromSeconds(CHUNK_SIZE_SECONDS);
 
-    private ChunkedEffectsCollection(FrozenDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions, ImmutableArray<Effect> effects)
+    private ChunkedEffectsCollection(ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>> backgroundTransitions, ImmutableArray<Effect> effects)
     {
         BackgroundTransitions = backgroundTransitions;
         this.effects = effects;

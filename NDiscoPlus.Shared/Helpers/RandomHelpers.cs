@@ -47,15 +47,17 @@ public static class RandomHelpers
     /// <summary>
     /// Group items into <paramref name="count"/> amount of equal sized portions.
     /// </summary>
-    public static IEnumerable<T[]> Group<T>(this Random random, IList<T> values, int count)
+    public static IEnumerable<T[]> Group<T>(this Random random, IEnumerable<T> values, int count)
     {
         // randomize values
         T[] randomized = values.ToArray();
         random.Shuffle(randomized);
 
+        int valuesCount = randomized.Length; // this array is created from values so the lengths are the same
+
         // split values into n (count) chunks
-        int chunkSize = values.Count / count;
-        int leftOver = values.Count - (count * chunkSize);
+        int chunkSize = valuesCount / count;
+        int leftOver = valuesCount - (count * chunkSize);
 
         List<T[]> output = new(count);
         int index = 0;
@@ -68,7 +70,7 @@ public static class RandomHelpers
             index = end;
         }
 
-        Debug.Assert(index == values.Count);
+        Debug.Assert(index == valuesCount);
 
         // return split chunks in random order (so that the longer and shorter chunk order is randomized)
         while (output.Count > 0)

@@ -1,5 +1,6 @@
 ﻿using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Background;
+using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
