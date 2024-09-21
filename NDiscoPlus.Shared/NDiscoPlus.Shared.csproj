@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="MaterialColorUtilities" Version="0.3.0" />
-    <PackageReference Include="MemoryPack" Version="1.21.1" />
+    <PackageReference Include="MemoryPack" Version="1.21.3" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="8.0.8" />

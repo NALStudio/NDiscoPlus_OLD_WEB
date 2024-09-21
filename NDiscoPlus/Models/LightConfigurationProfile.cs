@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Models;
 
-internal sealed class LightConfigurationProfile
+public sealed class LightConfigurationProfile
 {
     private class SerializableProfile
     {
@@ -35,6 +35,7 @@ internal sealed class LightConfigurationProfile
     private readonly string localStoragePath;
     private readonly List<LightHandler> handlers;
 
+    [JsonConstructor]
     private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers)
     {
         this.localStoragePath = localStoragePath;
@@ -45,7 +46,7 @@ internal sealed class LightConfigurationProfile
 
     public string UniqueId => localStoragePath;
 
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonIgnore]
     public IReadOnlyList<LightHandler> Handlers => handlers.AsReadOnly();

@@ -9,15 +9,13 @@
 @inject WindowProvider windowProvider
 
 <MudStack>
-    <MudToggleGroup T="ScreenLightCount"
-                    SelectionMode="SelectionMode.SingleSelection"
-                    @bind-Value=Config.LightCount
-                    Color="Color.Tertiary">
+    <MudRadioGroup T="ScreenLightCount"
+                    @bind-Value=Config.LightCount>
         @foreach (ScreenLightCount lightCount in Enum.GetValues<ScreenLightCount>())
         {
-            <MudToggleItem Value="@lightCount" Text="@(lightCount.ToString() + " Lights")" />
+            <MudRadio Color="Color.Primary" Value="@lightCount">@(lightCount.ToString() + " Lights")</MudRadio>
         }
-    </MudToggleGroup>
+    </MudRadioGroup>
 
     <MudDivider />
 
@@ -26,8 +24,8 @@
     </MudTooltip>
     <div>
     <MudStack Row="true">
-        <MudNumericField @bind-Value=Config.AspectRatioHorizontal Label="Horizontal" HelperText="@(Config.AspectRatio.ToString())" Variant="Variant.Outlined" Immediate="true" Max="32" Min="1" />
-        <MudNumericField @bind-Value=Config.AspectRatioVertical Label="Vertical" Variant="Variant.Outlined" Immediate="true" Max="32" Min="1" />
+        <MudNumericField @bind-Value=Config.AspectRatioHorizontal Label="Horizontal" HelperText="@(Config.AspectRatio.ToString())" Variant="Variant.Outlined" Max="32" Min="1" />
+        <MudNumericField @bind-Value=Config.AspectRatioVertical Label="Vertical" Variant="Variant.Outlined" Max="32" Min="1" />
     </MudStack>
     </div>
 
@@ -52,7 +50,7 @@
                             Colors="GetPreviewColors()"
                             Width="@(canvasSize.Width)"
                             Height="@(canvasSize.Height)"
-                            Style="border-radius:16px; overflow:hidden"/>
+                            Style="border-radius:16px; overflow:hidden;"/>
             <MudText>@Config.AspectRatioVertical</MudText>
         </MudStack>
         <MudText Style=@($"width:{canvasSize.Width}px;") Align="Align.Center">@(Config.AspectRatioHorizontal)</MudText>
@@ -110,7 +108,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        canvasSize = await GetCanvasSize();
+        var newCanvasSize = await GetCanvasSize();
+        if (canvasSize != newCanvasSize)
+        {
+            canvasSize = newCanvasSize;
+            StateHasChanged();
+        }
     }
 
     private async Task<(int Width, int Height)> GetCanvasSize()

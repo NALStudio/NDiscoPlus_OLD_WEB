@@ -1,6 +1,7 @@
 ﻿@page "/settings"
 @using System.Collections.Immutable
 @using NDiscoPlus.Components
+@using NDiscoPlus.Components.Dialogs
 @using NDiscoPlus.Components.LightHandlerConfigEditor
 @using NDiscoPlus.LightHandlers
 @using NDiscoPlus.Models
@@ -15,21 +16,34 @@
 
 <MudAppBar>
     <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack" Color="Color.Inherit" OnClick="NavigateBack" />
+
+    <MudStack Row="true" Class="px-4 py-1" Spacing="1" Style="background:#ffffff; margin-left:24px; border-radius:8px" AlignItems="AlignItems.Center">
+        <MudSelect T=LightConfigurationProfile Style="width:256px" Value="@currentProfile" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
+            @foreach (LightConfigurationProfile profile in profiles)
+            {
+                <MudSelectItem T="LightConfigurationProfile" Value=@profile />
+            }
+        </MudSelect>
+        <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
+
+        <MudDivider Style="height:48px; margin-right:8px" Vertical="true" />
+
+        <MudMenu Disabled="@(currentProfile is null)" Icon="@Icons.Material.Rounded.Add">
+            <!-- TODO: Create light handlers -->
+        </MudMenu>
+        <MudIconButton Icon="@Icons.Material.Rounded.Save" Disabled="@(!CurrentProfileEdited)" OnClick="SaveCurrentProfile" />
+    </MudStack>
+
     <MudSpacer />
+
     <!-- TODO: Temporary icon, use logo instead. -->
     <MudIcon Icon="@Icons.Material.Rounded.Lightbulb" Color="Color.Inherit" />
 </MudAppBar>
 
 <MudMainContent Class="mt-16 pa-4">
-    <MudSelect T=LightConfigurationProfile Value="@currentProfile" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Variant="Variant.Outlined" Label="Profile">
-        @foreach (LightConfigurationProfile profile in profiles)
-        {
-            <MudSelectItem T="LightConfigurationProfile" Value=@profile />
-        }
-    </MudSelect>
     @if (currentProfile is not null)
     {
-        <MudForm @bind-IsTouched=currentProfileEdited>
+        <MudForm @ref=form @bind-IsTouched=_formIsTouched>
             <MudExpansionPanels MultiExpansion="true">
                 @foreach (LightHandler handler in currentProfile.Handlers)
                 {
@@ -66,11 +80,25 @@
 @code {
     private readonly List<LightConfigurationProfile> profiles = new();
     private LightConfigurationProfile? currentProfile;
-    private bool currentProfileEdited = false;
 
     private HashSet<int> _expandedHandlerSettings = new();
 
     private MudMessageBox? _mudMessageBox;
+
+    private MudForm? form;
+
+    private bool _formIsTouched = false;
+    private bool _currentProfileEdited = false;
+    private bool CurrentProfileEdited
+    {
+        get => _formIsTouched || _currentProfileEdited;
+        set
+        {
+            if (!value)
+                throw new ArgumentException("Cannot set value as false.");
+            _currentProfileEdited = true;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -106,11 +134,22 @@
 
     private async Task<bool> CanDiscardCurrentProfile()
     {
-        if (!currentProfileEdited)
+        if (!CurrentProfileEdited)
             return true;
 
         bool? result = await _mudMessageBox!.ShowAsync();
         return result == true;
+    }
+
+    private async Task SaveCurrentProfile()
+    {
+        if (currentProfile is null)
+            throw new InvalidOperationException("No current profile loaded.");
+
+        _currentProfileEdited = false;
+        form!.ResetTouched();
+        _formIsTouched = false;
+        await LightConfigurationProfile.Save(localStorage, currentProfile);
     }
 
     private async Task ChangeProfile(LightConfigurationProfile newProfile)
@@ -123,6 +162,25 @@
 
         await LightConfigurationProfile.SaveAsCurrent(localStorage, newProfile);
         await ReloadProfiles();
+    }
+
+    private async Task ChangeCurrentProfileName()
+    {
+        if (currentProfile is null)
+            throw new InvalidOperationException("No current profile loaded.");
+
+        string initialText = currentProfile.Name;
+        DialogParameters<RenameProfileDialog> parameters = new()
+        {
+            { p => p.InitialText, initialText }
+        };
+
+        DialogResult? res = await DialogService.Show<RenameProfileDialog>("Rename Profile", parameters).Result;
+        if (res?.Data is string name)
+        {
+            currentProfile.Name = name;
+            CurrentProfileEdited = true;
+        }
     }
 
     private async Task NavigateBack()

@@ -7,6 +7,7 @@ using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.LightHandlers.Screen;
 
@@ -23,7 +24,10 @@ public class ScreenLightHandlerConfig : LightHandlerConfig
 
     public int AspectRatioHorizontal { get; set; } = 16;
     public int AspectRatioVertical { get; set; } = 9;
+
+    [JsonIgnore]
     public double AspectRatio => AspectRatioHorizontal / ((double)AspectRatioVertical);
+    [JsonIgnore]
     public double InverseAspectRatio => AspectRatioVertical / ((double)AspectRatioHorizontal);
 
     public override LightHandler CreateLightHandler()
