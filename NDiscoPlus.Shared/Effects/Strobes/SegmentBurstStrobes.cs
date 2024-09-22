@@ -35,6 +35,10 @@ internal class SegmentBurstStrobes : NDPStrobe
 
     private static void GenerateForBurst(EffectAPI api, ImmutableArray<NDPInterval> burst)
     {
+        EffectChannel? channel = api.GetChannel(Channel.Strobe);
+        if (channel is null)
+            return;
+
         int groupCount = burst.Length;
 
         // reduce the groups to a more manageable count
@@ -47,7 +51,6 @@ internal class SegmentBurstStrobes : NDPStrobe
         else
             groupCount = 2;
 
-        EffectChannel channel = api.GetChannel(Channel.Strobe);
         List<NDPLight[]> lightGroups = channel.Lights.GroupX(groupCount);
 
         // Console.WriteLine(groupCount);

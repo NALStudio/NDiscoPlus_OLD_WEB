@@ -5,18 +5,20 @@ namespace NDiscoPlus.Shared.Models;
 [MemoryPackable]
 public partial class ScreenLightId : LightId
 {
-    public int Index { get; }
+    public byte TotalLightCount { get; }
+    public byte Index { get; }
 
-    public override string HumanReadableString => $"Screen Light (index: {Index})";
+    public override string HumanReadableString => $"Screen Light (count: {TotalLightCount}, index: {Index})";
 
-    public ScreenLightId(int index)
+    public ScreenLightId(byte totalLightCount, byte index)
     {
+        TotalLightCount = totalLightCount;
         Index = index;
     }
 
     public override int GetHashCode()
-        => HashCode.Combine(GetType(), Index);
+        => HashCode.Combine(GetType(), TotalLightCount, Index);
 
     public override bool Equals(object? obj)
-        => obj is ScreenLightId sli && Index == sli.Index;
+        => obj is ScreenLightId sli && TotalLightCount == sli.TotalLightCount && Index == sli.Index;
 }

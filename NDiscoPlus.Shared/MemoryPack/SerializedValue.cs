@@ -33,9 +33,7 @@ public sealed class SerializedValue
     public static SerializedValue Serialize<T>(T value) where T : IMemoryPackable<T>
     {
         string typeName = GetTypeName<T>();
-
-        byte[] bytes = MemoryPackSerializer.Serialize(value);
-        string serialized = ByteHelper.UnsafeCastToStringUtf8(bytes);
+        string serialized = MemoryPackHelper.SerializeToBase64(value);
         return new(typeName, serialized);
     }
 
@@ -45,8 +43,7 @@ public sealed class SerializedValue
         if (valueSerialized._typeName != typeName)
             throw new ArgumentException($"Cannot deserialize value of type '{valueSerialized._typeName}' as type '{typeName}'.", nameof(valueSerialized));
 
-        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(valueSerialized._value);
-        T? deserialized = MemoryPackSerializer.Deserialize<T>(bytes);
+        T? deserialized = MemoryPackHelper.DeserializeFromBase64<T>(valueSerialized._value);
         return deserialized ?? throw new ArgumentException("Cannot deserialize value.", nameof(valueSerialized));
     }
     public T Deserialize<T>() => Deserialize<T>(this);

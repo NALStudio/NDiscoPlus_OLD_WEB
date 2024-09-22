@@ -154,11 +154,12 @@
 </script>
 
 <script>
-    const canvas = document.getElementById("canvas");
-    const vertexCode = document.getElementById("vertex").textContent;
-    const fragmentCode = document.getElementById("fragment").textContent;
-
-    const MAX_LIGHT_COUNT = 6;
+    // do not use let, const or var
+    // as when the component is rebuilt (for example: screen light editor in settings)
+    // it throws an error
+    canvas = document.getElementById("canvas");
+    vertexCode = document.getElementById("vertex").textContent;
+    fragmentCode = document.getElementById("fragment").textContent;
 
     function renderGradientCanvas(width, height, useHDR, colors) {
         canvas.width = width ?? window.innerWidth;

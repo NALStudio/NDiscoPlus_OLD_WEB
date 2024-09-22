@@ -8,7 +8,7 @@ public partial class HueLightId : LightId
     public Guid EntertainmentConfigurationId { get; }
     public byte ChannelId { get; }
 
-    public override string HumanReadableString => $"Hue Light (id: {ChannelId})";
+    public override string HumanReadableString => $"Hue Light (config: {EntertainmentConfigurationId}, id: {ChannelId})";
 
     public HueLightId(Guid entertainmentConfigurationId, byte channelId)
     {
@@ -17,8 +17,8 @@ public partial class HueLightId : LightId
     }
 
     public override int GetHashCode()
-        => HashCode.Combine(GetType(), ChannelId);
+        => HashCode.Combine(GetType(), EntertainmentConfigurationId, ChannelId);
 
     public override bool Equals(object? obj)
-        => obj is HueLightId hli && ChannelId == hli.ChannelId;
+        => obj is HueLightId hli && EntertainmentConfigurationId == hli.EntertainmentConfigurationId && ChannelId == hli.ChannelId;
 }

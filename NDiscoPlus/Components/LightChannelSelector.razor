@@ -1,0 +1,107 @@
+﻿@using NDiscoPlus.LightHandlers
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
+@using System.Collections.Immutable
+@using System.Collections.Frozen
+@using System.Diagnostics
+@using NDiscoPlus.Shared.Models
+
+<MudStack Row="true">
+    @{
+        LightHandlerImplementation? impl = LightHandler?.Implementation;
+
+        <MudTooltip Color="@(impl is not null ? Color.Default : Color.Error)" Text="@(impl?.DisplayName ?? "Unknown")" Placement="Placement.Right">
+            <MudIcon Color="@(impl is not null ? Color.Inherit : Color.Error)" Icon="@(impl?.DisplayIcon ?? Icons.Material.Rounded.Warning)" />
+        </MudTooltip>
+        <MudText Color="@(Light is null ? Color.Error : Color.Inherit)">@(Light?.DisplayName ?? "Unknown Light")</MudText>
+    }
+
+    <MudSpacer />
+
+    <MudStack Row="true" Spacing="0" AlignItems="AlignItems.Center" >
+        <MudCheckBox Label="Auto"
+                     LabelPosition="LabelPosition.Start"
+                     Color="Color.Inherit"
+                     T="bool"
+                     Value="!ChannelEditEnabled"
+                     ValueChanged="@(value => ChannelEditEnabledChanged(!value))" />
+                     <!-- Invert value as checkbox label says 'Auto' -->
+
+        <MudButtonGroup Color="@(ChannelEditEnabled ? Color.Inherit : Color.Dark)" Variant="Variant.Filled">
+            @foreach ((string name, Channel channel) in ChannelFlag.FlagItems)
+            {
+                <MudTooltip Text="@($"{name} Channel")" Delay="1000">
+                    <MudToggleIconButton Disabled="@(ChannelValue is null)"
+                                         Icon="@(GetChannelIcon(channel))"
+                                         Color="Color.Error"
+                                         ToggledColor="Color.Success"
+                                         Toggled="@(GetChannelEnabled(channel))"
+                                         ToggledChanged="@((value) => SetChannelEnabled(channel, value))" />
+                </MudTooltip>
+            }
+        </MudButtonGroup>
+    </MudStack>
+</MudStack>
+
+@code {
+    private static readonly FrozenDictionary<Channel, string> _kChannelIcons = new Dictionary<Channel, string>()
+    {
+        { Channel.Background, Icons.Material.Rounded.Landscape },
+        { Channel.Default, Icons.Material.Rounded.Star },
+        { Channel.Flash, Icons.Material.Rounded.Bolt },
+        { Channel.Strobe, Icons.Material.Rounded.Highlight }
+    }.ToFrozenDictionary();
+    private const string _kDefaultIcon = Icons.Material.Rounded.QuestionMark;
+
+    [Parameter]
+    public LightHandler? LightHandler { get; set; }
+
+    [Parameter]
+    public NDPLight? Light { get; set; }
+
+    [Parameter, EditorRequired]
+    public Channel? ChannelValue { get; set; }
+
+    [Parameter, EditorRequired]
+    public Action<Channel?>? ChannelValueChanged { get; set; }
+
+    [Parameter]
+    public bool AllowLightRemove { get; set; } = false;
+
+    [Parameter]
+    public Action? LightRemoved { get; set; }
+
+    private string GetChannelIcon(Channel channel)
+    {
+        if (_kChannelIcons.TryGetValue(channel, out string? icon))
+            return icon;
+        return _kDefaultIcon;
+    }
+
+    private bool ChannelEditEnabled => ChannelValue is not null;
+    private void ChannelEditEnabledChanged(bool value)
+    {
+        Channel? channel;
+        if (value)
+            channel = Channel.All;
+        else
+            channel = null;
+
+        ChannelValueChanged?.Invoke(channel);
+    }
+
+    private bool GetChannelEnabled(Channel channel)
+        => (ChannelValue ?? Channel.All).HasFlag(channel);
+
+    private void SetChannelEnabled(Channel channel, bool enabled)
+    {
+        if (ChannelValue is not Channel value)
+            return;
+
+        if (enabled)
+            value |= channel;
+        else
+            value &= ~channel;
+
+        ChannelValueChanged?.Invoke(value);
+    }
+}

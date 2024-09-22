@@ -5,6 +5,7 @@
 
 @using BlazorWorker.WorkerBackgroundService
 @using MudBlazor.Utilities
+@using NDiscoPlus.Components.ExpressionSerializers
 @using NDiscoPlus.Constants
 @using NDiscoPlus.LightHandlers
 @using NDiscoPlus.LightHandlers.Screen
@@ -284,6 +285,8 @@
 
         await CreateNDPService();
 
+        // TODO: Cancel player on dispose (implement IDisposable)
+        // This way we can safely navigate between pages (to settings and back) without corrupting page state
         _ = StartPlayer();
     }
 
@@ -418,6 +421,7 @@
     void OpenSettings()
     {
         // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
+        // UPDATE: Back navigation doesn't break background gradient anymore but spotify player state is duplicated during back navigation
         navigationManager.NavigateTo("./settings", forceLoad: true);
     }
 
@@ -501,14 +505,14 @@
     #endregion
 
     #region Spotify
-    async Task StartPlayer()
+    async Task StartPlayer(CancellationToken cancellationToken = default)
     {
         if (spotify is null)
             return;
 
         SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
 
-        await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps))
+        await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps, cancellationToken))
         {
             this.context = context;
 
@@ -665,10 +669,7 @@
         return data;
     }
 
-    void RequestLogin()
-    {
-        navigationManager.NavigateTo("./spotify-login");
-    }
+    void RequestLogin() => navigationManager.NavigateTo("./spotify-login");
 
     async Task LoginSpotify(string refreshToken)
     {

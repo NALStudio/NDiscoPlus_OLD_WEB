@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
+using NDiscoPlus.LightHandlers.Hue;
 using NDiscoPlus.LightHandlers.Screen;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.LightHandlers;
 
 [JsonDerivedType(typeof(ScreenLightHandlerConfig), typeDiscriminator: "screen")]
+[JsonDerivedType(typeof(HueLightHandlerConfig), typeDiscriminator: "hue")]
 public abstract class LightHandlerConfig
 {
     /// <summary>

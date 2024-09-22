@@ -13,8 +13,8 @@ public static class BitResolution
     private static class ConversionConstants
     {
         public static readonly double DoubleToUInt8 = GetDoubleConversion(byte.MaxValue);
-        public static readonly double DoubleToUInt16 = Math.BitDecrement(ushort.MaxValue);
-        public static readonly double DoubleToUInt32 = Math.BitDecrement(uint.MaxValue);
+        public static readonly double DoubleToUInt16 = GetDoubleConversion(ushort.MaxValue);
+        public static readonly double DoubleToUInt32 = GetDoubleConversion(uint.MaxValue);
 
         private static double GetDoubleConversion(ulong maxValue)
         {

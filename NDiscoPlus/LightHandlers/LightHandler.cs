@@ -78,7 +78,7 @@ public abstract class LightHandler : IAsyncDisposable
 
     public abstract ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors);
 
-    public abstract ValueTask<NDPLight[]> GetLights();
+    public abstract IAsyncEnumerable<NDPLight> GetLights();
 
     /// <summary>
     /// <para>Start the handler if possible. </para>

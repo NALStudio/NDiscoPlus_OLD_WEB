@@ -25,7 +25,9 @@ internal sealed class ColorCycleBackgroundEffect : NDPBackgroundEffect
 
     public override void Generate(Context ctx, EffectAPI api)
     {
-        BackgroundChannel channel = api.Background;
+        BackgroundChannel? channel = api.Background;
+        if (channel is null)
+            return;
 
         TimeSpan animationDuration = TimeSpan.FromSeconds(AnimationSeconds);
 

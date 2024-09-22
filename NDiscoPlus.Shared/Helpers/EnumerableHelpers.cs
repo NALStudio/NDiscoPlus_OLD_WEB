@@ -2,7 +2,6 @@
 
 namespace NDiscoPlus.Shared.Helpers;
 
-
 public static class EnumerableHelpers
 {
     /// <summary>

@@ -46,15 +46,11 @@ public partial class NDPData
     public ImmutableArray<NDPLight> Lights { get; }
 
     public static string Serialize(NDPData data)
-    {
-        byte[] bytes = MemoryPackSerializer.Serialize(data);
-        return ByteHelper.UnsafeCastToStringUtf8(bytes);
-    }
+        => MemoryPackHelper.SerializeToBase64(data);
 
     public static NDPData Deserialize(string dataSerialized)
     {
-        ReadOnlySpan<byte> bytes = ByteHelper.UnsafeCastFromStringUtf8(dataSerialized);
-        NDPData? data = MemoryPackSerializer.Deserialize<NDPData>(bytes);
+        NDPData? data = MemoryPackHelper.DeserializeFromBase64<NDPData>(dataSerialized);
         return data ?? throw new ArgumentException("Cannot deserialize value.", nameof(dataSerialized));
     }
 }
@@ -171,7 +167,7 @@ public sealed partial class ChunkedEffectsCollection
             effectList.AddRange(effects.Channels[i].Effects);
 
         return new ChunkedEffectsCollection(
-            backgroundTransitions: effects.Background.Freeze(),
+            backgroundTransitions: effects.Background?.Freeze() ?? ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>>.Empty,
             effects: effectList.ToImmutableArray()
         );
     }

@@ -22,14 +22,18 @@ public readonly partial struct LightPosition
 [MemoryPackable]
 public readonly partial struct NDPLight
 {
-    public NDPLight(LightId id, LightPosition position, ColorGamut? colorGamut)
+    public NDPLight(LightId id, string? displayName, LightPosition position, ColorGamut? colorGamut)
     {
         Id = id;
+        DisplayName = displayName;
+
         Position = position;
         ColorGamut = colorGamut;
     }
 
-    public LightId Id { get; init; }
-    public LightPosition Position { get; init; }
-    public ColorGamut? ColorGamut { get; init; }
+    public LightId Id { get; }
+    public string? DisplayName { get; }
+
+    public LightPosition Position { get; }
+    public ColorGamut? ColorGamut { get; }
 }

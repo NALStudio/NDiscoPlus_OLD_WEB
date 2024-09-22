@@ -1,8 +1,10 @@
 ﻿using Blazored.LocalStorage;
+using MemoryPack;
 using NDiscoPlus.Constants;
 using NDiscoPlus.LightHandlers;
 using NDiscoPlus.LightHandlers.Screen;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
@@ -15,14 +17,14 @@ public sealed class LightConfigurationProfile
     {
         public string Name { get; }
         public ImmutableArray<LightHandlerConfig> Handlers { get; }
-        public ImmutableDictionary<LightId, Channel> LightChannelOverrides { get; }
+        public ImmutableDictionary<string, Channel> LightChannelOverrides { get; }
 
         [JsonConstructor]
-        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<LightId, Channel>? lightChannelOverrides)
+        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<string, Channel>? lightChannelOverrides)
         {
             Name = name;
             Handlers = handlers;
-            LightChannelOverrides = lightChannelOverrides ?? ImmutableDictionary<LightId, Channel>.Empty;  // Might be null when migrating from an older (dev) version
+            LightChannelOverrides = lightChannelOverrides ?? ImmutableDictionary<string, Channel>.Empty;  // Might be null when migrating from an older (dev) version
         }
 
         public static SerializableProfile Construct(LightConfigurationProfile profile)
@@ -32,7 +34,7 @@ public sealed class LightConfigurationProfile
             return new SerializableProfile(
                 profile.Name,
                 handlers: handlers,
-                lightChannelOverrides: profile.lightChannelOverrides.ToImmutableDictionary()
+                lightChannelOverrides: profile.LightChannelOverrides.ToImmutableDictionary(key => SerializeLightId(key.Key), value => value.Value)
             );
         }
 
@@ -42,20 +44,26 @@ public sealed class LightConfigurationProfile
                 localStoragePath: localStoragePath,
                 name: profile.Name,
                 handlers: profile.Handlers.Select(h => h.CreateLightHandler()),
-                lightChannelOverrides: profile.LightChannelOverrides
+                lightChannelOverrides: profile.LightChannelOverrides.Select(x => new KeyValuePair<LightId, Channel>(DeserializeLightId(x.Key), x.Value))
             );
         }
+
+        private static string SerializeLightId(LightId value)
+            => MemoryPackHelper.SerializeToBase64(value);
+
+        private static LightId DeserializeLightId(string value)
+            => MemoryPackHelper.DeserializeFromBase64<LightId>(value) ?? throw new ArgumentException("Could not deserialize value.");
     }
 
 
-    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers, IDictionary<LightId, Channel> lightChannelOverrides)
+    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers, IEnumerable<KeyValuePair<LightId, Channel>> lightChannelOverrides)
     {
         this.localStoragePath = localStoragePath;
 
         Name = name;
 
         this.handlers = handlers.ToList();
-        this.lightChannelOverrides = lightChannelOverrides.ToDictionary();
+        LightChannelOverrides = lightChannelOverrides.ToDictionary();
     }
 
     public string UniqueId => localStoragePath;
@@ -64,11 +72,10 @@ public sealed class LightConfigurationProfile
 
     private readonly string localStoragePath;
 
-    private readonly List<LightHandler> handlers;
-    private readonly Dictionary<LightId, Channel> lightChannelOverrides;
-
     public IList<LightHandler> Handlers => handlers.AsReadOnly();
-    public IDictionary<LightId, Channel> LightChannelOverrides => lightChannelOverrides.AsReadOnly();
+    private readonly List<LightHandler> handlers;
+
+    public Dictionary<LightId, Channel> LightChannelOverrides { get; }
 
     public static async IAsyncEnumerable<LightConfigurationProfile> LoadAll(ILocalStorageService localStorage, bool _createDefault = true)
     {

@@ -53,10 +53,10 @@ internal class ScreenLightHandler : LightHandler
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(0), new LightPosition(-1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(1), new LightPosition(1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(2), new LightPosition(-1, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(3), new LightPosition(1, -1, -1), colorGamut: colorGamut)
+            new(new ScreenLightId(4, 0), "Top-Left", new LightPosition(-1, 1, 1), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 1), "Top-Right", new LightPosition(1, 1, 1), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 2), "Bottom-Left", new LightPosition(-1, -1, -1), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 3), "Bottom-Right", new LightPosition(1, -1, -1), colorGamut: colorGamut)
         };
     }
 
@@ -64,12 +64,12 @@ internal class ScreenLightHandler : LightHandler
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(0), new LightPosition(-1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(1), new LightPosition(0, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(2), new LightPosition(1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(3), new LightPosition(-1, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(4), new LightPosition(0, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(5), new LightPosition(1, -1, -1), colorGamut: colorGamut)
+            new(new ScreenLightId(6, 0), "Top-Left", new LightPosition(-1, 1, 1), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 1), "Top-Mid", new LightPosition(0, 1, 1), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 2), "Top-Right", new LightPosition(1, 1, 1), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 3), "Bottom-Left", new LightPosition(-1, -1, -1), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 4), "Bottom-Mid", new LightPosition(0, -1, -1), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 5), "Bottom-Right", new LightPosition(1, -1, -1), colorGamut: colorGamut)
         };
     }
 
@@ -87,14 +87,14 @@ internal class ScreenLightHandler : LightHandler
             throw new InvalidLightHandlerConfigException("Invalid light count.");
     }
 
-    private async Task<NDPLight[]> GetLightsInternalWithTestDelay()
+    public override async IAsyncEnumerable<NDPLight> GetLights()
     {
-        await Task.Delay(500);
-        return GetLightsInternal();
+        foreach (NDPLight l in GetLightsInternal())
+        {
+            await Task.Delay(100);
+            yield return l;
+        }
     }
-
-    public override ValueTask<NDPLight[]> GetLights()
-        => new(GetLightsInternalWithTestDelay());
 
     public override ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors)
     {

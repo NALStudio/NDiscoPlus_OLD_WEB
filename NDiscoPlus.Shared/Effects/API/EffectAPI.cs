@@ -20,31 +20,47 @@ internal class EffectAPI
     private readonly ImmutableArray<EffectChannel> channelsArr;
     private readonly ImmutableDictionary<Channel, EffectChannel> channelsDic;
 
-    public BackgroundChannel Background { get; }
+    public BackgroundChannel? Background { get; }
 
     public EffectAPI(EffectConfig config, NDiscoPlusArgsLights lights)
     {
-        KeyValuePair<Channel, EffectChannel> CreateChannel(Channel type)
+        KeyValuePair<Channel, EffectChannel>? CreateChannelIfNecessary(Channel type)
         {
-            IEnumerable<NDPLight> channelLights = lights.Lights.Where(l => l.Key.HasFlag(type))
-                                                               .SelectMany(l => l.Value);
-
-            return new(type, new EffectChannel(channelLights));
+            NDPLight[] channelLights = lights.Lights.Where(l => l.Key.HasFlag(type))
+                                                    .SelectMany(l => l.Value)
+                                                    .ToArray();
+            if (channelLights.Length > 0)
+                return new(type, new EffectChannel(channelLights));
+            else
+                return null;
         }
 
         Config = config;
 
-        KeyValuePair<Channel, EffectChannel>[] channels = Enum.GetValues<Channel>()
-                                                                  .Select(CreateChannel)
-                                                                  .ToArray();
+        List<KeyValuePair<Channel, EffectChannel>> channels = new(capacity: ChannelFlag.FlagValues.Length);
+        foreach (Channel c in ChannelFlag.FlagValues)
+        {
+            KeyValuePair<Channel, EffectChannel>? chnl = CreateChannelIfNecessary(c);
+            if (chnl.HasValue)
+                channels.Add(chnl.Value);
+        }
+
         channelsArr = channels.Select(c => c.Value).ToImmutableArray();
         channelsDic = channels.ToImmutableDictionary();
 
-        Background = new(channelsDic[Channel.Background].Lights);
+        if (channelsDic.TryGetValue(Channel.Background, out EffectChannel? backgroundChannel))
+            Background = new(backgroundChannel.Lights);
+        else
+            Background = null;
     }
 
-    public EffectChannel GetChannel(Channel type)
-        => channelsDic[type];
-    public bool TryGetChannel(Channel type, [MaybeNullWhen(false)] out EffectChannel channel)
-        => channelsDic.TryGetValue(type, out channel);
+    public EffectChannel? GetChannel(Channel type)
+    {
+        if (channelsDic.TryGetValue(type, out EffectChannel? value))
+            return value;
+        return null;
+    }
+    // Not needed, just check for null.
+    // public bool TryGetChannel(Channel type, [MaybeNullWhen(false)] out EffectChannel channel)
+    //     => channelsDic.TryGetValue(type, out channel);
 }

@@ -18,7 +18,7 @@ public class HueLightHandler : LightHandler
     {
     }
 
-    public override ValueTask<NDPLight[]> GetLights()
+    public override IAsyncEnumerable<NDPLight> GetLights()
     {
         throw new NotImplementedException();
     }

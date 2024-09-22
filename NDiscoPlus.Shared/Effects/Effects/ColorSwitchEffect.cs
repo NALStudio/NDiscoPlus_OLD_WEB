@@ -56,6 +56,7 @@ internal class ColorSwitchEffect : NDPEffect
 #pragma warning disable CS0162 // Unreachable code detected
         if (_kInitializeUsingBackgroundApproximation)
         {
+            Debug.Assert(api.Background is not null);
             colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
             approximateBackgroundColors = channel.Lights.Values.ToImmutableDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
         }
