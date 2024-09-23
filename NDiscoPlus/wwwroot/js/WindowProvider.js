@@ -1,4 +1,13 @@
-﻿export function getInnerWidth() {
+﻿let windowProviderDotNet;
+export function init(dotnetRef) {
+    windowProviderDotNet = dotnetRef;
+    window.onresize = _onResize;
+}
+function _onResize() {
+    windowProviderDotNet.invokeMethodAsync("OnWindowResized", getInnerSize());
+}
+
+export function getInnerWidth() {
     return window.innerWidth;
 }
 

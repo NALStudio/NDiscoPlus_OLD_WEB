@@ -15,9 +15,17 @@ public abstract class BaseJSModuleProvider
     }
     protected abstract string ModulePath { get; }
 
+    protected virtual ValueTask InitializeModule(IJSObjectReference module)
+    {
+        return ValueTask.CompletedTask;
+    }
 
-    private ValueTask<IJSObjectReference> LoadModule()
-        => js.InvokeAsync<IJSObjectReference>("import", ModulePath);
+    private async ValueTask<IJSObjectReference> LoadModule()
+    {
+        IJSObjectReference module = await js.InvokeAsync<IJSObjectReference>("import", ModulePath);
+        await InitializeModule(module);
+        return module;
+    }
 
     protected async ValueTask InvokeVoidAsync(string identifier, params object?[]? args)
     {

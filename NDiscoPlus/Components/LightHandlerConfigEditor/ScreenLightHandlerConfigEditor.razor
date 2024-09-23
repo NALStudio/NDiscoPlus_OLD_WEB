@@ -49,7 +49,7 @@
     <div>
         <MudText Align="Align.Left"><strong>Preview:</strong></MudText>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-            <GradientCanvas UseHDR="Config.UseHDR"
+            <GradientCanvas UseHDR="@(Config.UseHDR)"
                             Colors="GetPreviewColors()"
                             Width="@(canvasSize.Width)"
                             Height="@(canvasSize.Height)"

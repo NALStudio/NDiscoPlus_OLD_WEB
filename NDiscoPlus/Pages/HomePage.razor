@@ -34,14 +34,15 @@
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
-@inject ILogger<HomePage> logger;
-@inject ILogger<SpotifyWebPlayer> playerLogger;
-@inject IWorkerFactory workerFactory;
-@inject IJSRuntime JSRuntime;
-@inject ISnackbar Snackbar;
+@inject ILogger<HomePage> logger
+@inject ILogger<SpotifyWebPlayer> playerLogger
+@inject IWorkerFactory workerFactory
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
 @inject SpotifyService Spotify
 
-@inject FullscreenProvider Fullscreen;
+@inject WindowProvider Window
+@inject FullscreenProvider Fullscreen
 
 @implements IAsyncDisposable
 
@@ -50,6 +51,8 @@
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
     <div style="position:fixed;top:0;bottom:0;left:0;right:0;">
         <GradientCanvas Colors="@BestBackgroundGradientOption"
+                        Width="@(windowSize?.Width ?? 1920)"
+                        Height="@(windowSize?.Height ?? 1080)"
                         UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
     </div>
     <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
@@ -272,14 +275,24 @@
     private WakeLockSentinel? _wakeLock = null;
     private bool IsWakeLockEnabled => _wakeLock.HasValue;
 
+    private WindowSize? windowSize;
+
     protected override async Task OnInitializedAsync()
     {
+        windowSize = await Window.InnerSize;
+        Window.OnWindowResize += OnWindowSizeChanged;
+
         await CreateNDPService();
 
         await Spotify.WaitForLogin();
 
         _playerTaskCancellation = new();
         _playerTask = StartPlayer(_playerTaskCancellation.Token);
+    }
+
+    private void OnWindowSizeChanged(WindowSize size)
+    {
+        windowSize = size;
     }
 
     private async Task CreateNDPService(bool recreate = false)
@@ -683,6 +696,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        Window.OnWindowResize -= OnWindowSizeChanged;
+
         if (_playerTaskCancellation is not null)
             await _playerTaskCancellation.CancelAsync();
         if (_playerTask is not null)

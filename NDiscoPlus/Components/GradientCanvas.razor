@@ -257,7 +257,8 @@
     [Parameter]
     public string Style { get; set; } = string.Empty;
 
-
+    // TODO: Only render webgl and do not create the entire gl context again
+    // I tested it and it was possible, but a bit finicky
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Colors is null)
