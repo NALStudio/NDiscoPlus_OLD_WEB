@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Pages\HomePage.razor.js" />
+    <None Remove="Components\JavaScript\WakeLockProvider.cs.js" />
+    <None Remove="Components\JavaScript\WindowProvider.cs.js" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,7 +41,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\js\WindowProvider.js" />
+    <None Include="wwwroot\js\fullscreenProvider.js" />
   </ItemGroup>
-
 </Project>

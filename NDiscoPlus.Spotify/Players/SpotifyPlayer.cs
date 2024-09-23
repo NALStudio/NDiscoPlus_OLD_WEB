@@ -8,7 +8,7 @@ public delegate void TrackChanged(SpotifyPlayerTrack? oldTrack, SpotifyPlayerTra
 public abstract class SpotifyPlayer
 {
     protected abstract ValueTask Init();
-    protected abstract SpotifyPlayerContext? Update();
+    protected abstract SpotifyPlayerContext? Update(); // Synchronous so that the timer isn't blocked by slow requests etc.
 
     public async IAsyncEnumerable<SpotifyPlayerContext?> ListenAsync(int frequency, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -18,9 +18,20 @@ public abstract class SpotifyPlayer
 
         PeriodicTimer timer = new(TimeSpan.FromSeconds(periodSeconds));
 
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        while (true)
         {
-            if (cancellationToken.IsCancellationRequested)
+            // Catch result inside loop since yield return does not work inside a try catch block
+            bool result;
+            try
+            {
+                result = await timer.WaitForNextTickAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                result = false;
+            }
+
+            if (!result)
                 yield break;
 
             yield return Update();

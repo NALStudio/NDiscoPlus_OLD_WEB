@@ -40,8 +40,23 @@ public class EffectChannel : BaseChannel
     public void Purge(TimeSpan start, TimeSpan end)
         => effects.RemoveAll(e => e.End >= start && e.Start < end);
 
+    /// <summary>
+    /// Get all the effects that are running at the given <paramref name="position"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both ends of <see cref="Effect"/> are inclusive.
+    /// </remarks>
     public IEnumerable<Effect> GetBusyEffects(TimeSpan position)
-        => effects.Where(e => e.End >= position && e.Start < position);
+        => effects.Where(e => e.End >= position && e.Start <= position);
+
+    /// <summary>
+    /// Get all the effects that are running within the given <paramref name="interval"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both ends of <see cref="Effect"/> and <see cref="NDPInterval"/> are inclusive.
+    /// </remarks>
+    public IEnumerable<Effect> GetBusyEffects(NDPInterval interval)
+        => effects.Where(e => e.Start <= interval.End && e.End >= interval.Start);
 
     public IEnumerable<NDPLight> GetBusyLights(TimeSpan position)
         => GetBusyLightsInternal(position).Select(id => Lights[id]);

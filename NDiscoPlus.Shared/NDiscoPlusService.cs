@@ -6,7 +6,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Background;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Effects.BaseEffects;
-using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
+using NDiscoPlus.Shared.Effects.Strobes;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.MemoryPack;
 using NDiscoPlus.Shared.Models;
@@ -18,6 +18,7 @@ using SkiaSharp;
 using SpotifyAPI.Web;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared;
 
@@ -88,8 +89,16 @@ public partial class NDiscoPlusArgsLights
 
 public class NDiscoPlusService
 {
-    HttpClient? http;
+    [MemberNotNullWhen(true, nameof(http))]
+    public bool HttpFeaturesAvailable => http is not null;
+    readonly HttpClient? http;
+
     readonly Random random = new();
+
+    public NDiscoPlusService(HttpClient? http)
+    {
+        this.http = http;
+    }
 
     private NDPColorPalette ModifyPaletteForEffects(NDiscoPlusArgs args, NDPColorPalette palette)
     {
@@ -154,12 +163,10 @@ public class NDiscoPlusService
         );
 
 
-        // Strobes
+        // Strobes (before effects)
         StrobeContext strobeContext = StrobeContext.Extend(context, effects);
-        foreach (NDPStrobe strobe in NDPStrobe.All)
+        foreach (NDPStrobe strobe in NDPStrobe.BeforeEffects)
             strobe.Generate(strobeContext, api);
-
-        // TODO: Flahes
 
         // Effects
         foreach (EffectRecord eff in effects.Effects)
@@ -167,6 +174,10 @@ public class NDiscoPlusService
             EffectContext effectContext = EffectContext.Extend(context, eff.Section);
             eff.Effect?.Generate(effectContext, api);
         }
+
+        // Strobes (after effects)
+        foreach (NDPStrobe strobe in NDPStrobe.AfterEffects)
+            strobe.Generate(strobeContext, api);
 
         // Background
         new ColorCycleBackgroundEffect().Generate(context, api);
@@ -195,7 +206,7 @@ public class NDiscoPlusService
 
     public async Task<NDPColorPalette?> FetchImagePalette(SpotifyPlayerTrack track)
     {
-        http ??= new HttpClient();
+        ThrowIfNoHttp();
 
         TrackImage largestImage = track.Images[0];
         int targetHalfSize = largestImage.Size / 2;
@@ -219,5 +230,12 @@ public class NDiscoPlusService
             return SerializedValue.Serialize(palette.Value);
         else
             return null;
+    }
+
+    [MemberNotNull(nameof(http))]
+    public void ThrowIfNoHttp()
+    {
+        if (!HttpFeaturesAvailable)
+            throw new InvalidOperationException("HTTP features not available. No HttpClient provided.");
     }
 }

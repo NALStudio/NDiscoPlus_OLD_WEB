@@ -41,8 +41,8 @@ internal class EffectAPI
         foreach (Channel c in ChannelFlag.FlagValues)
         {
             KeyValuePair<Channel, EffectChannel>? chnl = CreateChannelIfNecessary(c);
-            if (chnl.HasValue)
-                channels.Add(chnl.Value);
+            if (chnl is KeyValuePair<Channel, EffectChannel> kv)
+                channels.Add(kv);
         }
 
         channelsArr = channels.Select(c => c.Value).ToImmutableArray();

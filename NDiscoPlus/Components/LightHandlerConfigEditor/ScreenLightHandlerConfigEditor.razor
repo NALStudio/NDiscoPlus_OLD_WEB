@@ -1,12 +1,13 @@
-﻿@using NDiscoPlus.LightHandlers.Screen
+﻿@using NDiscoPlus.Components.JavaScript
+@using NDiscoPlus.LightHandlers.Screen
 @using NDiscoPlus.Shared
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Models.Color
-@using NDiscoPlus.Components.WindowProvider
+@using NDiscoPlus.Components
 @using System.Collections.Immutable
 @using System.Diagnostics
 
-@inject WindowProvider windowProvider
+@inject WindowProvider Window;
 
 @inherits LightHandlerConfigEditor<ScreenLightHandlerConfig>
 
@@ -119,7 +120,7 @@
     {
         static int RoundToInt(double value) => (int)Math.Round(value);
 
-        int windowWidth = await windowProvider.InnerWidth;
+        int windowWidth = await Window.InnerWidth;
 
         const int maxHeight = 540;
         int maxWidth = RoundToInt(0.8d * windowWidth);

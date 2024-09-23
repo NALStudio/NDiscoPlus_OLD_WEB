@@ -13,6 +13,7 @@
 @using System.Diagnostics.CodeAnalysis
 @using System.Collections.ObjectModel
 @using System.Diagnostics
+@using System.Text
 
 @inject NavigationManager navigationManager
 @inject Blazored.LocalStorage.ILocalStorageService localStorage;
@@ -64,11 +65,18 @@
                         <MudSpacer />
                         @if (Profiles is not null)
                         {
-                            <MudBadge Color="@(Profiles.IsLoadingLights ? Color.Error : Color.Info)" Dot="@(Profiles.IsLoadingLights)" Content="@(Profiles.CurrentProfileLights.Count)">
-                                <MudIcon Icon="@(Icons.Material.Rounded.Lightbulb)" Color="Color.Warning" />
-                            </MudBadge>
+                            <MudTooltip Text="@(GetLightsTooltip(Profiles.CurrentProfileLights))" Delay="1000">
+                                <MudBadge Color="@(Profiles.IsLoadingLights ? Color.Error : Color.Info)" Dot="@(Profiles.IsLoadingLights)" Content="@(Profiles.CurrentProfileLights.Count)">
+                                    <MudIcon Icon="@(Icons.Material.Rounded.Lightbulb)" Color="Color.Warning" />
+                                </MudBadge>
+                            </MudTooltip>
                         }
-                        <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)" Color="Color.Inherit" Disabled="@(Profiles?.CanReloadLights != true)" OnClick="ReloadLightsWrapper" />
+                        <MudTooltip Text="Refresh Lights" Delay="1000">
+                            <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)"
+                                           Color="Color.Inherit"
+                                           Disabled="@(Profiles?.CanReloadLights != true)"
+                                           OnClick="ReloadLightsWrapper" />
+                        </MudTooltip>
                     </MudStack>
                 </TitleContent>
                 <ChildContent>
@@ -360,7 +368,7 @@
         if (!(await CanDiscardCurrentProfile()))
             return;
 
-        navigationManager.NavigateTo("..", forceLoad: true);
+        navigationManager.NavigateTo("..");
     }
 
     [MemberNotNull(nameof(Profiles), nameof(CurrentProfile), nameof(CurrentProfileLights))]
@@ -368,5 +376,20 @@
     {
         if (Profiles is null || CurrentProfile is null || CurrentProfileLights is null)
             throw new InvalidOperationException("No profile data loaded.");
+    }
+
+    private static string GetLightsTooltip(IEnumerable<DiscoveredLight> lights)
+    {
+        StringBuilder sb = new();
+
+        foreach (IGrouping<string, DiscoveredLight> handlerLights in lights.GroupBy(l => l.Handler.Implementation.DisplayName))
+        {
+            sb.Append(handlerLights.Count());
+            sb.Append(' ');
+            sb.Append(handlerLights.Key);
+            sb.AppendLine(" lights");
+        }
+
+        return sb.ToString();
     }
 }

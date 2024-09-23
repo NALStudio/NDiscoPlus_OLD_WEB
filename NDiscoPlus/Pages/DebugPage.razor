@@ -12,9 +12,12 @@
 @using SpotifyAPI.Web
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
-@inject ILogger<HomePage> logger;
-@inject ILogger<SpotifyWebPlayer> playerLogger;
+@inject ILogger<HomePage> logger
+@inject ILogger<SpotifyWebPlayer> playerLogger
 @inject NavigationManager navigationManager
+@inject SpotifyService Spotify
+
+@implements IAsyncDisposable
 
 <div style="width:100vw; height:100vh; align-content:center;">
     @if (PageIndex is null)
@@ -48,87 +51,34 @@
     [Parameter]
     public int? PageIndex { get; set; } = null;
 
-    SpotifyClient? spotify = null;
-
     CanvasContext? canvasCtx;
 
     record CanvasContext(SpotifyPlayerContext Context, TrackAudioFeatures Features, TrackAudioAnalysis Analysis);
+
+    private CancellationTokenSource? _playerTaskCancellation = null;
+    private Task? _playerTask = null;
 
     protected override async Task OnInitializedAsync()
     {
         if (!PageIndex.HasValue)
             navigationManager.NavigateTo("./debug/0", replace: true);
 
-        StoredSpotifyRefreshToken? refreshToken = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
-        if (refreshToken is StoredSpotifyRefreshToken rt && NDPConstants.SpotifyScope.All(s => refreshToken.Scope.Contains(s)))
-        {
-            try
-            {
-                logger.LogInformation("Spotify login success.");
-                await LoginSpotify(rt.RefreshToken);
-            }
-            catch (Exception e)
-            {
-                logger.LogError("Spotify login failed with error: '{}'. Requesting new login...", e);
-                RequestLogin();
-            }
-        }
-        else
-        {
-            logger.LogInformation(
-                "Requesting new Spotify login.\n- refresh token null: {}\n- old scope: {}\n- new scope: {}",
-                refreshToken is null,
-                refreshToken is null ? "null" : string.Join(' ', refreshToken.Scope),
-                NDPConstants.SpotifyScope
-            );
-            RequestLogin();
-        }
+        await Spotify.WaitForLogin();
 
-        _ = StartPlayer();
+        _playerTaskCancellation = new();
+        _playerTask = StartPlayer(_playerTaskCancellation.Token);
     }
 
-    void RequestLogin()
+    async Task StartPlayer(CancellationToken cancellationToken = default)
     {
-        navigationManager.NavigateTo("./spotify-login");
-    }
+        if (!Spotify.IsLoggedIn)
+            throw new InvalidOperationException("Spotify not logged in.");
 
-    async Task LoginSpotify(string refreshToken)
-    {
-        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
-            new PKCETokenRefreshRequest(NDPConstants.SpotifyClientId, refreshToken)
-        );
-        await OnSpotifyTokenRefreshed(oauthResp);
-
-        PKCEAuthenticator authenticator = new(NDPConstants.SpotifyClientId, oauthResp);
-        authenticator.TokenRefreshed += async (sender, resp) => await OnSpotifyTokenRefreshed(resp);
-
-        spotify = new SpotifyClient(
-            SpotifyClientConfig.CreateDefault()
-            .WithAuthenticator(authenticator)
-        );
-    }
-
-    async Task OnSpotifyTokenRefreshed(PKCETokenResponse response)
-    {
-        StoredSpotifyRefreshToken? token = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
-        if (token?.RefreshToken != response.RefreshToken)
-        {
-            await localStorage.SetItemAsync(
-                LocalStoragePaths.SpotifyRefreshToken,
-                new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
-            );
-        }
-    }
-
-    async Task StartPlayer()
-    {
-        if (spotify is null)
-            return;
+        SpotifyPlayer player = new SpotifyWebPlayer(Spotify.Client, playerLogger);
 
         (string trackId, TrackAudioFeatures features, TrackAudioAnalysis analysis)? analysis = null;
 
-        SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
-        await foreach (SpotifyPlayerContext? context in player.ListenAsync(50))
+        await foreach (SpotifyPlayerContext? context in player.ListenAsync(50, cancellationToken))
         {
             if (context is null) 
             {
@@ -136,8 +86,8 @@
             }
             else if (analysis?.trackId != context.Track.Id)
             {
-                TrackAudioFeatures f = await spotify.Tracks.GetAudioFeatures(context.Track.Id);
-                TrackAudioAnalysis a = await spotify.Tracks.GetAudioAnalysis(context.Track.Id);
+                TrackAudioFeatures f = await Spotify.Client.Tracks.GetAudioFeatures(context.Track.Id);
+                TrackAudioAnalysis a = await Spotify.Client.Tracks.GetAudioAnalysis(context.Track.Id);
                 analysis = (context.Track.Id, f, a);
             }
 
@@ -148,5 +98,13 @@
 
             StateHasChanged();
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_playerTaskCancellation is not null)
+            await _playerTaskCancellation.CancelAsync();
+        if (_playerTask is not null)
+            await _playerTask;
     }
 }

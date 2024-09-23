@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor;
 using MudBlazor.Services;
-using NDiscoPlus.Components.WindowProvider;
+using NDiscoPlus.Components;
+using NDiscoPlus.Components.JavaScript;
 
 namespace NDiscoPlus;
 
@@ -36,6 +37,9 @@ internal static class Program
         builder.Services.AddWorkerFactory();
 
         builder.Services.AddSingleton<WindowProvider>();
+        builder.Services.AddSingleton<FullscreenProvider>();
+
+        builder.Services.AddSingleton<SpotifyService>();
 
         await builder.Build().RunAsync();
     }

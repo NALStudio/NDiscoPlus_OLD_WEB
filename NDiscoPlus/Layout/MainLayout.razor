@@ -1,4 +1,13 @@
-﻿@inherits LayoutComponentBase
+﻿@using NDiscoPlus.Components
+@using NDiscoPlus.Constants
+@using NDiscoPlus.Models
+@using SpotifyAPI.Web
+@inherits LayoutComponentBase
+
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject ILogger<MainLayout> logger
+@inject NavigationManager navigationManager
+@inject SpotifyService Spotify
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -6,3 +15,57 @@
 <MudSnackbarProvider />
 
 @Body
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Spotify.TokenRefreshed += OnSpotifyTokenRefreshed;
+        await SpotifyLogin();
+    }
+
+    private async Task SpotifyLogin()
+    {
+        StoredSpotifyRefreshToken? refreshToken = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
+        if (refreshToken is StoredSpotifyRefreshToken rt && NDPConstants.SpotifyScope.All(s => refreshToken.Scope.Contains(s)))
+        {
+            try
+            {
+                logger.LogInformation("Spotify login success.");
+                await Spotify.LoginSpotify(rt.RefreshToken);
+            }
+            catch (Exception e)
+            {
+                logger.LogError("Spotify login failed with error: '{}'. Requesting new login...", e);
+                SpotifyLoginRequest();
+            }
+        }
+        else
+        {
+            logger.LogInformation(
+                "Requesting new Spotify login.\n- refresh token null: {}\n- old scope: {}\n- new scope: {}",
+                refreshToken is null,
+                refreshToken is null ? "null" : FormatScopeForLogger(refreshToken.Scope),
+                FormatScopeForLogger(NDPConstants.SpotifyScope)
+            );
+            SpotifyLoginRequest();
+        }
+    }
+
+    private string FormatScopeForLogger(IEnumerable<string> scope)
+        => string.Join(' ', scope);
+
+    void SpotifyLoginRequest() => navigationManager.NavigateTo("./spotify-login");
+
+
+    async void OnSpotifyTokenRefreshed(PKCETokenResponse response)
+    {
+        StoredSpotifyRefreshToken? token = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
+        if (token?.RefreshToken != response.RefreshToken)
+        {
+            await localStorage.SetItemAsync(
+                LocalStoragePaths.SpotifyRefreshToken,
+                new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
+            );
+        }
+    }
+}

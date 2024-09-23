@@ -6,6 +6,7 @@
 @using BlazorWorker.WorkerBackgroundService
 @using MudBlazor.Utilities
 @using NDiscoPlus.Components.ExpressionSerializers
+@using NDiscoPlus.Components.JavaScript
 @using NDiscoPlus.Constants
 @using NDiscoPlus.LightHandlers
 @using NDiscoPlus.LightHandlers.Screen
@@ -38,6 +39,11 @@
 @inject IWorkerFactory workerFactory;
 @inject IJSRuntime JSRuntime;
 @inject ISnackbar Snackbar;
+@inject SpotifyService Spotify
+
+@inject FullscreenProvider Fullscreen;
+
+@implements IAsyncDisposable
 
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
@@ -90,7 +96,7 @@
                        Variant="@(IsPlaying ? Variant.Outlined : Variant.Filled)"
                        Size=Size.Large
                        Color=MudBlazor.Color.Primary
-                       Disabled=@(spotify is null || playStarting)
+                       Disabled=@(!Spotify.IsLoggedIn || playStarting)
                        OnClick=TogglePlay>
                 @(IsPlaying ? "Stop" : "Play")
             </MudButton>
@@ -112,6 +118,13 @@
                            Size="Size.Large"
                            OnClick="ToggleFullscreen" />
         </MudTooltip>
+        <MudTooltip Text="@($"Turn {(IsWakeLockEnabled ? "Off" : "On")} Wake Lock")" Placement="Placement.Right" Delay="1000">
+            <MudToggleIconButton Icon="@(Icons.Material.Rounded.Brightness4)"
+                                 ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
+                                 Size="Size.Large"
+                                 Toggled="IsWakeLockEnabled"
+                                 ToggledChanged="@(enabled => enabled ? RequestWakeLock() : ReleaseWakeLock())"/>
+        </MudTooltip>
         @if (DebugEnabled)
         {
             <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
@@ -122,10 +135,10 @@
             </MudTooltip>
             <!-- Didn't work... Hot Reload changes didn't apply.
             <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
-                <MudIconButton Disabled="@(lightHandling is null)"
-                               Icon="@Icons.Material.Rounded.Refresh"
+                <MudIconButton Disabled="(lightHandling is null)"
+                               Icon="Icons.Material.Rounded.Refresh"
                                Size="Size.Large"
-                               OnClick="@(async () => await DebugRestartServiceAndRegenerateEffects())" />
+                               OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
             </MudTooltip>
             -->
         }
@@ -167,8 +180,6 @@
     }
 }
 </style>
-
-<script src="./Pages/HomePage.razor.js"></script>
 
 @code {
     #if DEBUG
@@ -248,7 +259,6 @@
     const int interpreterFpsFramesCount = 25;
     List<double> interpreterFpsFrames = new(capacity: interpreterFpsFramesCount);
 
-    SpotifyClient? spotify = null;
     SpotifyPlayerContext? context = null;
 
     IWorker? ndpWorker = null;
@@ -256,38 +266,20 @@
 
     readonly List<ValueTask> lightHandlerUpdates = new();
 
+    private CancellationTokenSource? _playerTaskCancellation = null;
+    private Task? _playerTask = null;
+
+    private WakeLockSentinel? _wakeLock = null;
+    private bool IsWakeLockEnabled => _wakeLock.HasValue;
+
     protected override async Task OnInitializedAsync()
     {
-        StoredSpotifyRefreshToken? refreshToken = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
-        if (refreshToken is StoredSpotifyRefreshToken rt && NDPConstants.SpotifyScope.All(s => refreshToken.Scope.Contains(s)))
-        {
-            try
-            {
-                logger.LogInformation("Spotify login success.");
-                await LoginSpotify(rt.RefreshToken);
-            }
-            catch (Exception e)
-            {
-                logger.LogError("Spotify login failed with error: '{}'. Requesting new login...", e);
-                RequestLogin();
-            }
-        }
-        else
-        {
-            logger.LogInformation(
-                "Requesting new Spotify login.\n- refresh token null: {}\n- old scope: {}\n- new scope: {}",
-                refreshToken is null,
-                refreshToken is null ? "null" : string.Join(' ', refreshToken.Scope),
-                NDPConstants.SpotifyScope
-            );
-            RequestLogin();
-        }
-
         await CreateNDPService();
 
-        // TODO: Cancel player on dispose (implement IDisposable)
-        // This way we can safely navigate between pages (to settings and back) without corrupting page state
-        _ = StartPlayer();
+        await Spotify.WaitForLogin();
+
+        _playerTaskCancellation = new();
+        _playerTask = StartPlayer(_playerTaskCancellation.Token);
     }
 
     private async Task CreateNDPService(bool recreate = false)
@@ -314,31 +306,6 @@
         {
             options.UseCustomExpressionSerializer(typeof(CustomSerializeLinqExpressionJsonSerializer));
         });
-    }
-
-    [JSInvokable] // Called by: toggleNDiscoPlusFullscreen()
-    public void WakeLockStateChanged(bool enabled)
-    {
-        if (enabled)
-        {
-            Snackbar.Add("Wake Lock Enabled", Severity.Warning, static config =>
-            {
-                config.Icon = Icons.Material.Rounded.Brightness5;
-                config.IconColor = Color.Warning;
-                config.SnackbarVariant = Variant.Outlined;
-                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
-            });
-        }
-        else
-        {
-            Snackbar.Add("Wake Lock Disabled", Severity.Normal, static config =>
-            {
-                config.Icon = Icons.Material.Rounded.Brightness4;
-                config.IconColor = MudBlazor.Color.Primary;
-                config.SnackbarVariant = Variant.Outlined;
-                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
-            });
-        }
     }
 
     #region Hide Mouse & UI Buttons
@@ -399,8 +366,8 @@
         await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", serializedData);
 
         TrackAudioAnalysis? analysis;
-        if (spotify is not null)
-            analysis = await spotify.Tracks.GetAudioAnalysis(data.Track.Id);
+        if (Spotify.IsLoggedIn)
+            analysis = await Spotify.Client.Tracks.GetAudioAnalysis(data.Track.Id);
         else
             analysis = null;
 
@@ -422,12 +389,56 @@
     {
         // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
         // UPDATE: Back navigation doesn't break background gradient anymore but spotify player state is duplicated during back navigation
-        navigationManager.NavigateTo("./settings", forceLoad: true);
+        navigationManager.NavigateTo("./settings");
     }
 
     async Task ToggleFullscreen()
     {
-        await JSRuntime.InvokeVoidAsync("toggleNDiscoPlusFullscreen", DotNetObjectReference.Create(this));
+        if (await Fullscreen.IsFullscreen)
+        {
+            await Fullscreen.ExitFullscreen();
+            await ReleaseWakeLock();
+        }
+        else
+        {
+            await Fullscreen.RequestFullscreen();
+            await RequestWakeLock();
+        }
+    }
+
+    async Task RequestWakeLock()
+    {
+        // no-op if already requested
+        if (_wakeLock is not null)
+            return;
+
+        _wakeLock = await Fullscreen.RequestWakeLock();
+
+        Snackbar.Add("Wake Lock Enabled", Severity.Warning, static config =>
+        {
+            config.Icon = Icons.Material.Rounded.Brightness5;
+            config.IconColor = Color.Warning;
+            config.SnackbarVariant = Variant.Outlined;
+            config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
+        });
+    }
+
+    async Task ReleaseWakeLock()
+    {
+        // no-op if already released
+        if (_wakeLock is not WakeLockSentinel wls)
+            return;
+
+        await wls.Release();
+        _wakeLock = null;
+
+        Snackbar.Add("Wake Lock Disabled", Severity.Normal, static config =>
+        {
+            config.Icon = Icons.Material.Rounded.Brightness4;
+            config.IconColor = Color.Primary;
+            config.SnackbarVariant = Variant.Outlined;
+            config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
+        });
     }
 
     async Task TogglePlay()
@@ -507,10 +518,10 @@
     #region Spotify
     async Task StartPlayer(CancellationToken cancellationToken = default)
     {
-        if (spotify is null)
-            return;
+        if (!Spotify.IsLoggedIn)
+            throw new InvalidOperationException("Spotify not logged in.");
 
-        SpotifyPlayer player = new SpotifyWebPlayer(spotify, playerLogger);
+        SpotifyPlayer player = new SpotifyWebPlayer(Spotify.Client, playerLogger);
 
         await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps, cancellationToken))
         {
@@ -547,7 +558,7 @@
                     // Next track is different, we must compute new data
                     PaletteGradient? gradient = TryGetTrackGradient(currentTrack);
                     if (gradient is PaletteGradient pg)
-                        lightHandling.CurrentDataTask = ComputeData(spotify, currentTrack, pg.Palette, lightHandling);
+                        lightHandling.CurrentDataTask = ComputeData(Spotify.Client, currentTrack, pg.Palette, lightHandling);
                 }
             }
 
@@ -564,7 +575,7 @@
 
                 PaletteGradient? gradient = TryGetTrackGradient(nextTrack);
                 if (gradient is PaletteGradient pg)
-                    lightHandling.NextDataTask = ComputeData(spotify, nextTrack, pg.Palette, lightHandling);
+                    lightHandling.NextDataTask = ComputeData(Spotify.Client, nextTrack, pg.Palette, lightHandling);
             }
 
             // Default to all lights black if no effect data (for the light interpreter) has been computed yet
@@ -668,35 +679,13 @@
         logger.LogInformation("({:0.000} ms) Computed data for track: '{}' ({}).", sw.ElapsedMilliseconds, track.Name, track.Id);
         return data;
     }
-
-    void RequestLogin() => navigationManager.NavigateTo("./spotify-login");
-
-    async Task LoginSpotify(string refreshToken)
-    {
-        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
-            new PKCETokenRefreshRequest(NDPConstants.SpotifyClientId, refreshToken)
-        );
-        await OnSpotifyTokenRefreshed(oauthResp);
-
-        PKCEAuthenticator authenticator = new(NDPConstants.SpotifyClientId, oauthResp);
-        authenticator.TokenRefreshed += async (sender, resp) => await OnSpotifyTokenRefreshed(resp);
-
-        spotify = new SpotifyClient(
-            SpotifyClientConfig.CreateDefault()
-            .WithAuthenticator(authenticator)
-        );
-    }
-
-    async Task OnSpotifyTokenRefreshed(PKCETokenResponse response)
-    {
-        StoredSpotifyRefreshToken? token = await localStorage.GetItemAsync<StoredSpotifyRefreshToken>(LocalStoragePaths.SpotifyRefreshToken);
-        if (token?.RefreshToken != response.RefreshToken)
-        {
-            await localStorage.SetItemAsync(
-                LocalStoragePaths.SpotifyRefreshToken,
-                new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
-            );
-        }
-    }
     #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_playerTaskCancellation is not null)
+            await _playerTaskCancellation.CancelAsync();
+        if (_playerTask is not null)
+            await _playerTask;
+    }
 }

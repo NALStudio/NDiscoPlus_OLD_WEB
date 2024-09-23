@@ -27,8 +27,8 @@ public class LightColorCollection : IReadOnlyDictionary<LightId, NDPColor>
     public IEnumerable<NDPColor> Values => values.Values;
     public int Count => values.Count;
 
-    public static LightColorCollection Unsafe(in IReadOnlyDictionary<LightId, NDPColor> values)
-        => new(values);
+    public static LightColorCollection UnsafeRef(IDictionary<LightId, NDPColor> values)
+        => new((IReadOnlyDictionary<LightId, NDPColor>)values);
     public static LightColorCollection Black(IEnumerable<NDPLight> lights)
         => new(lights.ToDictionary(key => key.Id, value => value.ColorGamut.GamutBlack()));
 

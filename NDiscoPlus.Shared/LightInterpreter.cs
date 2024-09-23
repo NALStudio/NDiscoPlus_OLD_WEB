@@ -8,7 +8,7 @@ using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
-namespace NDiscoPlus.Shared.Music;
+namespace NDiscoPlus.Shared;
 
 /// <summary>
 /// Thread-safe interpreter result.
@@ -91,14 +91,14 @@ public class LightInterpreter
                 // if no previous color found, use effect color
                 // if effect doesn't have color, use strobe color
                 oldColor = e.GetColor(data.EffectConfig.StrobeColor)
-                .CopyWith(brightness: 0d);
+                            .CopyWith(brightness: 0d);
             }
 
             lights[e.LightId] = e.Interpolate(progress, oldColor);
         }
     }
 
-    private static void AddMissingLights(ref Dictionary<LightId, NDPColor> lights, IEnumerable<NDPLight> allLights)
+    private static void ClampAndAddMissingLights(ref Dictionary<LightId, NDPColor> lights, IEnumerable<NDPLight> allLights)
     {
         // supply color values for all lights
         foreach (NDPLight l in allLights)
@@ -144,12 +144,12 @@ public class LightInterpreter
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
         UpdateEffects(ref lights, data, progress);
-        AddMissingLights(ref lights, data.Lights);
+        ClampAndAddMissingLights(ref lights, data.Lights);
 
         double deltaTime = TickDeltaTime();
 
         return new LightInterpreterResult(
-            lights: LightColorCollection.Unsafe(lights), // should be (thread-)safe as we don't keep a reference to the dictionary after this function ends
+            lights: LightColorCollection.UnsafeRef(lights), // should be (thread-)safe as we don't keep a reference to the dictionary after this function ends
             frameTime: deltaTime
         );
     }

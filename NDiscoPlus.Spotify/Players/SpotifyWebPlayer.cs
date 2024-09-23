@@ -35,14 +35,33 @@ record PlayingContext
 public class SpotifyWebPlayer : SpotifyPlayer
 {
     // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
-    const int fastPollRate = 2;
-    const int regularPollRate = 5;
+    const int _kSuperFastPollRate = 1;
+    const int _kFastPollRate = 2;
+    const int _kRegularPollRate = 4;
 
-    const int contextWindowSize = 10; // 10 * 5 seconds = 50 seconds (max 50 second context window size)
-    const int eliminateExtremesWhen = 5; // eliminate extremes when count is more or equal than
-    const int useFastPollRateUntilCount = eliminateExtremesWhen; // poll quicker before context count is more or equal (so that we can start to use statistical positioning (eliminate extremes) earlier)
+    // Poll quicker before context count is more or equal (so that we can start to use statistical positioning (eliminate extremes) earlier)
+    static int GetPollRate(int contextCount)
+    {
 
-    const double seekToleranceSeconds = 5;
+        if (contextCount < halfContextWindowSize)
+            return _kSuperFastPollRate;
+        else if (contextCount < contextWindowSize)
+            return _kFastPollRate;
+        else
+            return _kRegularPollRate;
+    }
+
+    const int contextWindowSize = 15;
+    // MIN CASE: 7*1 second + 8*2 seconds = 23 seconds
+    // MAX CASE: 15*4 seconds             = 60 seconds
+    const int halfContextWindowSize = contextWindowSize / 2;
+
+    // We want to eliminate 2 with the minimum amount of contexts as well
+    // since these contexts were generated with _kSuperFastPollRate and thus are quite inaccurate
+    const int eliminateExtremesCount = 2; // 2 from start, 2 from end => 4 total
+    static bool ShouldEliminateExtremes(int contextCount) => contextCount > halfContextWindowSize;
+
+    const double seekToleranceSeconds = 3;
 
     // At which positions to refresh the next track at the end. Set as empty to disable.
     static readonly TimeSpan[] refreshNextTrackFromEnd = [TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)];
@@ -156,7 +175,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
         PlayingContext lastContext = contexts[^1];
         TimeSpan ahead = DateTimeOffset.UtcNow - lastContext.FetchTimestamp;
 
-        int pollRate = contexts.Length < useFastPollRateUntilCount ? fastPollRate : regularPollRate;
+        int pollRate = GetPollRate(contexts.Length);
         if (ahead.TotalSeconds > pollRate)
             FetchPlayer(debugPollRate: pollRate);
 
@@ -179,8 +198,8 @@ public class SpotifyWebPlayer : SpotifyPlayer
             DateTimeOffset now = DateTimeOffset.UtcNow;
 
             TimeSpan[] progresses = contexts.Where(ctx => ctx.Context?.IsPlaying ?? false).Select(ctx => ctx.ComputeCurrentProgress(now)).ToArray();
-            if (contexts.Length >= eliminateExtremesWhen)
-                progresses = progresses.Order().Skip(1).SkipLast(1).ToArray();
+            if (ShouldEliminateExtremes(contexts.Length))
+                progresses = progresses.Order().Skip(eliminateExtremesCount).SkipLast(eliminateExtremesCount).ToArray();
 
             TimeSpan acc = TimeSpan.Zero;
             foreach (TimeSpan p in progresses)

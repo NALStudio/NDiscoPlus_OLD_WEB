@@ -8,6 +8,7 @@ namespace NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 public readonly partial struct Effect
 {
     public LightId LightId { get; }
+
     public TimeSpan Position { get; }
     public TimeSpan Duration { get; }
 

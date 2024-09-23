@@ -2,7 +2,6 @@
 using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
-using NDiscoPlus.Shared.Effects.StrobeAnalyzers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Music;
 using System;
@@ -14,6 +13,8 @@ namespace NDiscoPlus.Shared.Effects.Strobes;
 
 internal class SegmentBurstStrobes : NDPStrobe
 {
+    public override StrobeGeneration StrobeGeneration => StrobeGeneration.AfterEffects;
+
     public override void Generate(StrobeContext ctx, EffectAPI api)
     {
         foreach (ImmutableArray<NDPInterval> burst in ctx.Analysis.Segments.Bursts)
@@ -33,10 +34,24 @@ internal class SegmentBurstStrobes : NDPStrobe
         return overlappingEffects.All(effect => effect.Effect is null || effect.Effect.Intensity >= EffectIntensity.Medium);
     }
 
+    private static bool IsChannelBusyDuringBurst(EffectChannel channel, ImmutableArray<NDPInterval> burst)
+    {
+        TimeSpan burstStart = burst[0].Start;
+        TimeSpan burstEnd = burst[^1].End;
+
+        Debug.Assert(burstStart == burst.Min(inter => inter.Start));
+        Debug.Assert(burstEnd == burst.Max(inter => inter.End));
+
+        NDPInterval burstTotal = NDPInterval.FromStartAndEnd(burstStart, burstEnd);
+        return channel.GetBusyEffects(burstTotal).Any();
+    }
+
     private static void GenerateForBurst(EffectAPI api, ImmutableArray<NDPInterval> burst)
     {
         EffectChannel? channel = api.GetChannel(Channel.Strobe);
         if (channel is null)
+            return;
+        if (IsChannelBusyDuringBurst(channel, burst))
             return;
 
         int groupCount = burst.Length;

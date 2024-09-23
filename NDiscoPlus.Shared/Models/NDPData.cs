@@ -160,15 +160,11 @@ public sealed partial class ChunkedEffectsCollection
 
     internal static ChunkedEffectsCollection Construct(EffectAPI effects)
     {
-        List<Effect> effectList = new();
-        // iterate in reverse so that later channels override the previous channels (strobes override flashes, flashes override default effects, ...)
-        // ^^^^ I don't know whether this is actually true, but I'm not gonna mess with the behaviour before I'm completely sure...
-        for (int i = (effects.Channels.Count - 1); i >= 0; i--)
-            effectList.AddRange(effects.Channels[i].Effects);
+        ImmutableArray<Effect> allEffects = effects.Channels.SelectMany(c => c.Effects).ToImmutableArray();
 
         return new ChunkedEffectsCollection(
             backgroundTransitions: effects.Background?.Freeze() ?? ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>>.Empty,
-            effects: effectList.ToImmutableArray()
+            effects: allEffects
         );
     }
 }
