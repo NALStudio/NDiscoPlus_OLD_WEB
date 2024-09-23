@@ -1,10 +1,10 @@
-﻿let windowProviderDotNet;
-export function init(dotnetRef) {
-    windowProviderDotNet = dotnetRef;
+﻿let windowProviderJSBridgeDotNet;
+export function init(bridgeDotNetRef) {
+    windowProviderJSBridgeDotNet = bridgeDotNetRef;
     window.onresize = _onResize;
 }
 function _onResize() {
-    windowProviderDotNet.invokeMethodAsync("OnWindowResized", getInnerSize());
+    windowProviderJSBridgeDotNet.invokeMethodAsync("OnWindowResized", getInnerSize());
 }
 
 export function getInnerWidth() {
