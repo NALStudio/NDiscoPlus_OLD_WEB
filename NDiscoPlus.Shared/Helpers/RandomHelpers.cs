@@ -12,7 +12,8 @@ public static class RandomHelpers
     /// <summary>
     /// Picks a random element from the list.
     /// </summary>
-    public static T Choice<T>(this Random random, IList<T> values)
+    /// <exception cref="ArgumentOutOfRangeException">List is empty.</exception>
+    public static T Choice<T>(this Random random, IReadOnlyList<T> values)
     {
         int valuesCount = values.Count;
         if (valuesCount < 1)

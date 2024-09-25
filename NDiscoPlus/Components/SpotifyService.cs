@@ -17,7 +17,7 @@ public class SpotifyService
     private readonly TaskCompletionSource waitForLoginTaskSource = new();
     public Task WaitForLogin() => waitForLoginTaskSource.Task;
 
-    public async Task LoginSpotify(string refreshToken, ILogger<SpotifyWebPlayer>? logger = null)
+    public async Task LoginSpotify(string refreshToken)
     {
         if (IsLoggedIn)
             throw new InvalidOperationException("Already logged in.");

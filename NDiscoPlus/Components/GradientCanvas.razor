@@ -259,6 +259,8 @@
 
     // TODO: Only render webgl and do not create the entire gl context again
     // I tested it and it was possible, but a bit finicky
+    // I should probably also split the massive fragment shader into multiple smaller shaders
+    // 4 color and 6 color gradient shaders followed by a xyY to RGB shader
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Colors is null)

@@ -104,7 +104,7 @@ internal class ColorSwitchEffect : NDPEffect
                 NDPColor? color = null;
                 do
                 {
-                    color = ctx.Random.Choice(ctx.Palette.Colors);
+                    color = ctx.Random.Choice((IReadOnlyList<NDPColor>)ctx.Palette.Colors);
                 }
                 while (!color.HasValue || color.Value == (colors[lightId] ?? approximateBackgroundColors[lightId]));
 

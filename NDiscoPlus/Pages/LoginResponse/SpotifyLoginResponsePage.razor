@@ -1,0 +1,63 @@
+﻿@page "/spotify-login"
+
+@using Microsoft.AspNetCore.WebUtilities
+@using NDiscoPlus.Constants
+@using NDiscoPlus.Models
+@using SpotifyAPI.Web
+@using System.Diagnostics
+
+@inject NavigationManager navigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject Blazored.SessionStorage.ISessionStorageService sessionStorage
+
+<div style="position:fixed;top:0;bottom:0;left:0;right:0;align-items:center;justify-content:center">
+    <h3>Logging into spotify...</h3>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]
+    private string? OAuthCode { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        bool result;
+        try
+        {
+            result = await TryLogin();
+        }
+        catch
+        {
+            result = false;
+        }
+
+        if (result)
+            navigationManager.NavigateTo(".");
+        else
+            navigationManager.NavigateTo("./welcome");
+    }
+
+    private async Task<bool> TryLogin()
+    {
+        if (OAuthCode is null)
+            return false;
+
+        string? verifier = await sessionStorage.GetItemAsync<string>(SessionStoragePaths.SpotifyLoginVerifier);
+        if (string.IsNullOrEmpty(verifier))
+            return false;
+
+        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
+            new PKCETokenRequest(
+                NDPConstants.SpotifyClientId,
+                OAuthCode,
+                new Uri(NDPConstants.SpotifyRedirectUri),
+                verifier
+            )
+        );
+
+        await localStorage.SetItemAsync(
+            LocalStoragePaths.SpotifyRefreshToken,
+            new StoredSpotifyRefreshToken(oauthResp.RefreshToken, NDPConstants.SpotifyScope)
+        );
+        return true;
+    }
+}

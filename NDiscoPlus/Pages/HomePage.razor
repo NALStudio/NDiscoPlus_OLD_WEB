@@ -32,6 +32,8 @@
 @using System.Collections.Concurrent
 @using System.Diagnostics.CodeAnalysis
 
+@layout SpotifyLayout
+
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger
@@ -49,99 +51,99 @@
 <PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
 
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
-    <div style="position:fixed;top:0;bottom:0;left:0;right:0;">
-        <GradientCanvas Colors="@BestBackgroundGradientOption"
-                        Width="@(windowSize?.Width ?? 1920)"
-                        Height="@(windowSize?.Height ?? 1080)"
-                        UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
-    </div>
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
-        @if(context is not null) {
-            <MudImage
-                Src="@context.Track.LargestImage.Url"
-                Width="256"
-                Height="256"/>
-        }
-        else
-        {
-            <div style="background:#1DB954;padding:64px">
-                <MudImage
-                    Src="./img/spotify_icon_white.svg"
-                    Width="128"
-                    Height="128"/>
-            </div>
-        }
-        <div style="min-width:256px;">
-            <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
-            @if(context is not null)
-            {
-                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
-            }
-        </div>
-        <div style="width:80%; max-width:512px; padding-bottom:64px">
-            @if(context is not null)
-            {
-                <MudProgressLinear
-                    Value="@(context.Progress.TotalSeconds)"
-                    Min="0"
-                    Max="@(context.Track.Length.TotalSeconds)"
-                    Rounded="true"
-                    />
-                <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
-                    <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
-                    <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
-                </MudStack>
-            }
-        </div>
-        @if (!HideUI)
-        {
-            <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
-                       Variant="@(IsPlaying ? Variant.Outlined : Variant.Filled)"
-                       Size=Size.Large
-                       Color=MudBlazor.Color.Primary
-                       Disabled=@(!Spotify.IsLoggedIn || playStarting)
-                       OnClick=TogglePlay>
-                @(IsPlaying ? "Stop" : "Play")
-            </MudButton>
-        }
-    </MudStack>
+<div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <GradientCanvas Colors="@BestBackgroundGradientOption"
+                    Width="@(windowSize?.Width ?? 1920)"
+                    Height="@(windowSize?.Height ?? 1080)"
+                    UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
 </div>
+<!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
+<MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
+    @if(context is not null) {
+        <MudImage
+            Src="@context.Track.LargestImage.Url"
+            Width="256"
+            Height="256"/>
+    }
+    else
+    {
+        <div style="background:#1DB954;padding:64px">
+            <MudImage
+                Src="./img/spotify_icon_white.svg"
+                Width="128"
+                Height="128"/>
+        </div>
+    }
+    <div style="min-width:256px;">
+        <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
+        @if(context is not null)
+        {
+            <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
+        }
+    </div>
+    <div style="width:80%; max-width:512px; padding-bottom:64px">
+        @if(context is not null)
+        {
+            <MudProgressLinear
+                Value="@(context.Progress.TotalSeconds)"
+                Min="0"
+                Max="@(context.Track.Length.TotalSeconds)"
+                Rounded="true"
+                />
+            <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
+                <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
+            </MudStack>
+        }
+    </div>
+    @if (!HideUI)
+    {
+        <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
+                    Variant="@(IsPlaying ? Variant.Outlined : Variant.Filled)"
+                    Size=Size.Large
+                    Color=MudBlazor.Color.Primary
+                    Disabled=@(!Spotify.IsLoggedIn || playStarting)
+                    OnClick=TogglePlay>
+            @(IsPlaying ? "Stop" : "Play")
+        </MudButton>
+    }
+</MudStack>
 @if (!HideUI)
 {
     <MudStack Style="position:fixed; top:0; left:0; padding:16px">
         <MudTooltip Text="Open Settings" Placement="Placement.Right" Delay="1000">
             <MudIconButton Icon="@Icons.Material.Rounded.Settings"
-                           Size="Size.Large"
-                           OnClick="OpenSettings"
-                           Disabled="IsPlaying"
-                           />
+                            Size="Size.Large"
+                            OnClick="OpenSettings"
+                            Disabled="IsPlaying"
+                            />
         </MudTooltip>
         <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
             <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
-                           Size="Size.Large"
-                           OnClick="ToggleFullscreen" />
+                            Size="Size.Large"
+                            OnClick="ToggleFullscreen" />
         </MudTooltip>
         <MudTooltip Text="@($"Turn {(IsWakeLockEnabled ? "Off" : "On")} Wake Lock")" Placement="Placement.Right" Delay="1000">
             <MudToggleIconButton Icon="@(Icons.Material.Rounded.Brightness4)"
-                                 ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
-                                 Size="Size.Large"
-                                 Toggled="IsWakeLockEnabled"
-                                 ToggledChanged="@(enabled => enabled ? RequestWakeLock() : ReleaseWakeLock())"/>
+                                    ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
+                                    Size="Size.Large"
+                                    Toggled="IsWakeLockEnabled"
+                                    ToggledChanged="@(enabled => enabled ? RequestWakeLock() : ReleaseWakeLock())"/>
         </MudTooltip>
         @if (DebugEnabled)
         {
             <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
                 <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
-                               Icon="@Icons.Material.Rounded.BugReport"
-                               Size="Size.Large"
-                               OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
+                                Icon="@Icons.Material.Rounded.BugReport"
+                                Size="Size.Large"
+                                OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
             </MudTooltip>
             <!-- Didn't work... Hot Reload changes didn't apply.
             <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
                 <MudIconButton Disabled="(lightHandling is null)"
-                               Icon="Icons.Material.Rounded.Refresh"
-                               Size="Size.Large"
-                               OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
+                                Icon="Icons.Material.Rounded.Refresh"
+                                Size="Size.Large"
+                                OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
             </MudTooltip>
             -->
         }
@@ -167,6 +169,7 @@
     </MudPaper>
     }
 </MudStack>
+</div>
 
 <style>
 .next_track_fadein {

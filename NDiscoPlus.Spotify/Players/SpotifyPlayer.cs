@@ -32,7 +32,10 @@ public abstract class SpotifyPlayer
             }
 
             if (!result)
+            {
+                timer.Dispose();
                 yield break;
+            }
 
             yield return Update();
         }

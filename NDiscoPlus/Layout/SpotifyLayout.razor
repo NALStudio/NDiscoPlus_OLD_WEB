@@ -1,12 +1,14 @@
 ﻿@using NDiscoPlus.Components
 @using NDiscoPlus.Constants
 @using NDiscoPlus.Models
+@using NDiscoPlus.Spotify.Players
 @using SpotifyAPI.Web
 
 @inherits LayoutComponentBase
+@implements IDisposable
 
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
-@inject ILogger<MainLayout> logger
+@inject ILogger<SpotifyLayout> logger
 @inject NavigationManager navigationManager
 @inject SpotifyService Spotify
 
@@ -21,7 +23,12 @@
     protected override async Task OnInitializedAsync()
     {
         Spotify.TokenRefreshed += OnSpotifyTokenRefreshed;
-        await SpotifyLogin();
+
+        // If check probably not needed
+        // but I added one anyway just to make sure
+        // if the layout is ever reinitialized.
+        if (!Spotify.IsLoggedIn)
+            await SpotifyLogin();
     }
 
     private async Task SpotifyLogin()
@@ -37,7 +44,7 @@
             catch (Exception e)
             {
                 logger.LogError("Spotify login failed with error: '{}'. Requesting new login...", e);
-                SpotifyLoginRequest();
+                RequestLogin();
             }
         }
         else
@@ -48,14 +55,14 @@
                 refreshToken is null ? "null" : FormatScopeForLogger(refreshToken.Scope),
                 FormatScopeForLogger(NDPConstants.SpotifyScope)
             );
-            SpotifyLoginRequest();
+            RequestLogin();
         }
     }
 
     private string FormatScopeForLogger(IEnumerable<string> scope)
         => string.Join(' ', scope);
 
-    void SpotifyLoginRequest() => navigationManager.NavigateTo("./spotify-login");
+    void RequestLogin() => navigationManager.NavigateTo("./welcome");
 
 
     async void OnSpotifyTokenRefreshed(PKCETokenResponse response)
@@ -68,5 +75,10 @@
                 new StoredSpotifyRefreshToken(response.RefreshToken, response.Scope.Split(' '))
             );
         }
+    }
+
+    public void Dispose()
+    {
+        Spotify.TokenRefreshed -= OnSpotifyTokenRefreshed;
     }
 }

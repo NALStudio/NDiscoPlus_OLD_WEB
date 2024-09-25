@@ -1,0 +1,156 @@
+﻿@page "/welcome"
+
+@using NDiscoPlus.Components
+@using NDiscoPlus.Components.JavaScript
+@using NDiscoPlus.Constants
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models.Color
+@using System.Diagnostics
+@using SpotifyAPI.Web
+
+@inject WindowProvider Window
+@inject NavigationManager navigationManager
+@inject Blazored.SessionStorage.ISessionStorageService sessionStorage
+
+@implements IDisposable
+
+<div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <GradientCanvas Colors="@(GetColors())"
+                    Width="@(windowSize?.Width ?? 1920)"
+                    Height="@(windowSize?.Height ?? 1080)" />
+</div>
+<MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <MudButton StartIcon="@(NDPIcons.SpotifyIcon)"
+               Variant="Variant.Filled"
+               Size="Size.Large"
+               Style="background:#1DB954;color:#ffffff"
+               OnClick="SendLoginRequest">
+                Login
+    </MudButton>
+</MudStack>
+
+@code {
+    class Animation
+    {
+        public const double SPEED = 0.1d;
+
+        public double Progress { get; private set; }
+        public NDPColor From { get; }
+        public NDPColor To {get;}
+
+        public Animation(NDPColor from, NDPColor to, double progressOffset)
+        {
+            Progress = progressOffset; // 0 + progressOffset
+            From = from;
+            To = to;
+        }
+
+        public NDPColor Interpolate()
+            => NDPColor.Lerp(From, To, Progress);
+
+        public bool Update(double deltaTime)
+        {
+            Progress += deltaTime * SPEED;
+            return Progress > 1d;
+        }
+    }
+
+    private Animation[] animations = new Animation[]
+    {
+        GenerateNewRandomAnimation(null, progressOffset: 0d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 1d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 2d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 3d / 4d)
+    };
+    private NDPColor[] _cachedColorArray = new NDPColor[4];
+
+    private WindowSize? windowSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        windowSize = await Window.InnerSize;
+        Window.OnWindowResize += OnWindowSizeChanged;
+
+        Task renderLoop = new Task(RenderLoop, TaskCreationOptions.LongRunning);
+        renderLoop.Start();
+    }
+
+    private void OnWindowSizeChanged(WindowSize size)
+    {
+        windowSize = size;
+    }
+
+    private IReadOnlyList<NDPColor> GetColors()
+    {
+        Debug.Assert(animations.Length == _cachedColorArray.Length);
+
+        for (int i = 0; i < animations.Length; i++)
+            _cachedColorArray[i] = animations[i].Interpolate();
+
+        return _cachedColorArray;
+    }
+
+    private static NDPColor GetRandomColor()
+        => Random.Shared.Choice<NDPColor>(NDPDefaultPalettes.DefaultSRGB);
+
+    private static Animation GenerateNewRandomAnimation(NDPColor? From, double progressOffset = 0d)
+    {
+        From ??= GetRandomColor();
+
+        NDPColor To;
+        do
+        {
+            To = GetRandomColor();
+        } while (To == From);
+
+        return new Animation(From.Value, To, progressOffset: progressOffset);
+    }
+
+    private async void RenderLoop()
+    {
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(0.01));
+        Stopwatch sw = Stopwatch.StartNew();
+
+        while (await timer.WaitForNextTickAsync())
+        {
+            double deltaTime = sw.Elapsed.TotalSeconds;
+            sw.Restart();
+
+            for (int i = 0; i < animations.Length; i++)
+            {
+                Animation anim = animations[i];
+                bool finished = anim.Update(deltaTime);
+                if (finished)
+                    animations[i] = GenerateNewRandomAnimation(anim.To);
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendLoginRequest()
+    {
+        (string verifier, string challenge) = PKCEUtil.GenerateCodes();
+        await sessionStorage.SetItemAsStringAsync(SessionStoragePaths.SpotifyLoginVerifier, verifier);
+
+        var loginRequest = new LoginRequest(
+            new Uri(NDPConstants.SpotifyRedirectUri),
+            NDPConstants.SpotifyClientId,
+            LoginRequest.ResponseType.Code
+        )
+            {
+                CodeChallengeMethod = "S256",
+                CodeChallenge = challenge,
+                Scope = NDPConstants.SpotifyScope,
+            };
+
+        navigationManager.NavigateTo(loginRequest.ToUri().AbsoluteUri);
+    }
+
+
+    public void Dispose()
+    {
+        Window.OnWindowResize -= OnWindowSizeChanged;
+    }
+}
