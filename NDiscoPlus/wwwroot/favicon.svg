@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="48"
+   height="48"
+   viewBox="0 0 48 48"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="swatch18">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop18" />
+    </linearGradient>
+    <linearGradient
+       id="swatch17">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop17" />
+    </linearGradient>
+  </defs>
+  <g
+     id="layer1">
+    <path
+       id="rect3"
+       style="fill:#594ae2;stroke-width:1.243"
+       d="M 0,0 H 48 V 48 H 0 Z" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:40px;font-family:Lato;-inkscape-font-specification:'Lato Heavy';fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1.243;stroke-dasharray:none"
+       x="7.3242221"
+       y="22.142998"
+       id="text21"><tspan
+         id="tspan21" /></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:900;font-size:32px;font-family:Lato;-inkscape-font-specification:'Lato Heavy';fill:#ffffff;stroke-width:1.243"
+       x="5.7599916"
+       y="35.888"
+       id="text1"><tspan
+         id="tspan1"
+         x="5.7599916"
+         y="35.888">N⁺</tspan></text>
+  </g>
+</svg>

@@ -20,7 +20,8 @@
                     Width="@(windowSize?.Width ?? 1920)"
                     Height="@(windowSize?.Height ?? 1080)" />
 </div>
-<MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Style="position:fixed;top:0;bottom:0;left:0;right:0;">
+<MudStack Spacing="12" AlignItems="AlignItems.Center" Justify="Justify.Center" Style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <MudImage Src="./img/logo/text_white.svg" Height="96" Style="max-width:90vw" />
     <MudButton StartIcon="@(NDPIcons.SpotifyIcon)"
                Variant="Variant.Filled"
                Size="Size.Large"
