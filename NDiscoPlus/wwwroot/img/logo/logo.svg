@@ -25,7 +25,7 @@
      inkscape:document-units="px"
      inkscape:zoom="16.605499"
      inkscape:cx="28.303877"
-     inkscape:cy="18.066304"
+     inkscape:cy="18.006083"
      inkscape:window-width="2558"
      inkscape:window-height="1368"
      inkscape:window-x="1273"
@@ -67,15 +67,10 @@
        id="text21"><tspan
          sodipodi:role="line"
          id="tspan21" /></text>
-    <text
-       xml:space="preserve"
+    <path
+       d="m 10.527992,12.576 q 0.352,0 0.592,0.032 0.24,0.032 0.432,0.128 0.192,0.08 0.368,0.24 0.176,0.16 0.4,0.432 l 11.072,14 q -0.064,-0.672 -0.096,-1.296 -0.032,-0.64 -0.032,-1.2 V 12.576 h 4.768 v 23.312 h -2.816 q -0.624,0 -1.056,-0.192 -0.432,-0.192 -0.832,-0.704 l -10.992,-13.888 q 0.048,0.608 0.08,1.2 0.032,0.576 0.032,1.088 V 35.888 H 7.6799916 V 12.576 h 2.8480004 z m 23.904016,8.784 v -3.52 h -3.36 v -2.176 h 3.36 v -3.552 h 2.528 v 3.552 h 3.36 v 2.176 h -3.36 v 3.52 z"
+       id="text1"
        style="font-weight:900;font-size:32px;font-family:Lato;-inkscape-font-specification:'Lato Heavy';fill:#ffffff;stroke-width:1.243"
-       x="5.7599916"
-       y="35.888"
-       id="text1"><tspan
-         sodipodi:role="line"
-         id="tspan1"
-         x="5.7599916"
-         y="35.888">N⁺</tspan></text>
+       aria-label="N⁺" />
   </g>
 </svg>
