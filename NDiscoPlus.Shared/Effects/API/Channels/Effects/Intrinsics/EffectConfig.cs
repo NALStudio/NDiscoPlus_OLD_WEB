@@ -11,13 +11,16 @@ namespace NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 [MemoryPackable]
 public partial class EffectConfig
 {
+    public static readonly EffectConfig Default = new();
+
+    //                                   \/ not implemented
     public enum StrobeStyles { Instant, Realistic }
 
     public double BaseBrightness { get; init; } = 0.1d;
     public double MaxBrightness { get; init; } = 1d;
 
     public double StrobeCCT { get; init; } = 5000;
-    public StrobeStyles StrobeStyle { get; } = StrobeStyles.Instant;
+    public StrobeStyles StrobeStyle { get; init; } = StrobeStyles.Instant;
 
     [MemoryPackIgnore]
     public NDPColor StrobeColor => NDPColor.FromCCT(StrobeCCT);

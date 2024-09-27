@@ -678,9 +678,7 @@
         TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
         TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-        EffectConfig effects = new();
-
-        NDiscoPlusArgs args = new(track, features, analysis, effects, lightHandling.Lights)
+        NDiscoPlusArgs args = new(track, features, analysis, EffectConfig.Default, lightHandling.Lights)
         {
             ReferencePalette = referencePalette,
             AllowHDR = lightHandling.ScreenLightHandlerSingleton.Render.HDR

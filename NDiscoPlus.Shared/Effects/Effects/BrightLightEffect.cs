@@ -59,14 +59,14 @@ internal sealed class BrightLightEffect : NDPEffect
             for (int i = 0; i < lightsPerAnimation; i++)
             {
                 NDPLight[] lights = channel.GetAvailableLights(pos).ToArray();
-                NDPLight light;
+                LightId light;
                 if (lights.Length > 0)
-                    light = ctx.Random.Choice(lights);
+                    light = ctx.Random.Choice(lights).Id;
                 else
-                    light = channel.GetLight(channel.GetBusyEffects(pos).MinBy(e => e.End).LightId);
+                    light = channel.GetBusyEffects(pos).MinBy(e => e.End).LightId;
 
                 Effect eff = new(
-                    light.Id,
+                    light,
                     interval.Start,
                     TimeSpan.Zero
                 )

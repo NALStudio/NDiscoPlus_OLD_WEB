@@ -28,13 +28,15 @@ public sealed class AudioAnalysisSection
         ImmutableArray<NDPInterval> bars = TakeSectionSlice(interval, timings.Bars);
         ImmutableArray<NDPInterval> beats = TakeSectionSlice(interval, timings.Beats);
         ImmutableArray<NDPInterval> tatums = TakeSectionSlice(interval, timings.Tatums);
+        ImmutableArray<NDPInterval> segments = TakeSectionSlice(interval, timings.Segments);
 
         return new AudioAnalysisSection(
             interval: interval,
             timings: new AudioAnalysisTimings(
                 bars: bars,
                 beats: beats,
-                tatums: tatums
+                tatums: tatums,
+                segments: segments
             ),
             loudness: section.Loudness,
             tempo: new Tempo(section.Tempo, section.TimeSignature)

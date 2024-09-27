@@ -17,7 +17,8 @@ internal static class AudioAnalyzer
         AudioAnalysisTimings timings = new(
             bars: CastSpotifyIntervals(analysis.Bars),
             beats: CastSpotifyIntervals(analysis.Beats),
-            tatums: CastSpotifyIntervals(analysis.Tatums)
+            tatums: CastSpotifyIntervals(analysis.Tatums),
+            segments: analysis.Segments.Select(static segment => NDPInterval.FromSeconds(segment.Start, segment.Duration)).ToImmutableArray()
         );
 
         ImmutableArray<NDPSegment> segmentsArray = analysis.Segments.Select(static s => NDPSegment.FromSpotify(s)).ToImmutableArray();

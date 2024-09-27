@@ -71,6 +71,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         EffectChannel? channel = api.GetChannel(Channel.Strobe);
         if (channel is null)
             return;
+
         NDPLightCollection lights = channel.Lights;
 
         ClearChannelsForStrobes(ctx, api);
@@ -183,6 +184,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         TimeSpan clearEnd = strobeEnd;
         TimeSpan clearLength = clearEnd - clearStart;
 
+        // Use strobe color so that the color is consistent when interpolating brightness
         NDPColor strobeResetColor = api.Config.StrobeColor.CopyWith(brightness: 0d);
         foreach (EffectChannel channel in api.Channels)
         {

@@ -27,11 +27,7 @@ internal class SegmentBurstStrobes : NDPStrobe
     private static bool IsEffectIntenseEnoughForBurst(StrobeContext ctx, ImmutableArray<NDPInterval> burst)
     {
         NDPInterval burstInterval = NDPInterval.FromStartAndEnd(burst[0].Start, burst[^1].End);
-
-        IEnumerable<EffectRecord> overlappingEffects = ctx.Effects.Effects.Where(effect => NDPInterval.Overlap(effect.Section.Interval, burstInterval));
-
-        // returns true if enumerable is empty
-        return overlappingEffects.All(effect => effect.Effect is null || effect.Effect.Intensity >= EffectIntensity.Medium);
+        return ctx.IntensityAtLeast(EffectIntensity.Medium, burstInterval);
     }
 
     private static bool IsChannelBusyDuringBurst(EffectChannel channel, ImmutableArray<NDPInterval> burst)

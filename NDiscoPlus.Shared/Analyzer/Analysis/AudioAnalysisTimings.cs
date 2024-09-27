@@ -27,10 +27,16 @@ public class AudioAnalysisTimings
     /// </summary>
     public ImmutableArray<NDPInterval> Tatums { get; }
 
-    public AudioAnalysisTimings(ImmutableArray<NDPInterval> bars, ImmutableArray<NDPInterval> beats, ImmutableArray<NDPInterval> tatums)
+    /// <summary>
+    /// Each segment contains a roughly conisistent sound throughout its duration.
+    /// </summary>
+    public ImmutableArray<NDPInterval> Segments { get; }
+
+    public AudioAnalysisTimings(ImmutableArray<NDPInterval> bars, ImmutableArray<NDPInterval> beats, ImmutableArray<NDPInterval> tatums, ImmutableArray<NDPInterval> segments)
     {
         Bars = bars;
         Beats = beats;
         Tatums = tatums;
+        Segments = segments;
     }
 }

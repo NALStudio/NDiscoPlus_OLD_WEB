@@ -50,9 +50,5 @@ public readonly record struct NDPInterval(TimeSpan Start, TimeSpan Duration)
     }
 
     public static explicit operator NDPInterval(TimeInterval interval)
-    {
-        TimeSpan start = TimeSpan.FromSeconds(interval.Start);
-        TimeSpan duration = TimeSpan.FromSeconds(interval.Duration);
-        return new NDPInterval(Start: start, Duration: duration);
-    }
+        => FromSeconds(interval.Start, interval.Duration);
 }

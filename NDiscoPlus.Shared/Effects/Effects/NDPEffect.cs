@@ -18,7 +18,9 @@ internal abstract class NDPEffect
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Horizontal, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Vertical, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.RandomPattern, EffectIntensity.Maximum),
-        new RandomStrobeLightEffect(EffectIntensity.Maximum)
+        new RandomStrobeLightEffect(EffectIntensity.Maximum),
+
+        new StarPulseEffect(EffectIntensity.Low)
     ];
 
     public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = Enum.GetValues<EffectIntensity>()

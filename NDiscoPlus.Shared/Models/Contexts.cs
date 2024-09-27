@@ -38,6 +38,14 @@ internal sealed class StrobeContext : Context
             effects: effects
         );
     }
+
+    public bool IntensityAtLeast(EffectIntensity intensity, NDPInterval interval)
+    {
+        IEnumerable<EffectRecord> overlappingEffects = Effects.Effects.Where(effect => NDPInterval.Overlap(effect.Section.Interval, interval));
+
+        // returns true if enumerable is empty
+        return overlappingEffects.All(effect => effect.Effect is null || effect.Effect.Intensity >= intensity);
+    }
 }
 
 internal sealed class EffectContext : Context
