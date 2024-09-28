@@ -46,39 +46,22 @@ public partial class NDiscoPlusArgs
 [MemoryPackable]
 public partial class NDiscoPlusArgsLights
 {
-    public ImmutableDictionary<Channel, ImmutableArray<NDPLight>> Lights { get; }
+    public ImmutableArray<LightRecord> Lights { get; }
 
     public IEnumerable<NDPLight> EnumerateLights()
     {
-        foreach (ImmutableArray<NDPLight> lightArray in Lights.Values)
-        {
-            foreach (NDPLight light in lightArray)
-                yield return light;
-        }
+        foreach (LightRecord record in Lights)
+            yield return record.Light;
     }
 
-    public NDiscoPlusArgsLights(ICollection<NDPLight> lights, IDictionary<LightId, Channel> channelOverrides)
+    public NDiscoPlusArgsLights(IEnumerable<LightRecord> lights)
+        : this(lights.ToImmutableArray())
     {
-        Channel GetChannel(NDPLight light)
-        {
-            if (channelOverrides.TryGetValue(light.Id, out Channel channel))
-                return channel;
-            return Channel.All;
-        }
-
-        IEnumerable<IGrouping<Channel, NDPLight>> grouped = lights.GroupBy(keySelector: GetChannel);
-        Lights = grouped.ToImmutableDictionary(key => key.Key, value => value.ToImmutableArray());
     }
 
     [MemoryPackConstructor]
-    private NDiscoPlusArgsLights(ImmutableDictionary<Channel, ImmutableArray<NDPLight>> lights)
+    public NDiscoPlusArgsLights(ImmutableArray<LightRecord> lights)
     {
         Lights = lights;
     }
-}
-
-[MemoryPackable]
-public partial class NDiscoPlusEffects
-{
-
 }

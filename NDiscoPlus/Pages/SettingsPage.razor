@@ -29,10 +29,10 @@
 
     <MudForm Disabled="@(Profiles is null)">
         <MudStack Row="true" Class="px-4 py-1" Spacing="1" Style="background:#ffffff; margin-left:24px; border-radius:8px" AlignItems="AlignItems.Center">
-            <MudSelect T=LightConfigurationProfile Style="width:256px" Value="@(CurrentProfile)" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
-                @foreach (LightConfigurationProfile profile in Profiles?.AllProfiles ?? Enumerable.Empty<LightConfigurationProfile>())
+            <MudSelect T=LightProfile Style="width:256px" Value="@(CurrentProfile)" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
+                @foreach (LightProfile profile in Profiles?.AllProfiles ?? Enumerable.Empty<LightProfile>())
                 {
-                    <MudSelectItem T="LightConfigurationProfile" Value=@profile />
+                    <MudSelectItem T="LightProfile" Value=@profile />
                 }
             </MudSelect>
             <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
@@ -81,19 +81,22 @@
                     </MudStack>
                 </TitleContent>
                 <ChildContent>
-                    @foreach (DiscoveredLight light in CurrentProfileLights ?? Enumerable.Empty<DiscoveredLight>())
+                    @if (CurrentProfile is not null)
                     {
-                        <LightChannelSelector ChannelValue="GetLightChannel(light.Light.Id)"
-                                              ChannelValueChanged="@(value => SetLightChannel(light.Light.Id, value))"
-                                              Light="light.Light"
-                                              LightHandler="light.Handler" />
-                    }
-                    @foreach (KeyValuePair<LightId, Channel> missingLight in (Profiles is not null ? GetMissingLights() : Enumerable.Empty<KeyValuePair<LightId, Channel>>()))
-                    {
-                        <LightChannelSelector ChannelValue="GetLightChannel(missingLight.Key)"
-                                              ChannelValueChanged="@(value => SetLightChannel(missingLight.Key, value))"
-                                              Light="null"
-                                              LightHandler="null" />
+                        @foreach (DiscoveredLight light in CurrentProfileLights!)
+                        {
+                            <LightChannelSelector Config="@GetConfiguration(light.Light.Id)"
+                                                  ConfigChanged="@(value => SetConfiguration(light.Light.Id, value))"
+                                                  Light="light.Light"
+                                                  LightHandler="light.Handler" />
+                        }
+                        @foreach (var missingLight in GetMissingLights())
+                        {
+                            <LightChannelSelector Config="@GetConfiguration(missingLight.Key)"
+                                                  ConfigChanged="@(value => SetConfiguration(missingLight.Key, value))"
+                                                  Light="null"
+                                                  LightHandler="null" />
+                        }
                     }
                 </ChildContent>
             </MudExpansionPanel>
@@ -146,8 +149,8 @@
     {
         private readonly SettingsPage parent;
 
-        public LightConfigurationProfile CurrentProfile { get;  }
-        public ReadOnlyCollection<LightConfigurationProfile> AllProfiles { get; }
+        public LightProfile CurrentProfile { get;  }
+        public ReadOnlyCollection<LightProfile> AllProfiles { get; }
 
         /// <summary>
         /// All of the lights discovered in <see cref="CurrentProfile"/>'s handlers.
@@ -163,7 +166,7 @@
         public bool CanReloadLights => !IsLoadingLights;
         private Task? loadLightsTask = null;
 
-        private ProfileData(SettingsPage parent, LightConfigurationProfile current, ReadOnlyCollection<LightConfigurationProfile> all)
+        private ProfileData(SettingsPage parent, LightProfile current, ReadOnlyCollection<LightProfile> all)
         {
             this.parent = parent;
 
@@ -180,14 +183,14 @@
 
             // load current before loading all profiles so that the current profile is included in all profiles
             // Load ID only as we want the current profile of this ProfileData to be the same instance found in the all collection
-            string currentProfileId = (await LightConfigurationProfile.LoadCurrent(localStorage)).UniqueId;
+            string currentProfileId = (await LightProfile.LoadCurrent(localStorage)).UniqueId;
 
-            List<LightConfigurationProfile> profiles = new();
-            await foreach (LightConfigurationProfile profile in LightConfigurationProfile.LoadAll(localStorage))
+            List<LightProfile> profiles = new();
+            await foreach (LightProfile profile in LightProfile.LoadAll(localStorage))
                 Bisect.InsortRight(profiles, profile, keySelector: p => p.Name);
 
             // get current profile from list so that we only have a single instance of all profiles
-            LightConfigurationProfile currentProfile = profiles.Single(p => p.UniqueId == currentProfileId);
+            LightProfile currentProfile = profiles.Single(p => p.UniqueId == currentProfileId);
 
             ProfileData pd = new(parent, currentProfile, profiles.AsReadOnly());
             pd.ReloadLights();
@@ -224,7 +227,7 @@
     }
 
     [NotNullIfNotNull(nameof(Profiles))]
-    private LightConfigurationProfile? CurrentProfile => Profiles?.CurrentProfile;
+    private LightProfile? CurrentProfile => Profiles?.CurrentProfile;
     [NotNullIfNotNull(nameof(Profiles))]
     private ReadOnlyObservableCollection<DiscoveredLight>? CurrentProfileLights => Profiles?.CurrentProfileLights;
 
@@ -252,7 +255,7 @@
         Profiles = await ProfileData.LoadAsync(this, localStorage);
     }
 
-    private string GetProfileName(LightConfigurationProfile profile)
+    private string GetProfileName(LightProfile profile)
         => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
 
     private void ReloadLightsWrapper()
@@ -271,39 +274,41 @@
         return result == true;
     }
 
-    private void SetLightChannel(LightId light, Channel? channel)
+    private LightProfile.LightConfig? GetConfiguration(LightId light)
     {
         ThrowIfProfileDataIsNull();
 
-        if (channel is Channel c)
-            CurrentProfile.LightChannelOverrides[light] = c;
+        CurrentProfile.LightConfigurationOverrides.TryGetValue(light, out LightProfile.LightConfig? value);
+        return value;
+    }
+
+    private void SetConfiguration(LightId light, LightProfile.LightConfig? value)
+    {
+        ThrowIfProfileDataIsNull();
+
+        var configs = CurrentProfile.LightConfigurationOverrides;
+        if (value is not null)
+        {
+            _ = configs.TryAdd(light, value);
+            Debug.Assert(object.ReferenceEquals(configs[light], value));
+        }
         else
-            _ = CurrentProfile.LightChannelOverrides.Remove(light);
-
-        CurrentProfileEdited = true;
-        StateHasChanged();
+        {
+            _ = configs.Remove(light);
+        }
     }
 
-    private Channel? GetLightChannel(LightId light)
-    {
-        ThrowIfProfileDataIsNull();
-
-        if (CurrentProfile.LightChannelOverrides.TryGetValue(light, out Channel channel) == true)
-            return channel;
-        return null;
-    }
-
-    private Dictionary<LightId, Channel> GetMissingLights()
+    private Dictionary<LightId, LightProfile.LightConfig> GetMissingLights()
     {
         ThrowIfProfileDataIsNull();
 
         // Copy dict
-        Dictionary<LightId, Channel> lightChannels = CurrentProfile.LightChannelOverrides.ToDictionary();
+        var lightChannelsCopy = CurrentProfile.LightConfigurationOverrides.ToDictionary();
         foreach (DiscoveredLight light in CurrentProfileLights)
-            _ = lightChannels.Remove(light.Light.Id);
+            _ = lightChannelsCopy.Remove(light.Light.Id);
 
         // The ones remaining are missing
-        return lightChannels;
+        return lightChannelsCopy;
     }
 
     private async Task SaveCurrentProfile()
@@ -315,7 +320,7 @@
 
         await Task.Delay(500);
 
-        await LightConfigurationProfile.Save(localStorage, profileData.CurrentProfile);
+        await LightProfile.Save(localStorage, profileData.CurrentProfile);
         __currentProfileEdited = false;
         form!.ResetTouched();
         _formIsTouched = false;
@@ -323,7 +328,7 @@
         Profiles = await ProfileData.LoadAsync(this, localStorage);
     }
 
-    private async Task ChangeProfile(LightConfigurationProfile newProfile)
+    private async Task ChangeProfile(LightProfile newProfile)
     {
         ArgumentNullException.ThrowIfNull(newProfile);
 
@@ -334,7 +339,7 @@
             return;
 
         Profiles = null;
-        await LightConfigurationProfile.SaveAsCurrent(localStorage, newProfile);
+        await LightProfile.SaveAsCurrent(localStorage, newProfile);
         Profiles = await ProfileData.LoadAsync(this, localStorage);
     }
 

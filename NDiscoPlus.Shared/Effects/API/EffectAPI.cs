@@ -26,11 +26,11 @@ internal class EffectAPI
     {
         KeyValuePair<Channel, EffectChannel>? CreateChannelIfNecessary(Channel type)
         {
-            NDPLight[] channelLights = lights.Lights.Where(l => l.Key.HasFlag(type))
-                                                    .SelectMany(l => l.Value)
+            NDPLight[] channelLights = lights.Lights.Where(l => l.Channel.HasFlag(type))
+                                                    .Select(l => l.Light)
                                                     .ToArray();
             if (channelLights.Length > 0)
-                return new(type, new EffectChannel(channelLights));
+                return new(type, new EffectChannel(type, channelLights));
             else
                 return null;
         }

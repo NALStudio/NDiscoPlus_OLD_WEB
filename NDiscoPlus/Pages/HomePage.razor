@@ -481,7 +481,7 @@
 
         await Task.Delay(500);
 
-        LightConfigurationProfile profile = await LightConfigurationProfile.LoadCurrent(localStorage);
+        LightProfile profile = await LightProfile.LoadCurrent(localStorage);
         ScreenLightHandler screenLightHandlerSingleton = (ScreenLightHandler)profile.Handlers.Single(lh => lh is ScreenLightHandler);
 
         bool startSuccessful = true;
@@ -508,7 +508,7 @@
             return;
         }
 
-        NDiscoPlusArgsLights lightsCollection = new(lights, profile.LightChannelOverrides);
+        NDiscoPlusArgsLights lightsCollection = new(profile.BuildLightRecords(lights));
         lightHandling = new(profile.Handlers.ToImmutableArray(), lightsCollection, screenLightHandlerSingleton);
     }
 

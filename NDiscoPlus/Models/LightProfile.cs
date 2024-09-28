@@ -11,40 +11,40 @@ using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Models;
 
-public sealed class LightConfigurationProfile
+public sealed class LightProfile
 {
     private class SerializableProfile
     {
         public string Name { get; }
         public ImmutableArray<LightHandlerConfig> Handlers { get; }
-        public ImmutableDictionary<string, Channel> LightChannelOverrides { get; }
+        public ImmutableDictionary<string, LightConfig> LightConfigurationOverrides { get; }
 
         [JsonConstructor]
-        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<string, Channel>? lightChannelOverrides)
+        private SerializableProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<string, LightConfig>? lightConfigurationOverrides)
         {
             Name = name;
             Handlers = handlers;
-            LightChannelOverrides = lightChannelOverrides ?? ImmutableDictionary<string, Channel>.Empty;  // Might be null when migrating from an older (dev) version
+            LightConfigurationOverrides = lightConfigurationOverrides ?? ImmutableDictionary<string, LightConfig>.Empty; // empty dictionary for backwards compat
         }
 
-        public static SerializableProfile Construct(LightConfigurationProfile profile)
+        public static SerializableProfile Construct(LightProfile profile)
         {
             ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.ConfigRef).ToImmutableArray();
 
             return new SerializableProfile(
                 profile.Name,
                 handlers: handlers,
-                lightChannelOverrides: profile.LightChannelOverrides.ToImmutableDictionary(key => SerializeLightId(key.Key), value => value.Value)
+                lightConfigurationOverrides: profile.LightConfigurationOverrides.ToImmutableDictionary(key => SerializeLightId(key.Key), value => value.Value)
             );
         }
 
-        public static LightConfigurationProfile Deconstruct(string localStoragePath, SerializableProfile profile)
+        public static LightProfile Deconstruct(string localStoragePath, SerializableProfile profile)
         {
-            return new LightConfigurationProfile(
+            return new LightProfile(
                 localStoragePath: localStoragePath,
                 name: profile.Name,
                 handlers: profile.Handlers.Select(h => h.CreateLightHandler()),
-                lightChannelOverrides: profile.LightChannelOverrides.Select(x => new KeyValuePair<LightId, Channel>(DeserializeLightId(x.Key), x.Value))
+                lightConfigurationOverrides: profile.LightConfigurationOverrides.Select(x => new KeyValuePair<LightId, LightConfig>(DeserializeLightId(x.Key), x.Value))
             );
         }
 
@@ -55,15 +55,29 @@ public sealed class LightConfigurationProfile
             => MemoryPackHelper.DeserializeFromBase64<LightId>(value) ?? throw new ArgumentException("Could not deserialize value.");
     }
 
+    public class LightConfig
+    {
+        public Channel Channel { get; set; } = LightRecord.Default.Channel;
+        public double Brightness { get; set; } = LightRecord.Default.Brightness;
 
-    private LightConfigurationProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers, IEnumerable<KeyValuePair<LightId, Channel>> lightChannelOverrides)
+        public LightRecord CreateRecord(NDPLight light)
+        {
+            return new(light)
+            {
+                Channel = Channel,
+                Brightness = Brightness,
+            };
+        }
+    }
+
+    private LightProfile(string localStoragePath, string name, IEnumerable<LightHandler> handlers, IEnumerable<KeyValuePair<LightId, LightConfig>> lightConfigurationOverrides)
     {
         this.localStoragePath = localStoragePath;
 
         Name = name;
 
         this.handlers = handlers.ToList();
-        LightChannelOverrides = lightChannelOverrides.ToDictionary();
+        LightConfigurationOverrides = lightConfigurationOverrides.ToDictionary();
     }
 
     public string UniqueId => localStoragePath;
@@ -75,9 +89,9 @@ public sealed class LightConfigurationProfile
     public IList<LightHandler> Handlers => handlers.AsReadOnly();
     private readonly List<LightHandler> handlers;
 
-    public Dictionary<LightId, Channel> LightChannelOverrides { get; }
+    public Dictionary<LightId, LightConfig> LightConfigurationOverrides { get; }
 
-    public static async IAsyncEnumerable<LightConfigurationProfile> LoadAll(ILocalStorageService localStorage, bool _createDefault = true)
+    public static async IAsyncEnumerable<LightProfile> LoadAll(ILocalStorageService localStorage, bool _createDefault = true)
     {
         IEnumerable<string> keysEnumerable = await localStorage.GetKeysWithPrefix(LocalStoragePaths.LightConfigurationProfilePrefix);
         string[] keys = keysEnumerable.ToArray();
@@ -91,46 +105,46 @@ public sealed class LightConfigurationProfile
 
         foreach (string key in keys)
         {
-            LightConfigurationProfile? profile = await Load(localStorage, key);
+            LightProfile? profile = await Load(localStorage, key);
             if (profile is not null)
                 yield return profile;
             // TODO: Warn if profile could not be deserialized.
         }
     }
 
-    private static async Task<LightConfigurationProfile> GetOrCreateDefaultInstance(ILocalStorageService localStorage)
+    private static async Task<LightProfile> GetOrCreateDefaultInstance(ILocalStorageService localStorage)
     {
         // Try to return the first profile if any are available
-        await foreach (LightConfigurationProfile loaded in LoadAll(localStorage, _createDefault: false))
+        await foreach (LightProfile loaded in LoadAll(localStorage, _createDefault: false))
             return loaded;
 
         // Create a new default instance and set it as current.
-        LightConfigurationProfile profile = InternalCreateNewWithoutSaving();
+        LightProfile profile = InternalCreateNewWithoutSaving();
         await SaveAsCurrent(localStorage, profile);
 
         return profile;
     }
 
-    public static async Task<LightConfigurationProfile> LoadCurrent(ILocalStorageService localStorage)
+    public static async Task<LightProfile> LoadCurrent(ILocalStorageService localStorage)
     {
         string? currentKey = await localStorage.GetItemAsStringAsync(LocalStoragePaths.LightConfigurationCurrent);
         if (string.IsNullOrEmpty(currentKey))
             return await GetOrCreateDefaultInstance(localStorage);
 
-        LightConfigurationProfile? profile = await Load(localStorage, currentKey);
+        LightProfile? profile = await Load(localStorage, currentKey);
         if (profile is null)
             return await GetOrCreateDefaultInstance(localStorage);
 
         return profile;
     }
 
-    public static async Task SaveAsCurrent(ILocalStorageService localStorage, LightConfigurationProfile profile)
+    public static async Task SaveAsCurrent(ILocalStorageService localStorage, LightProfile profile)
     {
         await Save(localStorage, profile);
         await localStorage.SetItemAsStringAsync(LocalStoragePaths.LightConfigurationCurrent, profile.localStoragePath);
     }
 
-    private static async Task<LightConfigurationProfile?> Load(ILocalStorageService localStorage, string key)
+    private static async Task<LightProfile?> Load(ILocalStorageService localStorage, string key)
     {
         SerializableProfile? serializable = await localStorage.GetItemAsync<SerializableProfile>(key);
         if (serializable is null)
@@ -138,28 +152,28 @@ public sealed class LightConfigurationProfile
         return SerializableProfile.Deconstruct(key, serializable);
     }
 
-    public static ValueTask Save(ILocalStorageService localStorage, LightConfigurationProfile profile)
+    public static ValueTask Save(ILocalStorageService localStorage, LightProfile profile)
     {
         SerializableProfile serializable = SerializableProfile.Construct(profile);
         return localStorage.SetItemAsync(profile.localStoragePath, serializable);
     }
 
-    public static async Task<LightConfigurationProfile> CreateNew(ILocalStorageService localStorage)
+    public static async Task<LightProfile> CreateNew(ILocalStorageService localStorage)
     {
-        LightConfigurationProfile profile = InternalCreateNewWithoutSaving();
+        LightProfile profile = InternalCreateNewWithoutSaving();
         await Save(localStorage, profile);
         return profile;
     }
 
-    private static LightConfigurationProfile InternalCreateNewWithoutSaving()
+    private static LightProfile InternalCreateNewWithoutSaving()
     {
         string localStoragePath = LocalStoragePaths.LightConfigurationProfilePrefix.NewKey();
 
-        return new LightConfigurationProfile(
+        return new LightProfile(
             localStoragePath: localStoragePath,
             name: string.Empty,
             handlers: [new ScreenLightHandler(null)],
-            lightChannelOverrides: ImmutableDictionary<LightId, Channel>.Empty
+            lightConfigurationOverrides: ImmutableDictionary<LightId, LightConfig>.Empty
         );
     }
 
@@ -217,5 +231,16 @@ public sealed class LightConfigurationProfile
         bool removed = TryRemoveHandler(handler);
         if (!removed)
             throw new ArgumentException("Cannot remove handler. Minimum handlers reached.");
+    }
+
+    public IEnumerable<LightRecord> BuildLightRecords(IEnumerable<NDPLight> lights)
+    {
+        foreach (NDPLight light in lights)
+        {
+            if (LightConfigurationOverrides.TryGetValue(light.Id, out LightConfig? config))
+                yield return config.CreateRecord(light);
+            else
+                yield return LightRecord.CreateDefault(light);
+        }
     }
 }

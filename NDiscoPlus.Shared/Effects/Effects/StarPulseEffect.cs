@@ -15,7 +15,8 @@ namespace NDiscoPlus.Shared.Effects.Effects;
 
 internal class StarPulseEffect : NDPEffect
 {
-    public static readonly NDPColor PulseColor = NDPColor.FromCCT(4000); // 4000 is the minimum value supported
+    private static readonly NDPColor _kPulseColor = NDPColor.FromCCT(4000); // 4000 is the minimum value supported
+    private const Channel _kChannel = Channel.Default;
 
     public StarPulseEffect(EffectIntensity intensity) : base(intensity)
     {
@@ -25,7 +26,7 @@ internal class StarPulseEffect : NDPEffect
     {
         int fadeDurationSeconds = totalLightCount > 6 ? 5 : 3;
 
-        return new(light, position, duration: TimeSpan.Zero, PulseColor)
+        return new(light, position, duration: TimeSpan.Zero, _kPulseColor)
         {
             FadeOut = TimeSpan.FromSeconds(fadeDurationSeconds)
         };
@@ -59,9 +60,15 @@ internal class StarPulseEffect : NDPEffect
         NDPInterval clearInterval = ctx.Section.Interval;
 
         // Use pulse color so that the color is consistent when interpolating brightness
-        NDPColor resetColor = PulseColor.CopyWith(brightness: 0d);
+        NDPColor resetColor = _kPulseColor.CopyWith(brightness: 0d);
         foreach (EffectChannel channel in api.Channels)
         {
+            // Only clear channels that have priority lower than us
+            // since if we clear _kChannel, GetAvailableLights() won't work
+            // and if we clear channels after _kChannel, we override the effect with black.
+            if (channel.Channel >= _kChannel)
+                break;
+
             channel.Clear(clearInterval.Start, clearInterval.End);
             foreach (NDPLight light in channel.Lights)
                 channel.Add(new Effect(light.Id, clearInterval.Start, clearInterval.Duration, resetColor));

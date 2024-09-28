@@ -1,4 +1,5 @@
 ﻿@using NDiscoPlus.LightHandlers
+@using NDiscoPlus.Models
 @using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
 @using System.Collections.Immutable
 @using System.Collections.Frozen
@@ -22,23 +23,30 @@
                      LabelPosition="LabelPosition.Start"
                      Color="Color.Inherit"
                      T="bool"
-                     Value="!ChannelEditEnabled"
-                     ValueChanged="@(value => ChannelEditEnabledChanged(!value))" />
+                     Value="@(!ConfigEditEnabled)"
+                     ValueChanged="@(value => ConfigEditEnabledChanged(!value))" />
                      <!-- Invert value as checkbox label says 'Auto' -->
 
-        <MudButtonGroup Color="@(ChannelEditEnabled ? Color.Inherit : Color.Dark)" Variant="Variant.Filled">
-            @foreach ((string name, Channel channel) in ChannelFlag.FlagItems)
-            {
-                <MudTooltip Text="@($"{name} Channel")" Delay="1000">
-                    <MudToggleIconButton Disabled="@(ChannelValue is null)"
-                                         Icon="@(GetChannelIcon(channel))"
-                                         Color="Color.Error"
-                                         ToggledColor="Color.Success"
-                                         Toggled="@(GetChannelEnabled(channel))"
-                                         ToggledChanged="@((value) => SetChannelEnabled(channel, value))" />
-                </MudTooltip>
-            }
-        </MudButtonGroup>
+        <MudForm Disabled="@(!ConfigEditEnabled)">
+            <MudButtonGroup Color="@(ConfigEditEnabled ? Color.Inherit : Color.Dark)" Variant="Variant.Filled">
+                <MudSlider T="double" Value="@(Config?.Brightness ?? 1d)" ValueLabel="true" Step="0.01d">
+                    <ValueLabelContent>
+                        @(FormatBrightnessToPercent(Config?.Brightness ?? 1d))
+                    </ValueLabelContent>
+                </MudSlider>
+
+                @foreach ((string name, Channel channel) in ChannelFlag.FlagItems)
+                {
+                    <MudTooltip Text="@($"{name} Channel")" Delay="1000">
+                        <MudToggleIconButton Icon="@(GetChannelIcon(channel))"
+                                             Color="Color.Error"
+                                             ToggledColor="Color.Success"
+                                             Toggled="@(GetChannelEnabled(channel))"
+                                             ToggledChanged="@((value) => SetChannelEnabled(channel, value))" />
+                    </MudTooltip>
+                }
+            </MudButtonGroup>
+        </MudForm>
     </MudStack>
 </MudStack>
 
@@ -59,10 +67,10 @@
     public NDPLight? Light { get; set; }
 
     [Parameter, EditorRequired]
-    public Channel? ChannelValue { get; set; }
+    public LightProfile.LightConfig? Config { get; set; }
 
     [Parameter, EditorRequired]
-    public Action<Channel?>? ChannelValueChanged { get; set; }
+    public Action<LightProfile.LightConfig?>? ConfigChanged { get; set; }
 
     [Parameter]
     public bool AllowLightRemove { get; set; } = false;
@@ -77,31 +85,40 @@
         return _kDefaultIcon;
     }
 
-    private bool ChannelEditEnabled => ChannelValue is not null;
-    private void ChannelEditEnabledChanged(bool value)
+    private bool ConfigEditEnabled => Config is not null;
+    private void ConfigEditEnabledChanged(bool value)
     {
-        Channel? channel;
-        if (value)
-            channel = Channel.All;
-        else
-            channel = null;
-
-        ChannelValueChanged?.Invoke(channel);
+        LightProfile.LightConfig? config = value ? new() : null;
+        Config = config;
+        ConfigChanged?.Invoke(config);
     }
 
     private bool GetChannelEnabled(Channel channel)
-        => (ChannelValue ?? Channel.All).HasFlag(channel);
+        => (Config?.Channel ?? LightRecord.Default.Channel).HasFlag(channel);
 
     private void SetChannelEnabled(Channel channel, bool enabled)
     {
-        if (ChannelValue is not Channel value)
+        if (Config is null)
             return;
 
         if (enabled)
-            value |= channel;
+            Config.Channel |= channel;
         else
-            value &= ~channel;
+            Config.Channel &= ~channel;
 
-        ChannelValueChanged?.Invoke(value);
+        ConfigChanged?.Invoke(Config);
     }
+
+    private double GetBrightness()
+        => (Config?.Brightness ?? LightRecord.Default.Brightness);
+    private void SetBrightness(double value)
+    {
+        if (Config is null)
+            return;
+
+        Config.Brightness = value;
+    }
+
+    private string FormatBrightnessToPercent(double value)
+        => $"{value * 100d} %";
 }
