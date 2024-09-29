@@ -31,6 +31,8 @@ public class LightColorCollection : IReadOnlyDictionary<LightId, NDPColor>
         => new((IReadOnlyDictionary<LightId, NDPColor>)values);
     public static LightColorCollection Black(IEnumerable<NDPLight> lights)
         => new(lights.ToDictionary(key => key.Id, value => value.ColorGamut.GamutBlack()));
+    public static LightColorCollection Black(IEnumerable<LightRecord> lights)
+        => Black(lights.Select(l => l.Light));
 
     public IEnumerable<KeyValuePair<T, NDPColor>> OfType<T>() where T : LightId
     {

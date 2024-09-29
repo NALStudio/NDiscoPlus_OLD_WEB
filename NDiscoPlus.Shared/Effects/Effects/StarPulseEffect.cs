@@ -24,7 +24,12 @@ internal class StarPulseEffect : NDPEffect
 
     private static Effect CreateEffect(LightId light, TimeSpan position, int totalLightCount)
     {
-        int fadeDurationSeconds = totalLightCount > 6 ? 5 : 3;
+        int fadeDurationSeconds = totalLightCount switch
+        {
+            <6 => 1,
+            <10 => 3,
+            _ => 5
+        };
 
         return new(light, position, duration: TimeSpan.Zero, _kPulseColor)
         {

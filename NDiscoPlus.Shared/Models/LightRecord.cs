@@ -12,7 +12,6 @@ namespace NDiscoPlus.Shared.Models;
 public partial class LightRecord
 {
     public static readonly LightRecord Default = new(null);
-
     public static LightRecord CreateDefault(NDPLight light)
         => new(light);
 

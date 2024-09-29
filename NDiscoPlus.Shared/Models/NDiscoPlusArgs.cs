@@ -15,7 +15,7 @@ namespace NDiscoPlus.Shared.Models;
 [MemoryPackable]
 public partial class NDiscoPlusArgs
 {
-    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, NDiscoPlusArgsLights lights)
+    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, ImmutableArray<LightRecord> lights)
     {
         Track = track;
 
@@ -34,34 +34,11 @@ public partial class NDiscoPlusArgs
     public TrackAudioAnalysis Analysis { get; }
 
     public EffectConfig Effects { get; }
-    public NDiscoPlusArgsLights Lights { get; }
+    public ImmutableArray<LightRecord> Lights { get; }
 
     public bool AllowHDR { get; init; } = false;
     /// <summary>
     /// <para>If <see langword="null"/>, use a random default color palette.</para>
     /// </summary>
     public NDPColorPalette? ReferencePalette { get; init; } = null;
-}
-
-[MemoryPackable]
-public partial class NDiscoPlusArgsLights
-{
-    public ImmutableArray<LightRecord> Lights { get; }
-
-    public IEnumerable<NDPLight> EnumerateLights()
-    {
-        foreach (LightRecord record in Lights)
-            yield return record.Light;
-    }
-
-    public NDiscoPlusArgsLights(IEnumerable<LightRecord> lights)
-        : this(lights.ToImmutableArray())
-    {
-    }
-
-    [MemoryPackConstructor]
-    public NDiscoPlusArgsLights(ImmutableArray<LightRecord> lights)
-    {
-        Lights = lights;
-    }
 }

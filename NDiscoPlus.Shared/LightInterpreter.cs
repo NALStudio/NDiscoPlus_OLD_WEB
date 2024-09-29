@@ -98,28 +98,38 @@ public class LightInterpreter
         }
     }
 
-    private static void ClampAndAddMissingLights(ref Dictionary<LightId, NDPColor> lights, IEnumerable<NDPLight> allLights)
+    private static void HandleLimitationsAndAddMissingLights(ref Dictionary<LightId, NDPColor> lights, IEnumerable<LightRecord> allLights)
     {
         // supply color values for all lights
-        foreach (NDPLight l in allLights)
+        foreach (LightRecord lightRecord in allLights)
         {
-            if (lights.TryGetValue(l.Id, out NDPColor color))
+            NDPLight light = lightRecord.Light;
+
+            if (lights.TryGetValue(light.Id, out NDPColor color))
             {
-                // if lights exists, clamp color to gamut (if gamut is available)
-                if (l.ColorGamut is not null)
-                    lights[l.Id] = color.Clamp(l.ColorGamut);
+                // if lights exists, handle light limitations
+
+                // clamp color to gamut (if gamut is available)
+                if (light.ColorGamut is not null)
+                    color = color.Clamp(light.ColorGamut);
+
+                // handle brightness
+                if (lightRecord.Brightness != 1d)
+                    color = color.CopyWith(brightness: color.Brightness * lightRecord.Brightness);
+
+                lights[light.Id] = color;
             }
             else
             {
                 // if light doesn't exist, create a black for it (must be inside its color gamut so we use the color gamut's red XY position.)
                 // we supply a default black value so that the consumer of this interpreter doesn't need to assign default colors itself.
                 NDPColor defaultBlack;
-                if (l.ColorGamut is not null)
-                    defaultBlack = l.ColorGamut.Red.ToColor(brightness: 0d);
+                if (light.ColorGamut is not null)
+                    defaultBlack = light.ColorGamut.Red.ToColor(brightness: 0d);
                 else
                     defaultBlack = new NDPColor();
 
-                lights[l.Id] = defaultBlack;
+                lights[light.Id] = defaultBlack;
             }
         }
     }
@@ -144,7 +154,7 @@ public class LightInterpreter
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
         UpdateEffects(ref lights, data, progress);
-        ClampAndAddMissingLights(ref lights, data.Lights);
+        HandleLimitationsAndAddMissingLights(ref lights, data.Lights);
 
         double deltaTime = TickDeltaTime();
 

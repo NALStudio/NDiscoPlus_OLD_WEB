@@ -228,7 +228,7 @@
 
     record LightHandlingData(
         ImmutableArray<LightHandler> Handlers,
-        NDiscoPlusArgsLights Lights,
+        ImmutableArray<LightRecord> Lights,
         ScreenLightHandler ScreenLightHandlerSingleton
     )
     {
@@ -508,8 +508,8 @@
             return;
         }
 
-        NDiscoPlusArgsLights lightsCollection = new(profile.BuildLightRecords(lights));
-        lightHandling = new(profile.Handlers.ToImmutableArray(), lightsCollection, screenLightHandlerSingleton);
+        ImmutableArray<LightRecord> lightRecords = profile.BuildLightRecords(lights).ToImmutableArray();
+        lightHandling = new(profile.Handlers.ToImmutableArray(), lightRecords, screenLightHandlerSingleton);
     }
 
     async Task InternalStopPlaying()
@@ -595,7 +595,8 @@
             }
 
             // Default to all lights black if no effect data (for the light interpreter) has been computed yet
-            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights.EnumerateLights());
+            // TODO: Do not allocate this every frame
+            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights);
 
             // if current light data has loaded, run interpreter
             if (lightHandling.CurrentData is not null)

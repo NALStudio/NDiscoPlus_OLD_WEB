@@ -22,7 +22,7 @@ public partial class NDPData
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
         EffectConfig effectConfig, ChunkedEffectsCollection effects,
-        ImmutableArray<NDPLight> lights
+        ImmutableArray<LightRecord> lights
     )
     {
         Track = track;
@@ -43,7 +43,7 @@ public partial class NDPData
     public EffectConfig EffectConfig { get; }
     public ChunkedEffectsCollection Effects { get; }
 
-    public ImmutableArray<NDPLight> Lights { get; }
+    public ImmutableArray<LightRecord> Lights { get; }
 
     public static string Serialize(NDPData data)
         => MemoryPackHelper.SerializeToBase64(data);

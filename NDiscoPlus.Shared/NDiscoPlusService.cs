@@ -130,7 +130,7 @@ public class NDiscoPlusService
             effectConfig: api.Config,
             effects: ChunkedEffectsCollection.Construct(api),
 
-            lights: args.Lights.EnumerateLights().ToImmutableArray()
+            lights: args.Lights
         );
     }
     public SerializedValue ComputeDataBlazorWorker(SerializedValue args)

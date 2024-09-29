@@ -22,13 +22,13 @@ internal class EffectAPI
 
     public BackgroundChannel? Background { get; }
 
-    public EffectAPI(EffectConfig config, NDiscoPlusArgsLights lights)
+    public EffectAPI(EffectConfig config, ImmutableArray<LightRecord> lights)
     {
         KeyValuePair<Channel, EffectChannel>? CreateChannelIfNecessary(Channel type)
         {
-            NDPLight[] channelLights = lights.Lights.Where(l => l.Channel.HasFlag(type))
-                                                    .Select(l => l.Light)
-                                                    .ToArray();
+            NDPLight[] channelLights = lights.Where(l => l.Channel.HasFlag(type))
+                                             .Select(l => l.Light)
+                                             .ToArray();
             if (channelLights.Length > 0)
                 return new(type, new EffectChannel(type, channelLights));
             else
@@ -41,8 +41,8 @@ internal class EffectAPI
         foreach (Channel c in ChannelFlag.FlagValues)
         {
             KeyValuePair<Channel, EffectChannel>? chnl = CreateChannelIfNecessary(c);
-            if (chnl is KeyValuePair<Channel, EffectChannel> kv)
-                channels.Add(kv);
+            if (chnl.HasValue)
+                channels.Add(chnl.Value);
         }
 
         channelsArr = channels.Select(c => c.Value).ToImmutableArray();
