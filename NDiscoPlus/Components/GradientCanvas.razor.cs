@@ -1,13 +1,8 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using MudBlazor;
 using NDiscoPlus.Shared.Models.Color;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Runtime.InteropServices.JavaScript;
-using System.Runtime.Versioning;
-using System.Threading;
 
 namespace NDiscoPlus.Components;
 
@@ -64,7 +59,7 @@ public partial class GradientCanvas : IAsyncDisposable
     private ShaderArgs? previousShaderArgs;
     private SizeArgs? previousSizeArgs;
 
-    private Task<IJSObjectReference>? program;
+    private Task<IJSObjectReference?>? program;
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -78,7 +73,12 @@ public partial class GradientCanvas : IAsyncDisposable
         ShaderArgs shaderArgs = new(Colors.Count, UseHDR, Dither);
         SizeArgs sizeArgs = new(Width, Height);
 
-        if (program is null || shaderArgs != previousShaderArgs || sizeArgs != previousSizeArgs)
+        if (
+            program is null
+            || (program.IsCompleted && program.Result is null)
+            || shaderArgs != previousShaderArgs
+            || sizeArgs != previousSizeArgs
+        )
         {
             program = CreateProgram(
                 previousProgram: program,
@@ -93,14 +93,17 @@ public partial class GradientCanvas : IAsyncDisposable
         }
     }
 
-    private async Task<IJSObjectReference> CreateProgram(Task<IJSObjectReference>? previousProgram, ShaderArgs shaderArgs, SizeArgs sizeArgs, IReadOnlyList<NDPColor> colors)
+    private async Task<IJSObjectReference?> CreateProgram(Task<IJSObjectReference?>? previousProgram, ShaderArgs shaderArgs, SizeArgs sizeArgs, IReadOnlyList<NDPColor> colors)
     {
         if (previousProgram is not null)
             await DisposeProgram(previousProgram);
 
         IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Components/GradientCanvas.razor.js");
 
-        IJSObjectReference program = await module.InvokeAsync<IJSObjectReference>("createShaderPipeline", ParentDivReference, sizeArgs.Width, sizeArgs.Height, shaderArgs.UseHDR, shaderArgs.ToArgumentDictionary());
+        IJSObjectReference? program = await module.InvokeAsync<IJSObjectReference?>("createShaderPipeline", ParentDivReference, sizeArgs.Width, sizeArgs.Height, shaderArgs.UseHDR, shaderArgs.ToArgumentDictionary());
+        if (program is null) // see javascript file for null return justification
+            return null;
+
         await program.InvokeVoidAsync("start_render", UnpackColors(colors));
 
         return program;
@@ -110,8 +113,8 @@ public partial class GradientCanvas : IAsyncDisposable
     {
         Debug.Assert(Colors is not null);
 
-        if (program?.IsCompleted == true)
-            await program.Result.InvokeVoidAsync("set_colors", UnpackColors(Colors));
+        if (program?.IsCompleted == true && program.Result is IJSObjectReference prog)
+            await prog.InvokeVoidAsync("set_colors", UnpackColors(Colors));
     }
 
     private static IEnumerable<double> UnpackColors(IEnumerable<NDPColor> colors)
@@ -124,11 +127,14 @@ public partial class GradientCanvas : IAsyncDisposable
         }
     }
 
-    internal static async ValueTask DisposeProgram(Task<IJSObjectReference> program)
+    internal static async ValueTask DisposeProgram(Task<IJSObjectReference?> program)
     {
-        IJSObjectReference p = await program;
-        await p.InvokeVoidAsync("dispose");
-        await p.DisposeAsync();
+        IJSObjectReference? p = await program;
+        if (p is not null)
+        {
+            await p.InvokeVoidAsync("dispose");
+            await p.DisposeAsync();
+        }
     }
 
     public async ValueTask DisposeAsync()

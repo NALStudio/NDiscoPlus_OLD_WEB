@@ -85,17 +85,19 @@
                     {
                         @foreach (DiscoveredLight light in CurrentProfileLights!)
                         {
-                            <LightChannelSelector Config="@GetConfiguration(light.Light.Id)"
-                                                  ConfigChanged="@(value => SetConfiguration(light.Light.Id, value))"
-                                                  Light="light.Light"
-                                                  LightHandler="light.Handler" />
+                            <LightConfigEditor Config="@GetConfiguration(light.Light.Id)"
+                                               ConfigChanged="@(value => SetConfiguration(light.Light.Id, value))"
+                                               Light="light.Light"
+                                               LightHandler="light.Handler"
+                                               SettingsOpenedChanged="LightConfigEditorSettingsOpened" />
                         }
                         @foreach (var missingLight in GetMissingLights())
                         {
-                            <LightChannelSelector Config="@GetConfiguration(missingLight.Key)"
-                                                  ConfigChanged="@(value => SetConfiguration(missingLight.Key, value))"
-                                                  Light="null"
-                                                  LightHandler="null" />
+                            <LightConfigEditor Config="@GetConfiguration(missingLight.Key)"
+                                               ConfigChanged="@(value => SetConfiguration(missingLight.Key, value))"
+                                               Light="null"
+                                               LightHandler="null"
+                                               SettingsOpenedChanged="LightConfigEditorSettingsOpened" />
                         }
                     }
                 </ChildContent>
@@ -247,6 +249,14 @@
             if (!value)
                 throw new ArgumentException("Cannot set value as false.");
             __currentProfileEdited = true;
+        }
+    }
+    private void LightConfigEditorSettingsOpened(bool opened)
+    {
+        if (opened) 
+        {
+            CurrentProfileEdited = true;
+            StateHasChanged(); // State doesn't update otherwise for some reason...
         }
     }
 

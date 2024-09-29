@@ -16,6 +16,13 @@ const vertexData = new Float32Array(vertices.flat());
  * @param {Map<String, String>} fragmentShaderArgs 
  */
 export function createShaderPipeline(divElementReference, width, height, useHDR, fragmentShaderArgs) {
+    if (divElementReference === null) {
+        // Sometimes this is called when the website has already started unloading.
+        // In this case, C#-land still has the element reference, but JS-topia doesn't already.
+        // Let's exit this rare case graciously.
+        return null;
+    }
+
     const canvas = divElementReference.querySelector("#GradientCanvas_canvas");
     const vertexShaderSource = divElementReference.querySelector("#GradientCanvas_vertex").textContent;
 

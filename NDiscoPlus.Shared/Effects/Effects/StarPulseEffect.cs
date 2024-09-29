@@ -26,8 +26,8 @@ internal class StarPulseEffect : NDPEffect
     {
         int fadeDurationSeconds = totalLightCount switch
         {
-            <6 => 1,
-            <10 => 3,
+            <= 6 => 1,
+            <= 10 => 3,
             _ => 5
         };
 
