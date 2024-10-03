@@ -113,16 +113,24 @@
         <MudExpansionPanels MultiExpansion="true">
             @foreach (LightHandler handler in CurrentProfile?.Handlers ?? Enumerable.Empty<LightHandler>())
             {
-                LightHandlerConfig config = handler.ConfigRef;
+                LightHandlerConfig config = handler.Config;
                 var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
                 Type editorType = config.GetEditorType();
 
                 <MudExpansionPanel>
                     <TitleContent>
-                        <div class="d-flex">
-                            <MudIcon Icon="@(handler.Implementation.DisplayIcon)" Class="mr-3" />
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="pr-3">  <!-- Padding right 3 to add space between stack items and expansion panel icon -->
+                            <MudIcon Icon="@(handler.Implementation.DisplayIcon)" />
                             <MudText><strong>@(handler.Implementation.DisplayName)</strong></MudText>
-                        </div>
+                            <MudSpacer />
+                            <div>
+                                <MudTooltip Text="@("Remove " + handler.Implementation.DisplayName)">
+                                    <MudIconButton Icon="@(Icons.Material.Rounded.RemoveCircleOutline)"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => RemoveHandler(handler))" />
+                                </MudTooltip>
+                            </div>
+                        </MudStack>
                     </TitleContent>
                     <ChildContent>
                         <!-- If object could not be instantiated, one common cause can be that object does not inherit LightHandlerConfigEditor<T> -->
@@ -134,7 +142,7 @@
     </MudForm>
 </MudMainContent>
 
-<MudMessageBox @ref=_mudMessageBox Title="Unsaved Changes!" CancelText="Cancel">
+<MudMessageBox @ref=_unsavedMessageBox Title="Unsaved Changes!" CancelText="Cancel">
     <MessageContent>
         There are unsaved messages.
         Are you sure you want to discard them?
@@ -235,7 +243,7 @@
 
     private ProfileData? Profiles { get; set; }
 
-    private MudMessageBox? _mudMessageBox;
+    private MudMessageBox? _unsavedMessageBox;
 
     private MudForm? form;
 
@@ -280,7 +288,7 @@
         if (!CurrentProfileEdited)
             return true;
 
-        bool? result = await _mudMessageBox!.ShowAsync();
+        bool? result = await _unsavedMessageBox!.ShowAsync();
         return result == true;
     }
 
@@ -375,8 +383,21 @@
     {
         ThrowIfProfileDataIsNull();
 
-        CurrentProfile.AddHandler(implementation.Type);
-        CurrentProfileEdited = true;
+        bool added = CurrentProfile.TryAddHandler(implementation.Type);
+        if (added)
+            CurrentProfileEdited = true;
+        else
+            _ = DialogService.ShowMessageBox("Maximum Handlers", "Cannot add handler, maximum handlers reached.");
+    }
+    private void RemoveHandler(LightHandler handler)
+    {
+        ThrowIfProfileDataIsNull();
+
+        bool removed = CurrentProfile.TryRemoveHandler(handler);
+        if (removed)
+            CurrentProfileEdited = true;
+        else
+            _ = DialogService.ShowMessageBox("Minimum Handlers", "Cannot remove handler, minimum handlers reached.");
     }
 
     private async Task NavigateBack()

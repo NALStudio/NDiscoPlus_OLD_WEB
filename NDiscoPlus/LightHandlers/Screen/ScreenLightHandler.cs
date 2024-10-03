@@ -17,7 +17,7 @@ internal readonly record struct ScreenLight(NDPLight Light, NDPColor? Color)
         => new(Light, color);
 }
 
-internal class ScreenLightHandler : LightHandler
+internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 {
     private record class LightsContainer(NDPLight[] Lights)
     {
@@ -34,19 +34,19 @@ internal class ScreenLightHandler : LightHandler
         }
 
         public IReadOnlyList<NDPColor>? Colors => parent.lights?.Colors;
-        public bool HDR => parent.Config<ScreenLightHandlerConfig>().UseHDR;
+        public bool HDR => parent.Config.UseHDR;
     }
 
 
     // Publicly exposed parameters for screen light handling
     public RenderData Render { get; }
 
-    public ScreenLightHandler(LightHandlerConfig? config) : base(config)
+    public ScreenLightHandler(ScreenLightHandlerConfig? config) : base(config)
     {
         Render = new RenderData(this);
     }
 
-    protected override LightHandlerConfig CreateConfig()
+    protected override ScreenLightHandlerConfig CreateConfig()
         => new ScreenLightHandlerConfig();
 
     private static NDPLight[] GetLights4(ColorGamut colorGamut)
@@ -75,13 +75,11 @@ internal class ScreenLightHandler : LightHandler
 
     private NDPLight[] GetLightsInternal()
     {
-        var config = Config<ScreenLightHandlerConfig>();
+        ColorGamut colorGamut = Config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
 
-        ColorGamut colorGamut = config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
-
-        if (config.LightCount == ScreenLightCount.Four)
+        if (Config.LightCount == ScreenLightCount.Four)
             return GetLights4(colorGamut);
-        else if (config.LightCount == ScreenLightCount.Six)
+        else if (Config.LightCount == ScreenLightCount.Six)
             return GetLights6(colorGamut);
         else
             throw new InvalidLightHandlerConfigException("Invalid light count.");
@@ -98,13 +96,11 @@ internal class ScreenLightHandler : LightHandler
 
     public override ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors)
     {
-        ScreenLightHandlerConfig config = Config<ScreenLightHandlerConfig>();
-
         bool valid = true;
 
-        if (!Enum.GetValues<ScreenLightCount>().Contains(config.LightCount))
+        if (!Enum.GetValues<ScreenLightCount>().Contains(Config.LightCount))
         {
-            errors?.Add($"Invalid Screen Light Count: {config.LightCount}");
+            errors?.Add($"Invalid Screen Light Count: {Config.LightCount}");
             valid = false;
         }
 

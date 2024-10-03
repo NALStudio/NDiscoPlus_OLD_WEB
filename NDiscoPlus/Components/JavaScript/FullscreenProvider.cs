@@ -16,6 +16,7 @@ public readonly struct WakeLockSentinel
 
 public class FullscreenProvider : BaseJSModuleProvider
 {
+    // Cannot move module under this component as Blazor doesn't detect it since this is not a .razor file
     protected override string ModulePath => "./js/fullscreenProvider.js";
     public FullscreenProvider(IJSRuntime js) : base(js)
     {

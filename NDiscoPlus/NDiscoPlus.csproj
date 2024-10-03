@@ -32,7 +32,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\NDiscoPlus.PhilipsHue\NDiscoPlus.PhilipsHue.csproj" />
     <ProjectReference Include="..\NDiscoPlus.Shared\NDiscoPlus.Shared.csproj" />
+    <ProjectReference Include="..\NDiscoPlus.Spotify\NDiscoPlus.Spotify.csproj" />
   </ItemGroup>
 
   <ItemGroup>

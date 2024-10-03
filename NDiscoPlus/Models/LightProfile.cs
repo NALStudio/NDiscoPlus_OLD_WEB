@@ -29,7 +29,7 @@ public sealed class LightProfile
 
         public static SerializableProfile Construct(LightProfile profile)
         {
-            ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.ConfigRef).ToImmutableArray();
+            ImmutableArray<LightHandlerConfig> handlers = profile.handlers.Select(h => h.Config).ToImmutableArray();
 
             return new SerializableProfile(
                 profile.Name,
@@ -197,27 +197,25 @@ public sealed class LightProfile
     public bool CanRemoveHandler<T>() where T : LightHandler
         => CanRemoveHandler(typeof(T));
 
-    public bool TryAddHandler(Type type)
+    /// <summary>
+    /// Returns <see langword="false"/> if maximum handlers has already been reached.
+    /// </summary>
+    public bool TryAddHandler(LightHandlerImplementation implementation)
     {
-        if (!CanAddHandler(type))
+        if (!CanAddHandler(implementation))
             return false;
 
-        LightHandlerImplementation impl = LightHandler.GetImplementation(type);
-        handlers.Add(impl.Constructor(null));
+        handlers.Add(implementation.CreateInstance(null));
         return true;
     }
+    public bool TryAddHandler(Type type)
+        => TryAddHandler(LightHandler.GetImplementation(type));
     public bool TryAddHandler<T>() where T : LightHandler
         => TryAddHandler(typeof(T));
 
-    public void AddHandler(Type type)
-    {
-        bool added = TryAddHandler(type);
-        if (!added)
-            throw new ArgumentException("Cannot add handler. Maximum handlers reached.");
-    }
-    public void AddHandler<T>() where T : LightHandler
-        => AddHandler(typeof(T));
-
+    /// <summary>
+    /// Returns <see langword="false"/> if minimum handlers has already been reached.
+    /// </summary>
     public bool TryRemoveHandler(LightHandler handler)
     {
         if (!CanRemoveHandler(handler.GetType()))
@@ -225,12 +223,6 @@ public sealed class LightProfile
 
         handlers.Remove(handler);
         return true;
-    }
-    public void RemoveHandler(LightHandler handler)
-    {
-        bool removed = TryRemoveHandler(handler);
-        if (!removed)
-            throw new ArgumentException("Cannot remove handler. Minimum handlers reached.");
     }
 
     public IEnumerable<LightRecord> BuildLightRecords(IEnumerable<NDPLight> lights)

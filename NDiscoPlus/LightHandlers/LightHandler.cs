@@ -15,8 +15,7 @@ namespace NDiscoPlus.LightHandlers;
 public readonly record struct LightHandlerImplementation(
     Type Type,
     string DisplayName,
-    string DisplayIcon,
-    Func<LightHandlerConfig?, LightHandler> Constructor
+    string DisplayIcon
 )
 {
     /// <summary>
@@ -28,6 +27,11 @@ public readonly record struct LightHandlerImplementation(
     /// Inclusive. (example: MinCount 1, LightHandler cannot be added if a handler already exists)
     /// </summary>
     public int MaxCount { get; init; } = 3;
+
+    public LightHandler CreateInstance(LightHandlerConfig? config)
+    {
+        return (LightHandler)Activator.CreateInstance(Type, config)!;
+    }
 }
 
 public abstract class LightHandler : IAsyncDisposable
@@ -36,25 +40,21 @@ public abstract class LightHandler : IAsyncDisposable
         new(
             typeof(ScreenLightHandler),
             "Screen",
-            Icons.Material.Rounded.DesktopWindows,
-            static (cfg) => new ScreenLightHandler(cfg)
+            Icons.Material.Rounded.DesktopWindows
         )
         {
-            MinCount = 1,
             MaxCount = 1
         },
         new(
             typeof(HueLightHandler),
             "Philips Hue",
-            Icons.Material.Rounded.Lightbulb,
-            static (cfg) => new HueLightHandler(cfg)
+            Icons.Material.Rounded.Lightbulb
         )
     ];
     // Use FrozenDictionary as this is only instantiated once.
     private static readonly FrozenDictionary<Type, LightHandlerImplementation> implementationLookup = Implementations.ToFrozenDictionary(key => key.Type);
 
-    protected T Config<T>() where T : LightHandlerConfig => (T)ConfigRef;
-    public LightHandlerConfig ConfigRef { get; }
+    public LightHandlerConfig Config { get; }
 
     public LightHandlerImplementation Implementation => GetImplementation(GetType());
 
@@ -68,7 +68,7 @@ public abstract class LightHandler : IAsyncDisposable
 
     protected LightHandler(LightHandlerConfig? config)
     {
-        ConfigRef = config ?? CreateConfig();
+        Config = config ?? CreateConfig();
     }
 
     /// <summary>
@@ -98,4 +98,14 @@ public abstract class LightHandler : IAsyncDisposable
         GC.SuppressFinalize(this);
         return t;
     }
+}
+
+public abstract class LightHandler<T> : LightHandler where T : LightHandlerConfig
+{
+    protected LightHandler(T? config) : base(config)
+    {
+    }
+
+    public new T Config => (T)base.Config;
+    protected abstract override T CreateConfig();
 }

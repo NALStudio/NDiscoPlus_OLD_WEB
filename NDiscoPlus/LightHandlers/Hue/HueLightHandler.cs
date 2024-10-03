@@ -1,10 +1,13 @@
-﻿using NDiscoPlus.Components.LightHandlerConfigEditor;
+﻿using NDiscoPlus.Components.LightHandlerConfigEditor.HueLightHandlerConfigEditor;
+using NDiscoPlus.PhilipsHue.Authentication.Models;
 using NDiscoPlus.Shared.Models;
-
 namespace NDiscoPlus.LightHandlers.Hue;
 
 public class HueLightHandlerConfig : LightHandlerConfig
 {
+    public string? BridgeIP { get; set; } = null;
+    public HueCredentials? BridgeCredentials { get; set; } = null;
+
     public override LightHandler CreateLightHandler()
         => new HueLightHandler(this);
 
@@ -12,9 +15,9 @@ public class HueLightHandlerConfig : LightHandlerConfig
         => typeof(HueLightHandlerConfigEditor);
 }
 
-public class HueLightHandler : LightHandler
+public class HueLightHandler : LightHandler<HueLightHandlerConfig>
 {
-    public HueLightHandler(LightHandlerConfig? config) : base(config)
+    public HueLightHandler(HueLightHandlerConfig? config) : base(config)
     {
     }
 
@@ -40,9 +43,23 @@ public class HueLightHandler : LightHandler
 
     public override ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors)
     {
-        throw new NotImplementedException();
+        bool valid = true;
+
+        if (Config.BridgeIP is null)
+        {
+            errors?.Add("No bridge IP selected.");
+            valid = false;
+        }
+
+        if (Config?.BridgeCredentials is null)
+        {
+            errors?.Add("Application not linked with bridge.");
+            valid = false;
+        }
+
+        return new(valid);
     }
 
-    protected override LightHandlerConfig CreateConfig()
+    protected override HueLightHandlerConfig CreateConfig()
         => new HueLightHandlerConfig();
 }
